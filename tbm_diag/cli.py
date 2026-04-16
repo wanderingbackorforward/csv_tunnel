@@ -42,6 +42,7 @@ from tbm_diag.detector import DetectionResult, DetectorConfig, detect
 from tbm_diag.segmenter import Event, SegmenterConfig, segment_events
 from tbm_diag.evidence import EventEvidence, extract_evidence
 from tbm_diag.explainer import Explanation, TemplateExplainer
+from tbm_diag.exporter import ResultBundle, to_events_csv, to_json, to_markdown
 
 # tabulate 为可选依赖——若未安装，用简单对齐替代
 try:
@@ -376,8 +377,10 @@ def _add_common_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--verbose", "-v", action="store_true", help="显示 DEBUG 日志")
 
 
-def _load_and_clean(args: argparse.Namespace) -> tuple[pd.DataFrame, IngestionResult]:
-    """公共加载 + 清洗流程，返回 (cleaned_df, ingestion_result)。"""
+def _load_and_clean(
+    args: argparse.Namespace,
+) -> tuple[pd.DataFrame, IngestionResult, "CleaningReport"]:
+    """公共加载 + 清洗流程，返回 (cleaned_df, ingestion_result, cleaning_report)。"""
     print(f"[1/2] 加载文件: {args.input}")
     try:
         result: IngestionResult = load_csv(args.input)
@@ -412,7 +415,7 @@ def _load_and_clean(args: argparse.Namespace) -> tuple[pd.DataFrame, IngestionRe
         sys.exit(1)
 
     _print_cleaning_report(report)
-    return df, result
+    return df, result, report
 
 
 def _cmd_inspect(args: argparse.Namespace) -> int:
@@ -434,7 +437,7 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
         _print_field_mapping(result.recognized)
         _print_unrecognized(result.unrecognized)
     else:
-        df, result = _load_and_clean(args)
+        df, result = _load_and_clean(args)[:2]
         _print_field_mapping(result.recognized)
         _print_unrecognized(result.unrecognized)
 
@@ -457,7 +460,7 @@ def _cmd_detect(args: argparse.Namespace) -> int:
     """detect 子命令：特征计算 + 异常点检测 + 事件分段。"""
     _setup_logging(args.verbose)
 
-    df, _ = _load_and_clean(args)
+    df, _ingestion_result, _cleaning_report = _load_and_clean(args)
 
     print("\n[3/4] 特征计算 + 异常检测 …")
     try:
@@ -489,6 +492,43 @@ def _cmd_detect(args: argparse.Namespace) -> int:
             print(f"✗ 解释生成失败: {exc}", file=sys.stderr)
             return 1
         _print_explanations(explanations, verbose=args.verbose)
+
+    # ── 导出 ──────────────────────────────────────────────────────────────────
+    need_export = any([
+        getattr(args, "save_json", None),
+        getattr(args, "save_report", None),
+        getattr(args, "save_events_csv", None),
+    ])
+    if need_export and events:
+        bundle = ResultBundle(
+            input_file=args.input,
+            ingestion=_ingestion_result,
+            cleaning=_cleaning_report,
+            detection=result,
+            events=events,
+            evidences=evidences,
+            explanations=explanations,
+        )
+        if args.save_json:
+            try:
+                to_json(bundle, Path(args.save_json))
+                print(f"\n✓ JSON 已导出: {args.save_json}")
+            except Exception as exc:
+                print(f"✗ JSON 导出失败: {exc}", file=sys.stderr)
+
+        if args.save_report:
+            try:
+                to_markdown(bundle, Path(args.save_report), verbose=args.verbose)
+                print(f"✓ 报告已导出: {args.save_report}")
+            except Exception as exc:
+                print(f"✗ 报告导出失败: {exc}", file=sys.stderr)
+
+        if args.save_events_csv:
+            try:
+                to_events_csv(bundle, Path(args.save_events_csv))
+                print(f"✓ 事件表已导出: {args.save_events_csv}")
+            except Exception as exc:
+                print(f"✗ 事件表导出失败: {exc}", file=sys.stderr)
 
     if hasattr(args, "output") and args.output:
         out = Path(args.output)
@@ -531,6 +571,12 @@ def main(argv: list[str] | None = None) -> int:
     _add_common_args(p_detect)
     p_detect.add_argument("--output", "-o", default=None, metavar="FILE",
                           help="将检测结果 DataFrame 导出为 CSV（UTF-8 BOM）")
+    p_detect.add_argument("--save-json", default=None, metavar="PATH",
+                          help="导出完整结构化 JSON 结果")
+    p_detect.add_argument("--save-report", default=None, metavar="PATH",
+                          help="导出 Markdown 诊断报告")
+    p_detect.add_argument("--save-events-csv", default=None, metavar="PATH",
+                          help="导出事件表 CSV（UTF-8 BOM，兼容 Excel）")
 
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)

@@ -27,13 +27,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentConfig:
-    model: str = "gpt-4o-mini"
+    model: str = "MiniMax-M2.7-highspeed"
     max_tokens: int = 2048
     temperature: float = 0.2
     api_key_env: str = "OPENAI_API_KEY"
     base_url_env: str = "OPENAI_BASE_URL"
     timeout_seconds: int = 60
     max_tool_rounds: int = 6
+    reasoning_split: bool = True
+    """MiniMax 专用：是否在请求中传入 extra_body={"reasoning_split": True}。
+    若目标服务不支持此参数，会自动 fallback 重试一次不带该参数。"""
 
 
 # ── 结果 dataclass ─────────────────────────────────────────────────────────────
@@ -409,9 +412,14 @@ def _call_llm(
     client: Any,
 ) -> Optional[dict]:
     """
-    调用 OpenAI-compatible API，返回 message dict 或 None（失败时）。
+    调用 OpenAI-compatible API，返回完整 assistant message dict 或 None（失败时）。
+
+    MiniMax 适配要点：
+    - 支持 extra_body={"reasoning_split": True}，若服务不接受则自动 fallback
+    - 当模型返回 tool_calls 时，content 保持 None（不强转为空字符串）
+    - reasoning_details 仅在 debug 日志中输出，不进入主流程
     """
-    try:
+    def _do_call(with_reasoning: bool) -> Any:
         kwargs: dict[str, Any] = {
             "model":       cfg.model,
             "messages":    messages,
@@ -422,13 +430,40 @@ def _call_llm(
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+        if with_reasoning:
+            kwargs["extra_body"] = {"reasoning_split": True}
+        return client.chat.completions.create(**kwargs)
 
-        response = client.chat.completions.create(**kwargs)
+    try:
+        # 第一次尝试（带 reasoning_split，若 cfg.reasoning_split=False 则直接跳过）
+        try:
+            response = _do_call(with_reasoning=cfg.reasoning_split)
+        except Exception as exc:
+            err_str = str(exc).lower()
+            # 若是参数不支持类错误，fallback 不带 extra_body 重试一次
+            if cfg.reasoning_split and any(k in err_str for k in (
+                "extra_body", "reasoning_split", "unknown", "invalid", "unexpected", "parameter"
+            )):
+                logger.warning("_call_llm: reasoning_split not supported, retrying without it")
+                response = _do_call(with_reasoning=False)
+            else:
+                raise
+
         msg = response.choices[0].message
 
-        # normalize to dict
-        result: dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
-        if msg.tool_calls:
+        # reasoning_details：仅 debug 日志，不进主流程
+        if hasattr(msg, "reasoning_details") and msg.reasoning_details:
+            logger.debug("reasoning_details: %s", str(msg.reasoning_details)[:300])
+
+        # 构造完整 assistant message dict
+        # 关键：tool_calls 存在时 content 保持 None，不转为 ""
+        # 这样多轮对话历史中 assistant message 格式与 OpenAI spec 一致
+        has_tool_calls = bool(getattr(msg, "tool_calls", None))
+        result: dict[str, Any] = {
+            "role":    "assistant",
+            "content": msg.content if msg.content else (None if has_tool_calls else ""),
+        }
+        if has_tool_calls:
             result["tool_calls"] = [
                 {
                     "id":   tc.id,
@@ -441,6 +476,7 @@ def _call_llm(
                 for tc in msg.tool_calls
             ]
         return result
+
     except Exception as exc:
         logger.warning("_call_llm failed (%s: %s)", type(exc).__name__, exc)
         return None

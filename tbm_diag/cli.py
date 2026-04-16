@@ -684,6 +684,9 @@ def _cmd_agent(args: argparse.Namespace) -> int:
     if getattr(args, "agent_model", None):
         from dataclasses import replace as dc_replace
         agent_cfg = dc_replace(agent_cfg, model=args.agent_model)
+    if getattr(args, "no_reasoning_split", False):
+        from dataclasses import replace as dc_replace
+        agent_cfg = dc_replace(agent_cfg, reasoning_split=False)
 
     print(f"[agent] 启动 agent 模式  model={agent_cfg.model}")
     print(f"[agent] 输入文件: {args.input}", flush=True)
@@ -768,18 +771,36 @@ def main(argv: list[str] | None = None) -> int:
                          help="配置文件路径（.yaml / .yml / .json）")
 
     # ── agent 子命令 ───────────────────────────────────────────────────────────
-    p_agent = subparsers.add_parser("agent", help="OpenAI-compatible tool-using agent 诊断")
+    p_agent = subparsers.add_parser(
+        "agent",
+        help="OpenAI-compatible tool-using agent 诊断（默认适配 MiniMax）",
+        description=(
+            "通过 OpenAI-compatible API 运行 tool-using agent 诊断。\n"
+            "默认适配 MiniMax，也支持任何 OpenAI-compatible 服务。\n\n"
+            "MiniMax 示例：\n"
+            "  export OPENAI_API_KEY=sk-api-xxx\n"
+            "  export OPENAI_BASE_URL=https://api.minimaxi.com/v1\n"
+            "  python -m tbm_diag.cli agent --input data.csv\n\n"
+            "标准 OpenAI 示例：\n"
+            "  export OPENAI_API_KEY=sk-xxx\n"
+            "  python -m tbm_diag.cli agent --input data.csv --agent-model gpt-4o-mini --no-reasoning-split"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p_agent.add_argument("--input", "-i", required=True, metavar="FILE",
                          help="输入 CSV/XLS 文件路径")
     p_agent.add_argument("--agent-model", default=None, metavar="MODEL",
-                         help="覆盖 config 中的 agent 模型名（可选）")
+                         help="覆盖 config 中的 agent 模型名（默认 MiniMax-M2.7-highspeed）")
+    p_agent.add_argument("--no-reasoning-split", action="store_true",
+                         help="关闭 MiniMax reasoning_split 参数（使用标准 OpenAI 服务时建议加此 flag）")
     p_agent.add_argument("--save-json", default=None, metavar="PATH",
                          help="导出完整结构化 JSON 结果")
     p_agent.add_argument("--save-report", default=None, metavar="PATH",
                          help="导出 Markdown 诊断报告")
     p_agent.add_argument("--save-events-csv", default=None, metavar="PATH",
                          help="导出事件表 CSV（UTF-8 BOM，兼容 Excel）")
-    p_agent.add_argument("--verbose", "-v", action="store_true", help="显示 DEBUG 日志及 tool 返回内容")
+    p_agent.add_argument("--verbose", "-v", action="store_true",
+                         help="显示 DEBUG 日志及 tool 返回内容")
     p_agent.add_argument("--config", default=None, metavar="PATH",
                          help="配置文件路径（.yaml / .yml / .json）")
 

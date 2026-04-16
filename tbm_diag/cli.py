@@ -44,6 +44,7 @@ from tbm_diag.evidence import EventEvidence, extract_evidence
 from tbm_diag.explainer import Explanation, TemplateExplainer
 from tbm_diag.exporter import ResultBundle, to_events_csv, to_json, to_markdown
 from tbm_diag.watcher import run_watch_loop
+from tbm_diag.config import DiagConfig, load_config
 
 # tabulate 为可选依赖——若未安装，用简单对齐替代
 try:
@@ -328,13 +329,17 @@ _SEVERITY_ICON: dict[str, str] = {
 }
 
 
-def _print_explanations(explanations: list[Explanation], verbose: bool = False) -> None:
-    show = explanations if verbose else explanations[:3]
+def _print_explanations(
+    explanations: list[Explanation],
+    verbose: bool = False,
+    top_k: int = 3,
+) -> None:
+    show = explanations if verbose else explanations[:top_k]
     if not show:
         return
 
     total = len(explanations)
-    header_note = f"（共 {total} 个，--verbose 查看全部）" if not verbose and total > 3 else ""
+    header_note = f"（共 {total} 个，--verbose 查看全部）" if not verbose and total > top_k else ""
     print(f"\n┌─ Top {len(show)} 事件解释{header_note} " + "─" * 30)
 
     for i, exp in enumerate(show, 1):
@@ -367,19 +372,22 @@ def _print_explanations(explanations: list[Explanation], verbose: bool = False) 
 def _add_common_args(p: argparse.ArgumentParser) -> None:
     """向子命令解析器添加公共参数。"""
     p.add_argument("--input", "-i", required=True, metavar="FILE", help="输入 CSV 文件路径")
-    p.add_argument("--resample", default="1s", metavar="FREQ",
-                   help="重采样频率（pandas offset alias，'none' 跳过）。默认: 1s")
-    p.add_argument("--spike-k", type=float, default=5.0, metavar="K",
-                   help="IQR 尖峰检测宽松倍数（默认 5.0）")
-    p.add_argument("--fill", choices=["ffill", "linear"], default="ffill",
-                   help="缺失值填充方式。默认: ffill")
-    p.add_argument("--max-gap", type=int, default=5, metavar="N",
-                   help="最大连续填充步数（默认 5）")
+    p.add_argument("--resample", default=None, metavar="FREQ",
+                   help="重采样频率（pandas offset alias，'none' 跳过）。默认由配置文件或 1s 决定")
+    p.add_argument("--spike-k", type=float, default=None, metavar="K",
+                   help="IQR 尖峰检测宽松倍数（默认由配置文件或 5.0 决定）")
+    p.add_argument("--fill", choices=["ffill", "linear"], default=None,
+                   help="缺失值填充方式（默认由配置文件或 ffill 决定）")
+    p.add_argument("--max-gap", type=int, default=None, metavar="N",
+                   help="最大连续填充步数（默认由配置文件或 5 决定）")
     p.add_argument("--verbose", "-v", action="store_true", help="显示 DEBUG 日志")
+    p.add_argument("--config", default=None, metavar="PATH",
+                   help="配置文件路径（.yaml / .yml / .json）")
 
 
 def _load_and_clean(
     args: argparse.Namespace,
+    cfg: DiagConfig,
 ) -> tuple[pd.DataFrame, IngestionResult, "CleaningReport"]:
     """公共加载 + 清洗流程，返回 (cleaned_df, ingestion_result, cleaning_report)。"""
     print(f"[1/2] 加载文件: {args.input}")
@@ -397,19 +405,26 @@ def _load_and_clean(
         f"原始维度: {result.df.shape[0]:,} 行 × {result.df.shape[1]} 列"
     )
 
-    resample_freq = None if args.resample.strip().lower() == "none" else args.resample.strip()
+    # CLI 参数优先；未指定时回退到配置文件值
+    cc = cfg.cleaning
+    resample_raw = args.resample if args.resample is not None else cc.resample
+    resample_freq = None if (resample_raw or "").strip().lower() == "none" else (resample_raw or "").strip() or None
+    spike_k   = args.spike_k  if args.spike_k  is not None else cc.spike_k
+    fill      = args.fill     if args.fill      is not None else cc.fill
+    max_gap   = args.max_gap  if args.max_gap   is not None else cc.max_gap
+
     print(
         f"\n[2/2] 清洗中 "
-        f"(resample={resample_freq or '跳过'}, spike_k={args.spike_k}, "
-        f"fill={args.fill}, max_gap={args.max_gap}) …"
+        f"(resample={resample_freq or '跳过'}, spike_k={spike_k}, "
+        f"fill={fill}, max_gap={max_gap}) …"
     )
     try:
         df, report = clean(
             result.df,
             resample_freq=resample_freq,
-            spike_k=args.spike_k,
-            fill_method=args.fill,
-            max_gap_fill=args.max_gap,
+            spike_k=spike_k,
+            fill_method=fill,
+            max_gap_fill=max_gap,
         )
     except Exception as exc:
         print(f"✗ 清洗失败: {exc}", file=sys.stderr)
@@ -422,6 +437,7 @@ def _load_and_clean(
 def _cmd_inspect(args: argparse.Namespace) -> int:
     """inspect 子命令：字段映射 + 清洗报告 + DataFrame 摘要。"""
     _setup_logging(args.verbose)
+    cfg = load_config(getattr(args, "config", None))
 
     if args.no_clean:
         print(f"[1/1] 加载文件: {args.input}")
@@ -438,7 +454,7 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
         _print_field_mapping(result.recognized)
         _print_unrecognized(result.unrecognized)
     else:
-        df, result = _load_and_clean(args)[:2]
+        df, result = _load_and_clean(args, cfg)[:2]
         _print_field_mapping(result.recognized)
         _print_unrecognized(result.unrecognized)
 
@@ -460,13 +476,14 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
 def _cmd_detect(args: argparse.Namespace) -> int:
     """detect 子命令：特征计算 + 异常点检测 + 事件分段。"""
     _setup_logging(args.verbose)
+    cfg = load_config(getattr(args, "config", None))
 
-    df, _ingestion_result, _cleaning_report = _load_and_clean(args)
+    df, _ingestion_result, _cleaning_report = _load_and_clean(args, cfg)
 
     print("\n[3/4] 特征计算 + 异常检测 …")
     try:
-        enriched = enrich_features(df)
-        result = detect(enriched)
+        enriched = enrich_features(df, window=cfg.feature.rolling_window)
+        result = detect(enriched, config=cfg.detector)
     except Exception as exc:
         print(f"✗ 检测失败: {exc}", file=sys.stderr)
         return 1
@@ -478,7 +495,7 @@ def _cmd_detect(args: argparse.Namespace) -> int:
 
     print("\n[4/4] 事件分段 …")
     try:
-        events = segment_events(result.df)
+        events = segment_events(result.df, config=cfg.segmenter)
     except Exception as exc:
         print(f"✗ 分段失败: {exc}", file=sys.stderr)
         return 1
@@ -492,7 +509,7 @@ def _cmd_detect(args: argparse.Namespace) -> int:
         except Exception as exc:
             print(f"✗ 解释生成失败: {exc}", file=sys.stderr)
             return 1
-        _print_explanations(explanations, verbose=args.verbose)
+        _print_explanations(explanations, verbose=args.verbose, top_k=cfg.cli.top_k_explanations)
 
     # ── 导出 ──────────────────────────────────────────────────────────────────
     need_export = any([
@@ -547,12 +564,16 @@ def _cmd_detect(args: argparse.Namespace) -> int:
 def _cmd_watch(args: argparse.Namespace) -> int:
     """watch 子命令：监听目录，自动分析新 CSV 文件。"""
     _setup_logging(args.verbose)
+    cfg = load_config(getattr(args, "config", None))
     state_file = Path(args.state_file) if args.state_file else None
+    # CLI --interval 优先；未指定时使用配置文件值
+    interval = args.interval if args.interval != 3.0 else cfg.cli.watch_interval
     run_watch_loop(
         input_dir=Path(args.input_dir),
         output_dir=Path(args.output_dir),
-        interval=args.interval,
+        interval=interval,
         state_file=state_file,
+        cfg=cfg,
     )
     return 0
 
@@ -603,6 +624,8 @@ def main(argv: list[str] | None = None) -> int:
     p_watch.add_argument("--state-file", default=None, metavar="FILE",
                          help="已处理记录文件（默认 output-dir/.watcher_state.json）")
     p_watch.add_argument("--verbose", "-v", action="store_true", help="显示 DEBUG 日志")
+    p_watch.add_argument("--config", default=None, metavar="PATH",
+                         help="配置文件路径（.yaml / .yml / .json）")
 
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)

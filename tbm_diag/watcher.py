@@ -101,7 +101,7 @@ class ProcessedState:
 
 # ── 单文件处理 ─────────────────────────────────────────────────────────────────
 
-def _process_one(csv_path: Path, output_dir: Path) -> None:
+def _process_one(csv_path: Path, output_dir: Path, cfg: "Any" = None) -> None:
     """
     对单个 CSV 文件运行完整 detect 流程并导出三种结果。
 
@@ -114,6 +114,7 @@ def _process_one(csv_path: Path, output_dir: Path) -> None:
     """
     # 延迟导入，避免循环依赖
     from tbm_diag.cleaning import clean
+    from tbm_diag.config import DiagConfig
     from tbm_diag.detector import detect
     from tbm_diag.evidence import extract_evidence
     from tbm_diag.explainer import TemplateExplainer
@@ -122,22 +123,33 @@ def _process_one(csv_path: Path, output_dir: Path) -> None:
     from tbm_diag.ingestion import load_csv
     from tbm_diag.segmenter import segment_events
 
+    if cfg is None:
+        cfg = DiagConfig()
+
     stem = csv_path.stem
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    cc = cfg.cleaning
+    resample_freq = None if (cc.resample or "").strip().lower() == "none" else cc.resample
 
     # ── 加载 ──────────────────────────────────────────────────────────────────
     ingestion = load_csv(str(csv_path))
 
-    # ── 清洗（使用默认参数，与 CLI detect 默认一致）──────────────────────────
-    df, cleaning = clean(ingestion.df, resample_freq="1s", spike_k=5.0,
-                         fill_method="ffill", max_gap_fill=5)
+    # ── 清洗 ──────────────────────────────────────────────────────────────────
+    df, cleaning = clean(
+        ingestion.df,
+        resample_freq=resample_freq,
+        spike_k=cc.spike_k,
+        fill_method=cc.fill,
+        max_gap_fill=cc.max_gap,
+    )
 
     # ── 特征 + 检测 ───────────────────────────────────────────────────────────
-    enriched = enrich_features(df)
-    detection = detect(enriched)
+    enriched = enrich_features(df, window=cfg.feature.rolling_window)
+    detection = detect(enriched, config=cfg.detector)
 
     # ── 分段 + 证据 + 解释 ────────────────────────────────────────────────────
-    events = segment_events(detection.df)
+    events = segment_events(detection.df, config=cfg.segmenter)
     evidences = extract_evidence(enriched, events)
     explanations = TemplateExplainer().explain_all(evidences)
 
@@ -164,6 +176,7 @@ def run_watch_loop(
     output_dir: Path,
     interval: float = 3.0,
     state_file: Optional[Path] = None,
+    cfg: "Any" = None,
 ) -> None:
     """
     轮询监听 input_dir，对新 CSV 文件自动运行 detect 流程。
@@ -171,9 +184,17 @@ def run_watch_loop(
     Args:
         input_dir:  监听的输入目录
         output_dir: 结果输出目录
-        interval:   轮询间隔（秒）
+        interval:   轮询间隔（秒）；None 时从 cfg.cli.watch_interval 读取
         state_file: 已处理记录文件路径；None 时默认放在 output_dir/.watcher_state.json
+        cfg:        DiagConfig；None 时使用全默认值
     """
+    from tbm_diag.config import DiagConfig
+    if cfg is None:
+        cfg = DiagConfig()
+    # interval 参数优先；若调用方传入默认值 3.0 且配置文件有不同值，以配置文件为准
+    # 这里约定：调用方显式传入时覆盖配置，否则用配置值
+    # （CLI 层已处理优先级，此处直接使用传入值）
+
     input_dir  = input_dir.resolve()
     output_dir = output_dir.resolve()
 
@@ -216,7 +237,7 @@ def run_watch_loop(
                 break
             print(f"  → 处理: {csv_path.name} …", end="", flush=True)
             try:
-                _process_one(csv_path, output_dir)
+                _process_one(csv_path, output_dir, cfg=cfg)
                 state.mark_ok(csv_path, output_dir)
                 stem = csv_path.stem
                 print(

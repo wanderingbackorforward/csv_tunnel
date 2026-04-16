@@ -1,0 +1,102 @@
+# sample_config.yaml
+# TBM CSV 诊断助手 — 参数配置文件
+#
+# 用法：
+#   python -m tbm_diag.cli detect --input data.csv --config sample_config.yaml
+#   python -m tbm_diag.cli watch  --input-dir incoming --output-dir out --config sample_config.yaml
+#
+# 所有字段均为可选，未填写时自动使用代码默认值。
+# 支持 .yaml / .yml / .json 三种格式。
+
+# ── 数据清洗参数 ───────────────────────────────────────────────────────────────
+cleaning:
+  # 重采样目标频率（pandas offset alias）
+  # 常用值：1s（每秒）、5s（每5秒）、1min（每分钟）、none（跳过重采样）
+  resample: "1s"
+
+  # 缺失值填充方式
+  # ffill   — 前向填充（适合行程、状态等步进信号）
+  # linear  — 线性插值（适合速度、压力等连续变化信号）
+  fill: "ffill"
+
+  # 最大连续填充步数，超出部分保留 NaN
+  max_gap: 5
+
+  # IQR 尖峰检测宽松倍数（越大越宽松，5.0 适合 TBM 工程数据）
+  # 建议范围：3.0（严格）~ 8.0（宽松）
+  spike_k: 5.0
+
+# ── 特征工程参数 ───────────────────────────────────────────────────────────────
+feature:
+  # 滚动统计窗口大小（点数）
+  # 1s 采样时 window=5 对应 5 秒滑动窗口
+  rolling_window: 5
+
+# ── 异常检测阈值 ───────────────────────────────────────────────────────────────
+detector:
+  # ── A. 疑似掘进阻力异常 ──────────────────────────────────────────────────────
+  # 刀盘转矩滚动均值偏高阈值（kNm）
+  # 参考：软土 800~1500，硬岩 2000~4000，超过此值触发
+  resist_torque_rolling_hi: 3000.0
+
+  # 推进速度滚动均值偏低阈值（mm/min）
+  resist_speed_rolling_lo: 20.0
+
+  # 贯入度滚动均值偏低阈值（mm/rev）
+  resist_penetration_rolling_lo: 5.0
+
+  # 转矩/速度比值偏高阈值（kNm·min/mm）
+  resist_torque_speed_ratio_hi: 200.0
+
+  # ── B. 低效掘进 ──────────────────────────────────────────────────────────────
+  # 推进速度长期偏低阈值（mm/min）
+  loweff_speed_rolling_lo: 15.0
+
+  # 贯入度偏低阈值（mm/rev）
+  loweff_penetration_rolling_lo: 3.0
+
+  # 转矩上限（低于此值才判为低效，而非阻力异常）（kNm）
+  loweff_torque_rolling_hi: 2500.0
+
+  # ── C. 姿态偏斜风险 ──────────────────────────────────────────────────────────
+  # 稳定器行程差偏大阈值（mm）
+  attitude_stab_stroke_diff_hi: 30.0
+
+  # 稳定器压力差偏大阈值（bar）
+  attitude_stab_pressure_diff_hi: 50.0
+
+  # 前盾/撑紧盾倾角滚动标准差偏大阈值（%）
+  attitude_pitch_std_hi: 0.5
+
+  # 推进压力极差偏大阈值（bar）
+  attitude_thrust_pressure_range_hi: 80.0
+
+  # ── D. 液压系统不稳定 ────────────────────────────────────────────────────────
+  # 主泵压力滚动标准差偏大阈值（bar）
+  hydro_main_pump_std_hi: 30.0
+
+  # 控制油压力滚动标准差偏大阈值（bar）
+  hydro_ctrl_pressure_std_hi: 20.0
+
+  # 推进压力组标准差偏大阈值（bar）
+  hydro_thrust_pressure_std_hi: 40.0
+
+  # 主泵压力单步变化率偏大阈值（绝对值，bar/step）
+  hydro_main_pump_pct_change_hi: 0.15
+
+# ── 事件分段参数 ───────────────────────────────────────────────────────────────
+segmenter:
+  # 允许合并的最大间隙点数
+  # 两段命中区间之间的 False 点数 <= 此值时合并为一个事件
+  gap_tolerance_points: 2
+
+  # 事件最小持续点数，低于此值的事件被过滤（去除孤立噪声）
+  min_event_points: 3
+
+# ── CLI 输出行为 ───────────────────────────────────────────────────────────────
+cli:
+  # 默认输出的 Top-K 事件解释数量（--verbose 时输出全部）
+  top_k_explanations: 3
+
+  # watch 模式轮询间隔（秒）
+  watch_interval: 3.0

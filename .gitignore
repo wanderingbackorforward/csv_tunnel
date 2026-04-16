@@ -22,6 +22,9 @@ output/
 outputs/
 artifacts/
 reports/
+incoming/
+out/
+watch_out/
 sample.csv
 result.csv
 

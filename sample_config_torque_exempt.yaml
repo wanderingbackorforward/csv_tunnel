@@ -1,0 +1,22 @@
+# sample_config_torque_exempt.yaml
+# 实验配置：豁免 cutter_torque_kNm 的 IQR 尖峰清洗
+#
+# 背景：
+#   sample2.xls 中 cutter_torque_kNm 被全局 IQR 去除了 5242 个点
+#   （IQR 边界 -750~900 kNm），疑似真实高负载工况被误杀。
+#   本配置仅豁免该字段，其余字段保持默认 IQR 清洗逻辑不变。
+#
+# 用法：
+#   python -m tbm_diag.cli detect --input sample2.xls --config sample_config_torque_exempt.yaml
+
+cleaning:
+  resample: "1s"
+  fill: "ffill"
+  max_gap: 5
+  spike_k: 5.0
+  iqr_exempt_fields:
+    - cutter_torque_kNm
+
+segmenter:
+  gap_tolerance_points: 2
+  min_event_points: 5

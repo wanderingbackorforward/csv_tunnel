@@ -8,7 +8,7 @@ segmenter.py — 异常事件分段
 算法：
 1. 对每种异常类型扫描 is_xxx 列的连续 True 区间
 2. 允许短间隙合并（默认 gap_tolerance_points=2）
-3. 过滤太短的事件（默认 min_event_points=3）
+3. 过滤太短的事件（默认 min_event_points=5）
 4. 计算每个事件的时间范围、持续时长、峰值/均值分数
 
 滚动窗口扩散说明：
@@ -47,7 +47,7 @@ _TYPE_PREFIX: dict[str, str] = {
 class SegmenterConfig:
     gap_tolerance_points: int = 2
     """允许合并的最大间隙点数（连续 False 点数 <= 此值时合并两侧事件）。"""
-    min_event_points: int = 3
+    min_event_points: int = 5
     """事件最小持续点数，低于此值的事件被过滤。"""
 
 

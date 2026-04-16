@@ -200,6 +200,12 @@ FIELD_CATALOG: dict[str, FieldMeta] = {
         raw_unit="bar",
         description_zh="前盾1#和3#扭矩油缸无杆腔压力",
     ),
+    # 同一列的带空格变体（部分导出文件列名含多余空格）
+    "前盾1#和3#扭矩油缸无杆腔压力 (bar)": FieldMeta(
+        canonical="front_torque_cyl_13_pressure_bar",
+        raw_unit="bar",
+        description_zh="前盾1#和3#扭矩油缸无杆腔压力",
+    ),
     "前盾2#和4#扭矩油缸无杆腔压力(bar)": FieldMeta(
         canonical="front_torque_cyl_24_pressure_bar",
         raw_unit="bar",

@@ -43,6 +43,8 @@ class CleaningConfig:
     """最大连续填充步数。"""
     spike_k: float = 5.0
     """IQR 尖峰检测宽松倍数。"""
+    iqr_exempt_fields: list = field(default_factory=list)
+    """跳过 IQR 尖峰清洗的标准列名列表（canonical name）。空列表 = 不豁免任何字段。"""
 
 
 @dataclass
@@ -92,7 +94,7 @@ def _merge_dataclass(dc_instance: Any, raw: dict) -> None:
                            key, type(dc_instance).__name__)
             continue
         try:
-            # 简单类型强制转换（int/float/str/bool）
+            # 简单类型强制转换（int/float/str/bool）；list 直接赋值
             expected = valid_fields[key].type
             if expected in ("int", int) and not isinstance(value, bool):
                 value = int(value)
@@ -100,6 +102,8 @@ def _merge_dataclass(dc_instance: Any, raw: dict) -> None:
                 value = float(value)
             elif expected in ("bool", bool):
                 value = bool(value)
+            elif expected == "list" and not isinstance(value, list):
+                value = list(value) if value is not None else []
             setattr(dc_instance, key, value)
         except (TypeError, ValueError) as exc:
             logger.warning("config: cannot set '%s'=%r — %s, using default", key, value, exc)

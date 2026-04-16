@@ -68,15 +68,20 @@ def _setup_logging(verbose: bool) -> None:
 
 def _table(rows: list[list], headers: list[str], max_col_width: int = 40) -> str:
     """简单表格渲染，tabulate 存在时使用，否则用 str.ljust 对齐。"""
+    # 预先截断并转为字符串，避免 tabulate maxcolwidths 的数字解析 bug
+    str_rows = [
+        [str(cell)[:max_col_width] for cell in row]
+        for row in rows
+    ]
     if _HAS_TABULATE:
         return _tabulate(
-            rows,
+            str_rows,
             headers=headers,
             tablefmt="simple",
-            maxcolwidths=max_col_width,
+            disable_numparse=True,
         )
     # 回退：纯文本对齐
-    all_rows = [headers] + rows
+    all_rows = [headers] + str_rows
     col_widths = [
         min(max(len(str(r[i])) for r in all_rows), max_col_width)
         for i in range(len(headers))
@@ -412,6 +417,7 @@ def _load_and_clean(
     spike_k   = args.spike_k  if args.spike_k  is not None else cc.spike_k
     fill      = args.fill     if args.fill      is not None else cc.fill
     max_gap   = args.max_gap  if args.max_gap   is not None else cc.max_gap
+    iqr_exempt = set(cc.iqr_exempt_fields) if cc.iqr_exempt_fields else None
 
     print(
         f"\n[2/2] 清洗中 "
@@ -425,6 +431,7 @@ def _load_and_clean(
             spike_k=spike_k,
             fill_method=fill,
             max_gap_fill=max_gap,
+            skip_spike_cols=iqr_exempt,
         )
     except Exception as exc:
         print(f"✗ 清洗失败: {exc}", file=sys.stderr)

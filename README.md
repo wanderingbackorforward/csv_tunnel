@@ -108,7 +108,7 @@ detector:
 
 segmenter:
   gap_tolerance_points: 2   # 允许合并的最大间隙点数
-  min_event_points: 3       # 事件最小持续点数
+  min_event_points: 5       # 事件最小持续点数
 
 cli:
   top_k_explanations: 3     # 默认输出 Top-K 事件解释
@@ -203,6 +203,20 @@ csv_tunnel/
 - 未提供 Web 前端、REST API 或数据库集成
 - 字段映射基于固定中文列名，CSV 列名变更需更新 `schema.py`
 - 适合原型验证、现场演示和外挂式分析，不是完整的数据中台
+
+---
+
+## 清洗经验说明
+
+`cutter_torque_kNm`（刀盘转矩）在部分高负载掘进工况下可能被全局 IQR 标记为尖峰并置空（实测 sample2.xls 中有 5,242 个点超出 k=5 上界 900 kNm，对应推进速度均值 41 mm/min，属于真实掘进数据）。但在当前基于滚动均值的检测规则中，IQR 置空后经 ffill 填充，对最终事件检测结果影响有限。因此默认仍保留清洗行为。若后续引入峰值型规则（逐点判断而非滚动均值），可通过 `iqr_exempt_fields` 配置按字段豁免：
+
+```yaml
+cleaning:
+  iqr_exempt_fields:
+    - cutter_torque_kNm
+```
+
+示例配置见 `sample_config_torque_exempt.yaml`。
 
 ---
 

@@ -25,6 +25,7 @@ from tbm_diag.evidence import EventEvidence
 from tbm_diag.explainer import Explanation
 from tbm_diag.ingestion import IngestionResult
 from tbm_diag.segmenter import Event
+from tbm_diag.summarizer import LLMSummaryResult
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class ResultBundle:
     evidences: list[EventEvidence]
     explanations: list[Explanation]
     generated_at: datetime = field(default_factory=datetime.now)
+    llm_summary: Optional[LLMSummaryResult] = None
 
 
 # ── 内部辅助 ───────────────────────────────────────────────────────────────────
@@ -184,6 +186,17 @@ def to_json(bundle: ResultBundle, path: Path) -> None:
         ],
     }
 
+    # llm_summary 节（可选）
+    if bundle.llm_summary is not None:
+        ls = bundle.llm_summary
+        doc["llm_summary"] = {
+            "overall_summary": ls.overall_summary,
+            "top_risks": ls.top_risks,
+            "suggested_actions": ls.suggested_actions,
+            "model_used": ls.model_used,
+            "generated_at": ls.generated_at,
+        }
+
     with open(path, "w", encoding="utf-8") as f:
         json.dump(doc, f, ensure_ascii=False, indent=2, cls=_JsonEncoder)
 
@@ -304,6 +317,30 @@ def to_markdown(
                 app(f"- {a}")
             app(f"")
             app(f"---")
+            app(f"")
+
+    # ── LLM 跨事件总结（可选）────────────────────────────────────────────────
+    if bundle.llm_summary is not None:
+        ls = bundle.llm_summary
+        app(f"## LLM 跨事件总结")
+        app(f"")
+        app(f"> 模型：{ls.model_used}  |  生成时间：{ls.generated_at[:19]}")
+        app(f"")
+        app(f"**整体评估**")
+        app(f"")
+        app(ls.overall_summary)
+        app(f"")
+        if ls.top_risks:
+            app(f"**主要风险**")
+            app(f"")
+            for risk in ls.top_risks:
+                app(f"- {risk}")
+            app(f"")
+        if ls.suggested_actions:
+            app(f"**建议关注**")
+            app(f"")
+            for action in ls.suggested_actions:
+                app(f"- {action}")
             app(f"")
 
     with open(path, "w", encoding="utf-8") as f:

@@ -46,6 +46,7 @@ from tbm_diag.exporter import ResultBundle, to_events_csv, to_json, to_markdown
 from tbm_diag.watcher import run_watch_loop
 from tbm_diag.config import DiagConfig, load_config
 from tbm_diag.state_engine import STATE_LABELS, classify_states, summarize_event_state
+from tbm_diag.summarizer import LLMSummaryResult, build_summary_input, summarize
 
 # tabulate 为可选依赖——若未安装，用简单对齐替代
 try:
@@ -390,6 +391,26 @@ def _print_explanations(
             print("  " + "·" * 66)
 
 
+def _print_llm_summary(result: LLMSummaryResult) -> None:
+    """打印 LLM 跨事件总结块。"""
+    print(f"\n┌─ LLM 跨事件总结 " + "─" * 52)
+    print(f"  模型：{result.model_used}")
+    print()
+    print("  整体评估：")
+    for line in result.overall_summary.splitlines():
+        print(f"    {line}")
+    if result.top_risks:
+        print()
+        print("  主要风险：")
+        for risk in result.top_risks:
+            print(f"    • {risk}")
+    if result.suggested_actions:
+        print()
+        print("  建议关注：")
+        for action in result.suggested_actions:
+            print(f"    → {action}")
+
+
 # ── 主函数 ─────────────────────────────────────────────────────────────────────
 
 def _add_common_args(p: argparse.ArgumentParser) -> None:
@@ -555,6 +576,35 @@ def _cmd_detect(args: argparse.Namespace) -> int:
             return 1
         _print_explanations(explanations, verbose=args.verbose, top_k=cfg.cli.top_k_explanations, event_states=event_states)
 
+        # ── LLM 跨事件总结（可选）────────────────────────────────────────────
+        llm_result = None
+        if getattr(args, "llm_summary", False):
+            # --llm-model CLI 参数覆盖 config 默认值
+            llm_cfg = cfg.llm
+            if getattr(args, "llm_model", None):
+                from dataclasses import replace as dc_replace
+                llm_cfg = dc_replace(llm_cfg, model=args.llm_model)
+            summary_input = build_summary_input(
+                input_file=args.input,
+                total_rows=len(enriched),
+                explanations=explanations,
+                evidences=evidences,
+                events=events,
+                event_states=event_states,
+                enriched_df=enriched,
+            )
+            if summary_input:
+                print("\n[LLM] 正在生成跨事件总结 …", end="", flush=True)
+                llm_result = summarize(summary_input, llm_cfg)
+                if llm_result:
+                    print(" 完成")
+                    _print_llm_summary(llm_result)
+                else:
+                    print(" 跳过（见上方警告）", file=sys.stderr)
+                    print()
+            else:
+                logger.debug("summarizer: build_summary_input returned None, skipping")
+
     # ── 导出 ──────────────────────────────────────────────────────────────────
     need_export = any([
         getattr(args, "save_json", None),
@@ -570,6 +620,7 @@ def _cmd_detect(args: argparse.Namespace) -> int:
             events=events,
             evidences=evidences,
             explanations=explanations,
+            llm_summary=llm_result,
         )
         if args.save_json:
             try:
@@ -656,6 +707,10 @@ def main(argv: list[str] | None = None) -> int:
                           help="导出 Markdown 诊断报告")
     p_detect.add_argument("--save-events-csv", default=None, metavar="PATH",
                           help="导出事件表 CSV（UTF-8 BOM，兼容 Excel）")
+    p_detect.add_argument("--llm-summary", action="store_true",
+                          help="调用 LLM 生成跨事件总结（需设置 ANTHROPIC_API_KEY）")
+    p_detect.add_argument("--llm-model", default=None, metavar="MODEL",
+                          help="覆盖 config 中的 LLM 模型名（可选）")
 
     # ── watch 子命令 ───────────────────────────────────────────────────────────
     p_watch = subparsers.add_parser("watch", help="监听目录，自动分析新 CSV 文件")

@@ -29,6 +29,20 @@ from tbm_diag.detector import DetectorConfig
 from tbm_diag.segmenter import SegmenterConfig
 from tbm_diag.state_engine import StateConfig
 
+
+@dataclass
+class LLMConfig:
+    model: str = "claude-haiku-4-5-20251001"
+    """使用的 LLM 模型 ID。"""
+    max_tokens: int = 1024
+    """最大输出 token 数。"""
+    temperature: float = 0.3
+    """采样温度，低值使输出更确定。"""
+    api_key_env: str = "ANTHROPIC_API_KEY"
+    """从哪个环境变量读取 API key（key 本身不进配置文件）。"""
+    timeout_seconds: int = 30
+    """API 调用超时秒数。"""
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,6 +85,7 @@ class DiagConfig:
     segmenter: SegmenterConfig = field(default_factory=SegmenterConfig)
     cli:       CliConfig       = field(default_factory=CliConfig)
     state:     StateConfig     = field(default_factory=StateConfig)
+    llm:       LLMConfig       = field(default_factory=LLMConfig)
 
 
 # ── 内部辅助 ───────────────────────────────────────────────────────────────────
@@ -184,6 +199,7 @@ def load_config(path: Optional[str | Path]) -> DiagConfig:
         "segmenter": cfg.segmenter,
         "cli":       cfg.cli,
         "state":     cfg.state,
+        "llm":       cfg.llm,
     }
     for section_name, dc_instance in section_map.items():
         section_raw = raw.get(section_name)

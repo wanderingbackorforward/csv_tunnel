@@ -47,6 +47,7 @@ from tbm_diag.watcher import run_watch_loop
 from tbm_diag.config import DiagConfig, load_config
 from tbm_diag.state_engine import STATE_LABELS, classify_states, summarize_event_state
 from tbm_diag.summarizer import LLMSummaryResult, build_summary_input, summarize
+from tbm_diag.agent import AgentResult, run_agent
 
 # tabulate 为可选依赖——若未安装，用简单对齐替代
 try:
@@ -673,6 +674,46 @@ def _cmd_watch(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_agent(args: argparse.Namespace) -> int:
+    """agent 子命令：通过 OpenAI-compatible tool calling 运行 agent 诊断。"""
+    _setup_logging(args.verbose)
+    cfg = load_config(getattr(args, "config", None))
+
+    # --agent-model 覆盖 config 默认值
+    agent_cfg = cfg.agent
+    if getattr(args, "agent_model", None):
+        from dataclasses import replace as dc_replace
+        agent_cfg = dc_replace(agent_cfg, model=args.agent_model)
+
+    print(f"[agent] 启动 agent 模式  model={agent_cfg.model}")
+    print(f"[agent] 输入文件: {args.input}", flush=True)
+
+    result: AgentResult = run_agent(
+        file_path=args.input,
+        cfg=agent_cfg,
+        save_json=getattr(args, "save_json", None),
+        save_report=getattr(args, "save_report", None),
+        save_events_csv=getattr(args, "save_events_csv", None),
+        verbose=args.verbose,
+    )
+
+    if result.final_report:
+        print(f"\n┌─ Agent 诊断报告 " + "─" * 52)
+        for line in result.final_report.splitlines():
+            print(f"  {line}")
+
+    if result.exported_paths:
+        print()
+        for p in result.exported_paths:
+            print(f"✓ 已导出: {p}")
+
+    if result.error:
+        print(f"\n⚠ {result.error}", file=sys.stderr)
+
+    print("\n✓ 完成")
+    return 0 if result.final_report else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m tbm_diag.cli",
@@ -726,6 +767,22 @@ def main(argv: list[str] | None = None) -> int:
     p_watch.add_argument("--config", default=None, metavar="PATH",
                          help="配置文件路径（.yaml / .yml / .json）")
 
+    # ── agent 子命令 ───────────────────────────────────────────────────────────
+    p_agent = subparsers.add_parser("agent", help="OpenAI-compatible tool-using agent 诊断")
+    p_agent.add_argument("--input", "-i", required=True, metavar="FILE",
+                         help="输入 CSV/XLS 文件路径")
+    p_agent.add_argument("--agent-model", default=None, metavar="MODEL",
+                         help="覆盖 config 中的 agent 模型名（可选）")
+    p_agent.add_argument("--save-json", default=None, metavar="PATH",
+                         help="导出完整结构化 JSON 结果")
+    p_agent.add_argument("--save-report", default=None, metavar="PATH",
+                         help="导出 Markdown 诊断报告")
+    p_agent.add_argument("--save-events-csv", default=None, metavar="PATH",
+                         help="导出事件表 CSV（UTF-8 BOM，兼容 Excel）")
+    p_agent.add_argument("--verbose", "-v", action="store_true", help="显示 DEBUG 日志及 tool 返回内容")
+    p_agent.add_argument("--config", default=None, metavar="PATH",
+                         help="配置文件路径（.yaml / .yml / .json）")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -743,6 +800,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_detect(args)
     elif args.command == "watch":
         return _cmd_watch(args)
+    elif args.command == "agent":
+        return _cmd_agent(args)
     else:
         parser.print_help()
         return 0

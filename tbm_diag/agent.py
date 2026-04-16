@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentConfig:
-    model: str = "MiniMax-M2.7-highspeed"
+    model: str = "MiniMax-M2.7"
     max_tokens: int = 2048
     temperature: float = 0.2
     api_key_env: str = "OPENAI_API_KEY"

@@ -132,6 +132,10 @@ def to_json(bundle: ResultBundle, path: Path) -> None:
                 "duration_seconds": e.duration_seconds,
                 "peak_score": e.peak_score,
                 "mean_score": e.mean_score,
+                "dominant_state": next(
+                    (ev.dominant_state for ev in bundle.evidences if ev.event_id == e.event_id),
+                    None,
+                ),
             }
             for e in bundle.events
         ],
@@ -171,6 +175,7 @@ def to_json(bundle: ResultBundle, path: Path) -> None:
                 "end_time": _dt_str(exp.end_time),
                 "title": exp.title,
                 "summary": exp.summary,
+                "state_context": exp.state_context,
                 "evidence_bullets": exp.evidence_bullets,
                 "possible_causes": exp.possible_causes,
                 "suggested_actions": exp.suggested_actions,
@@ -280,6 +285,8 @@ def to_markdown(
             app(f"")
             app(f"- **时间范围**：{_dt_str(exp.start_time)} ~ {_dt_str(exp.end_time)}")
             app(f"- **总结**：{exp.summary}")
+            if exp.state_context:
+                app(f"- **状态上下文**：{exp.state_context}")
             app(f"")
             app(f"**证据**")
             app(f"")
@@ -323,17 +330,27 @@ def to_events_csv(bundle: ResultBundle, path: Path) -> None:
         "attitude_or_bias_risk":           "姿态偏斜风险",
         "hydraulic_instability":           "液压系统不稳定",
     }
+    _STATE_LABELS = {
+        "stopped":               "停机/静止",
+        "low_load_operation":    "低负载运行",
+        "normal_excavation":     "正常推进",
+        "heavy_load_excavation": "重载推进",
+    }
+
+    # 从 evidences 建立 dominant_state 查找表
+    state_map = {ev.event_id: ev.dominant_state for ev in bundle.evidences if ev.dominant_state}
 
     fieldnames = [
         "event_id", "event_type", "start_time", "end_time",
         "duration_points", "duration_seconds",
-        "peak_score", "mean_score", "severity_label", "summary",
+        "peak_score", "mean_score", "severity_label", "dominant_state", "summary",
     ]
 
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for e in bundle.events:
+            ds_key = state_map.get(e.event_id, "")
             writer.writerow({
                 "event_id":         e.event_id,
                 "event_type":       _LABELS.get(e.event_type, e.event_type),
@@ -344,6 +361,7 @@ def to_events_csv(bundle: ResultBundle, path: Path) -> None:
                 "peak_score":       e.peak_score,
                 "mean_score":       e.mean_score,
                 "severity_label":   sev_map.get(e.event_id, ""),
+                "dominant_state":   _STATE_LABELS.get(ds_key, ds_key),
                 "summary":          summary_map.get(e.event_id, ""),
             })
 

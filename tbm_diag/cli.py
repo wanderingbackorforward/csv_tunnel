@@ -45,6 +45,7 @@ from tbm_diag.explainer import Explanation, TemplateExplainer
 from tbm_diag.exporter import ResultBundle, to_events_csv, to_json, to_markdown
 from tbm_diag.watcher import run_watch_loop
 from tbm_diag.config import DiagConfig, load_config
+from tbm_diag.state_engine import STATE_LABELS, classify_states, summarize_event_state
 
 # tabulate 为可选依赖——若未安装，用简单对齐替代
 try:
@@ -276,7 +277,11 @@ def _print_detection_verbose(result: DetectionResult) -> None:
     print(tail.to_string(index=True))
 
 
-def _print_event_summary(events: list[Event], verbose: bool = False) -> None:
+def _print_event_summary(
+    events: list[Event],
+    verbose: bool = False,
+    event_states: dict | None = None,
+) -> None:
     print("\n┌─ 事件摘要 " + "─" * 58)
 
     if not events:
@@ -309,6 +314,8 @@ def _print_event_summary(events: list[Event], verbose: bool = False) -> None:
         start = str(e.start_time)[:19] if e.start_time is not None else "—"
         end   = str(e.end_time)[:19]   if e.end_time   is not None else "—"
         dur_s = f"{e.duration_seconds:.0f}s" if e.duration_seconds is not None else "—"
+        ds_key = event_states[e.event_id].dominant_state if event_states and e.event_id in event_states else ""
+        ds_zh  = STATE_LABELS.get(ds_key, ds_key) if ds_key else "—"
         rows.append([
             e.event_id,
             label,
@@ -317,11 +324,12 @@ def _print_event_summary(events: list[Event], verbose: bool = False) -> None:
             f"{e.duration_points}点/{dur_s}",
             f"{e.peak_score:.3f}",
             f"{e.mean_score:.3f}",
+            ds_zh,
         ])
 
     print(_table(
         rows,
-        headers=["事件ID", "类型", "开始时间", "结束时间", "时长", "峰值分", "均值分"],
+        headers=["事件ID", "类型", "开始时间", "结束时间", "时长", "峰值分", "均值分", "主导工况"],
         max_col_width=24,
     ))
 
@@ -338,6 +346,7 @@ def _print_explanations(
     explanations: list[Explanation],
     verbose: bool = False,
     top_k: int = 3,
+    event_states: dict | None = None,
 ) -> None:
     show = explanations if verbose else explanations[:top_k]
     if not show:
@@ -355,6 +364,15 @@ def _print_explanations(
         print(f"\n  [{i}] {exp.event_id}  {exp.title}  {icon}{exp.severity_label}"
               f"  ({start} ~ {end})")
         print(f"  总结：{exp.summary}")
+
+        # 状态上下文
+        state_ctx = exp.state_context
+        if not state_ctx and event_states and exp.event_id in event_states:
+            ds = event_states[exp.event_id].dominant_state
+            label_zh = STATE_LABELS.get(ds, ds)
+            state_ctx = f"该事件主要发生在\"{label_zh}\"状态下"
+        if state_ctx:
+            print(f"  状态上下文：{state_ctx}")
 
         print("  证据：")
         for bullet in exp.evidence_bullets:
@@ -507,16 +525,35 @@ def _cmd_detect(args: argparse.Namespace) -> int:
         print(f"✗ 分段失败: {exc}", file=sys.stderr)
         return 1
 
-    _print_event_summary(events, verbose=args.verbose)
+    _print_event_summary(events, verbose=args.verbose, event_states=None)
 
+    event_states: dict = {}
     if events:
+        # 状态分类
         try:
-            evidences = extract_evidence(enriched, events)
-            explanations = TemplateExplainer().explain_all(evidences)
+            enriched = classify_states(enriched, config=cfg.state)
+            event_states = {e.event_id: summarize_event_state(enriched, e) for e in events}
+        except Exception as exc:
+            print(f"⚠ 工况状态分类失败（跳过）: {exc}", file=sys.stderr)
+
+        # verbose 状态分布
+        if args.verbose and "machine_state" in enriched.columns:
+            counts = enriched["machine_state"].value_counts()
+            total_rows = len(enriched)
+            print("\n┌─ 工况状态分布 " + "─" * 54)
+            for state_key in ["stopped", "low_load_operation", "normal_excavation", "heavy_load_excavation"]:
+                n = counts.get(state_key, 0)
+                pct = n / total_rows * 100 if total_rows > 0 else 0.0
+                label = STATE_LABELS.get(state_key, state_key)
+                print(f"  {label:<12}: {pct:5.1f}%  ({n:,} 行)")
+
+        try:
+            evidences = extract_evidence(enriched, events, event_states=event_states)
+            explanations = TemplateExplainer().explain_all(evidences, event_states=event_states)
         except Exception as exc:
             print(f"✗ 解释生成失败: {exc}", file=sys.stderr)
             return 1
-        _print_explanations(explanations, verbose=args.verbose, top_k=cfg.cli.top_k_explanations)
+        _print_explanations(explanations, verbose=args.verbose, top_k=cfg.cli.top_k_explanations, event_states=event_states)
 
     # ── 导出 ──────────────────────────────────────────────────────────────────
     need_export = any([

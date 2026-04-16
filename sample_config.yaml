@@ -105,3 +105,22 @@ cli:
 
   # watch 模式轮询间隔（秒）
   watch_interval: 3.0
+
+# ── 工况状态识别参数 ───────────────────────────────────────────────────────────
+state:
+  # 停机/静止判定：推进速度 <= 此值（mm/min）
+  stopped_speed_threshold: 1.0
+  # 停机/静止判定：刀盘转速 <= 此值（rpm）
+  stopped_rpm_threshold: 0.1
+  # 停机/静止判定：总推进力 <= 此值（kN）
+  stopped_thrust_threshold: 200.0
+
+  # 重载推进判定：刀盘转矩滚动均值 > 此值（kNm）
+  heavy_load_torque_threshold: 2000.0
+  # 重载推进判定：总推进力滚动均值 > 此值（kN）
+  heavy_load_thrust_threshold: 4000.0
+  # 重载推进判定：贯入度滚动均值 < 此值（mm/rev）
+  heavy_load_penetration_threshold: 1.0
+
+  # 低负载运行判定：推进速度 <= 此值（mm/min，非停机）
+  low_load_speed_threshold: 5.0

@@ -56,6 +56,10 @@ class EventEvidence:
     end_time: Optional[pd.Timestamp]
     severity_score: float     # 第一版直接取 peak_score
     top_signals: list[SignalEvidence] = field(default_factory=list)
+    dominant_state: Optional[str] = None
+    """事件窗口内主导工况状态（英文 key），由 state_engine 填充。"""
+    state_distribution: Optional[dict] = None
+    """各状态占比 dict，由 state_engine 填充。"""
 
 
 # ── 候选信号配置 ───────────────────────────────────────────────────────────────
@@ -175,14 +179,17 @@ def extract_evidence(
     df: pd.DataFrame,
     events: list[Event],
     max_signals: int = 5,
+    event_states: Optional[dict] = None,
 ) -> list[EventEvidence]:
     """
     为每个 Event 提取关键证据信号。
 
     Args:
-        df:          enriched DataFrame（含原始列 + 特征列）
-        events:      segment_events() 的输出
-        max_signals: 每个事件最多保留的证据条数（默认 5）
+        df:           enriched DataFrame（含原始列 + 特征列）
+        events:       segment_events() 的输出
+        max_signals:  每个事件最多保留的证据条数（默认 5）
+        event_states: dict[event_id → EventStateSummary]，由 state_engine 提供；
+                      若传入则填充 EventEvidence.dominant_state / state_distribution
 
     Returns:
         EventEvidence 列表，顺序与 events 一致
@@ -222,6 +229,8 @@ def extract_evidence(
             end_time=event.end_time,
             severity_score=event.peak_score,
             top_signals=signals,
+            dominant_state=event_states[event.event_id].dominant_state if event_states and event.event_id in event_states else None,
+            state_distribution=event_states[event.event_id].state_distribution if event_states and event.event_id in event_states else None,
         ))
 
         logger.debug(

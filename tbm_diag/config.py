@@ -27,6 +27,7 @@ from typing import Any, Optional
 
 from tbm_diag.detector import DetectorConfig
 from tbm_diag.segmenter import SegmenterConfig
+from tbm_diag.state_engine import StateConfig
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class DiagConfig:
     detector:  DetectorConfig  = field(default_factory=DetectorConfig)
     segmenter: SegmenterConfig = field(default_factory=SegmenterConfig)
     cli:       CliConfig       = field(default_factory=CliConfig)
+    state:     StateConfig     = field(default_factory=StateConfig)
 
 
 # ── 内部辅助 ───────────────────────────────────────────────────────────────────
@@ -181,6 +183,7 @@ def load_config(path: Optional[str | Path]) -> DiagConfig:
         "detector":  cfg.detector,
         "segmenter": cfg.segmenter,
         "cli":       cfg.cli,
+        "state":     cfg.state,
     }
     for section_name, dc_instance in section_map.items():
         section_raw = raw.get(section_name)

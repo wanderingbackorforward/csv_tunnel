@@ -44,6 +44,7 @@ class Explanation:
     evidence_bullets: list[str]   # 证据列表（来自 SignalEvidence.evidence_text）
     possible_causes: list[str]    # 可能原因（模板生成）
     suggested_actions: list[str]  # 建议关注项（模板生成）
+    state_context: str = ""       # 工况状态上下文，如"该事件主要发生在重载推进状态下"
 
 
 # ── 严重度映射 ─────────────────────────────────────────────────────────────────
@@ -142,6 +143,7 @@ class TemplateExplainer:
         self,
         ev: EventEvidence,
         priority_score: Optional[float] = None,
+        dominant_state: Optional[str] = None,
     ) -> Explanation:
         """
         为单个 EventEvidence 生成解释。
@@ -149,6 +151,7 @@ class TemplateExplainer:
         Args:
             ev:             extract_evidence() 的输出
             priority_score: 可选优先级分数，None 时使用 ev.severity_score
+            dominant_state: 可选工况状态（英文 key），用于生成 state_context
 
         Returns:
             Explanation dataclass
@@ -168,6 +171,14 @@ class TemplateExplainer:
         causes  = _POSSIBLE_CAUSES.get(etype, ["需结合现场记录进一步分析。"])
         actions = _SUGGESTED_ACTIONS.get(etype, ["复核该时间段工况记录。"])
 
+        # 工况状态上下文
+        state_ctx = ""
+        _ds = dominant_state or (ev.dominant_state if hasattr(ev, "dominant_state") else None)
+        if _ds:
+            from tbm_diag.state_engine import STATE_LABELS
+            label_zh = STATE_LABELS.get(_ds, _ds)
+            state_ctx = f"该事件主要发生在\"{label_zh}\"状态下"
+
         logger.debug(
             "explainer: event %s → label=%s score=%.3f bullets=%d",
             ev.event_id, label, score, len(bullets),
@@ -185,11 +196,24 @@ class TemplateExplainer:
             evidence_bullets=bullets,
             possible_causes=causes,
             suggested_actions=actions,
+            state_context=state_ctx,
         )
 
     def explain_all(
         self,
         evidences: list[EventEvidence],
+        event_states: Optional[dict] = None,
     ) -> list[Explanation]:
-        """批量生成解释，顺序与 evidences 一致。"""
-        return [self.explain(ev) for ev in evidences]
+        """批量生成解释，顺序与 evidences 一致。
+
+        Args:
+            evidences:    extract_evidence() 的输出
+            event_states: dict[event_id → EventStateSummary]，可选
+        """
+        results = []
+        for ev in evidences:
+            ds = None
+            if event_states and ev.event_id in event_states:
+                ds = event_states[ev.event_id].dominant_state
+            results.append(self.explain(ev, dominant_state=ds))
+        return results

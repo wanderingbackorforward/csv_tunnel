@@ -43,6 +43,7 @@ from tbm_diag.segmenter import Event, SegmenterConfig, segment_events
 from tbm_diag.evidence import EventEvidence, extract_evidence
 from tbm_diag.explainer import Explanation, TemplateExplainer
 from tbm_diag.exporter import ResultBundle, to_events_csv, to_json, to_markdown
+from tbm_diag.watcher import run_watch_loop
 
 # tabulate 为可选依赖——若未安装，用简单对齐替代
 try:
@@ -543,6 +544,19 @@ def _cmd_detect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_watch(args: argparse.Namespace) -> int:
+    """watch 子命令：监听目录，自动分析新 CSV 文件。"""
+    _setup_logging(args.verbose)
+    state_file = Path(args.state_file) if args.state_file else None
+    run_watch_loop(
+        input_dir=Path(args.input_dir),
+        output_dir=Path(args.output_dir),
+        interval=args.interval,
+        state_file=state_file,
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m tbm_diag.cli",
@@ -578,6 +592,18 @@ def main(argv: list[str] | None = None) -> int:
     p_detect.add_argument("--save-events-csv", default=None, metavar="PATH",
                           help="导出事件表 CSV（UTF-8 BOM，兼容 Excel）")
 
+    # ── watch 子命令 ───────────────────────────────────────────────────────────
+    p_watch = subparsers.add_parser("watch", help="监听目录，自动分析新 CSV 文件")
+    p_watch.add_argument("--input-dir",  "-I", required=True, metavar="DIR",
+                         help="监听的输入目录")
+    p_watch.add_argument("--output-dir", "-O", required=True, metavar="DIR",
+                         help="结果输出目录")
+    p_watch.add_argument("--interval", type=float, default=3.0, metavar="SEC",
+                         help="轮询间隔（秒，默认 3）")
+    p_watch.add_argument("--state-file", default=None, metavar="FILE",
+                         help="已处理记录文件（默认 output-dir/.watcher_state.json）")
+    p_watch.add_argument("--verbose", "-v", action="store_true", help="显示 DEBUG 日志")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -593,6 +619,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_inspect(args)
     elif args.command == "detect":
         return _cmd_detect(args)
+    elif args.command == "watch":
+        return _cmd_watch(args)
     else:
         parser.print_help()
         return 0

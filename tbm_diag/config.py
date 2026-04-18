@@ -29,19 +29,23 @@ from tbm_diag.detector import DetectorConfig
 from tbm_diag.segmenter import SegmenterConfig
 from tbm_diag.state_engine import StateConfig
 from tbm_diag.agent import AgentConfig
+from tbm_diag.scanner import ScanConfig
+from tbm_diag.reviewer import ReviewConfig
 
 
 @dataclass
 class LLMConfig:
-    model: str = "claude-haiku-4-5-20251001"
+    model: str = "MiniMax-M2.7"
     """使用的 LLM 模型 ID。"""
-    max_tokens: int = 1024
+    max_tokens: int = 2048
     """最大输出 token 数。"""
     temperature: float = 0.3
     """采样温度，低值使输出更确定。"""
-    api_key_env: str = "ANTHROPIC_API_KEY"
+    api_key_env: str = "OPENAI_API_KEY"
     """从哪个环境变量读取 API key（key 本身不进配置文件）。"""
-    timeout_seconds: int = 30
+    base_url_env: str = "OPENAI_BASE_URL"
+    """从哪个环境变量读取 base URL（OpenAI-compatible 服务，如 MiniMax）。"""
+    timeout_seconds: int = 90
     """API 调用超时秒数。"""
 
 logger = logging.getLogger(__name__)
@@ -88,6 +92,8 @@ class DiagConfig:
     state:     StateConfig     = field(default_factory=StateConfig)
     llm:       LLMConfig       = field(default_factory=LLMConfig)
     agent:     AgentConfig     = field(default_factory=AgentConfig)
+    scan:      ScanConfig      = field(default_factory=ScanConfig)
+    review:    ReviewConfig    = field(default_factory=ReviewConfig)
 
 
 # ── 内部辅助 ───────────────────────────────────────────────────────────────────
@@ -203,6 +209,8 @@ def load_config(path: Optional[str | Path]) -> DiagConfig:
         "state":     cfg.state,
         "llm":       cfg.llm,
         "agent":     cfg.agent,
+        "scan":      cfg.scan,
+        "review":    cfg.review,
     }
     for section_name, dc_instance in section_map.items():
         section_raw = raw.get(section_name)

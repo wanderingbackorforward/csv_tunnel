@@ -45,6 +45,7 @@ class Explanation:
     possible_causes: list[str]    # 可能原因（模板生成）
     suggested_actions: list[str]  # 建议关注项（模板生成）
     state_context: str = ""       # 工况状态上下文，如"该事件主要发生在重载推进状态下"
+    semantic_event_type: str = "" # 语义事件类型，如 stoppage_segment
 
 
 # ── 严重度映射 ─────────────────────────────────────────────────────────────────
@@ -66,6 +67,8 @@ _TITLES: dict[str, str] = {
     "low_efficiency_excavation":       "低效掘进",
     "attitude_or_bias_risk":           "姿态偏斜风险",
     "hydraulic_instability":           "液压系统不稳定",
+    "stoppage_segment":                "停机片段",
+    "excavation_resistance_under_load":"重载推进下的掘进阻力异常",
 }
 
 _SUMMARIES: dict[str, str] = {
@@ -77,6 +80,10 @@ _SUMMARIES: dict[str, str] = {
         "该时段稳定器或推进压力分布出现不均衡，可能存在盾体姿态偏斜风险。",
     "hydraulic_instability":
         "该时段液压压力出现明显波动，主推进系统稳定性需关注。",
+    "stoppage_segment":
+        "该事件发生在停机/静止工况下，推进速度接近零，属于停机片段而非推进中的低效掘进。需结合施工日志确认停机原因。",
+    "excavation_resistance_under_load":
+        "该时段处于重载推进状态，刀盘转矩偏高、推进速度偏低，疑似重载工况下掘进阻力异常。",
 }
 
 _POSSIBLE_CAUSES: dict[str, list[str]] = {
@@ -104,6 +111,17 @@ _POSSIBLE_CAUSES: dict[str, list[str]] = {
         "可能管路存在气穴或油温异常",
         "需关注是否与推进速度突变同步发生",
     ],
+    "stoppage_segment": [
+        "计划停机（换刀/检修/班次交接）",
+        "非计划停机（设备故障/地层卡机）",
+        "等待指令或材料",
+    ],
+    "excavation_resistance_under_load": [
+        "可能遭遇地层变化（硬岩夹层、孤石或断层破碎带）",
+        "疑似刀盘磨损加剧，切削效率下降",
+        "可能存在刀盘结泥饼或渣土堆积，导致负载升高",
+        "需关注推进参数设置是否与当前地层匹配",
+    ],
 }
 
 _SUGGESTED_ACTIONS: dict[str, list[str]] = {
@@ -130,6 +148,17 @@ _SUGGESTED_ACTIONS: dict[str, list[str]] = {
         "关注压力波动是否与特定操作动作相关",
         "排查液压油温度、油位及过滤器状态",
         "若波动持续，建议安排液压系统专项检查",
+    ],
+    "stoppage_segment": [
+        "结合施工日志确认停机原因",
+        "区分计划停机（换刀/检修）与非计划停机（故障/卡机）",
+        "统计停机时长占比，评估对进度的影响",
+    ],
+    "excavation_resistance_under_load": [
+        "复核该时间段推进工况记录，确认是否有地层变化或异常事件",
+        "检查刀盘负载与推进协调性，评估是否需要调整推进参数",
+        "结合现场地质记录确认是否存在硬岩或孤石",
+        "关注后续时段转矩趋势，判断是否持续恶化",
     ],
 }
 
@@ -160,16 +189,19 @@ class TemplateExplainer:
         label = _severity_label(score)
         etype = ev.event_type
 
-        title   = _TITLES.get(etype, etype)
-        summary = _SUMMARIES.get(etype, "该时段检测到异常，请结合现场记录核实。")
+        # 优先使用语义类型做模板查找，回退到原始 event_type
+        display_type = getattr(ev, "semantic_event_type", None) or etype
+
+        title   = _TITLES.get(display_type, _TITLES.get(etype, etype))
+        summary = _SUMMARIES.get(display_type, _SUMMARIES.get(etype, "该时段检测到异常，请结合现场记录核实。"))
 
         # 证据列表：直接取 SignalEvidence.evidence_text
         bullets = [sig.evidence_text for sig in ev.top_signals] if ev.top_signals else [
             "（当前数据字段不足，无法提取详细证据）"
         ]
 
-        causes  = _POSSIBLE_CAUSES.get(etype, ["需结合现场记录进一步分析。"])
-        actions = _SUGGESTED_ACTIONS.get(etype, ["复核该时间段工况记录。"])
+        causes  = _POSSIBLE_CAUSES.get(display_type, _POSSIBLE_CAUSES.get(etype, ["需结合现场记录进一步分析。"]))
+        actions = _SUGGESTED_ACTIONS.get(display_type, _SUGGESTED_ACTIONS.get(etype, ["复核该时间段工况记录。"]))
 
         # 工况状态上下文
         state_ctx = ""
@@ -197,6 +229,7 @@ class TemplateExplainer:
             possible_causes=causes,
             suggested_actions=actions,
             state_context=state_ctx,
+            semantic_event_type=getattr(ev, "semantic_event_type", "") or "",
         )
 
     def explain_all(

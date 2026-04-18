@@ -60,6 +60,8 @@ class EventEvidence:
     """事件窗口内主导工况状态（英文 key），由 state_engine 填充。"""
     state_distribution: Optional[dict] = None
     """各状态占比 dict，由 state_engine 填充。"""
+    semantic_event_type: Optional[str] = None
+    """语义事件类型，由 semantic_layer.apply_to_evidences() 填充。"""
 
 
 # ── 候选信号配置 ───────────────────────────────────────────────────────────────

@@ -138,6 +138,10 @@ def to_json(bundle: ResultBundle, path: Path) -> None:
                     (ev.dominant_state for ev in bundle.evidences if ev.event_id == e.event_id),
                     None,
                 ),
+                "semantic_event_type": next(
+                    (ev.semantic_event_type for ev in bundle.evidences if ev.event_id == e.event_id),
+                    None,
+                ),
             }
             for e in bundle.events
         ],
@@ -178,6 +182,7 @@ def to_json(bundle: ResultBundle, path: Path) -> None:
                 "title": exp.title,
                 "summary": exp.summary,
                 "state_context": exp.state_context,
+                "semantic_event_type": exp.semantic_event_type,
                 "evidence_bullets": exp.evidence_bullets,
                 "possible_causes": exp.possible_causes,
                 "suggested_actions": exp.suggested_actions,
@@ -275,8 +280,14 @@ def to_markdown(
         app(f"| 事件ID | 类型 | 开始时间 | 结束时间 | 时长(点) | 峰值分 | 严重度 |")
         app(f"|--------|------|----------|----------|----------|--------|--------|")
         sev_map = {e.event_id: e.severity_label for e in exps}
+        ev_semantic = {ev.event_id: (ev.semantic_event_type or "") for ev in bundle.evidences}
+        _SEMANTIC_LABELS_MD = {
+            "stoppage_segment":                 "停机片段",
+            "excavation_resistance_under_load": "重载推进下的掘进阻力异常",
+        }
         for e in bundle.events:
-            label = _LABELS.get(e.event_type, e.event_type)
+            sem = ev_semantic.get(e.event_id, e.event_type)
+            label = _SEMANTIC_LABELS_MD.get(sem, _LABELS.get(sem, _LABELS.get(e.event_type, e.event_type)))
             sev   = sev_map.get(e.event_id, "—")
             app(f"| {e.event_id} | {label} | {_dt_str(e.start_time) or '—'} | "
                 f"{_dt_str(e.end_time) or '—'} | {e.duration_points} | "
@@ -376,9 +387,14 @@ def to_events_csv(bundle: ResultBundle, path: Path) -> None:
 
     # 从 evidences 建立 dominant_state 查找表
     state_map = {ev.event_id: ev.dominant_state for ev in bundle.evidences if ev.dominant_state}
+    semantic_map = {ev.event_id: (ev.semantic_event_type or "") for ev in bundle.evidences}
+    _SEMANTIC_LABELS_CSV = {
+        "stoppage_segment":                 "停机片段",
+        "excavation_resistance_under_load": "重载推进下的掘进阻力异常",
+    }
 
     fieldnames = [
-        "event_id", "event_type", "start_time", "end_time",
+        "event_id", "event_type", "semantic_event_type", "start_time", "end_time",
         "duration_points", "duration_seconds",
         "peak_score", "mean_score", "severity_label", "dominant_state", "summary",
     ]
@@ -388,18 +404,20 @@ def to_events_csv(bundle: ResultBundle, path: Path) -> None:
         writer.writeheader()
         for e in bundle.events:
             ds_key = state_map.get(e.event_id, "")
+            sem = semantic_map.get(e.event_id, "")
             writer.writerow({
-                "event_id":         e.event_id,
-                "event_type":       _LABELS.get(e.event_type, e.event_type),
-                "start_time":       _dt_str(e.start_time) or "",
-                "end_time":         _dt_str(e.end_time)   or "",
-                "duration_points":  e.duration_points,
-                "duration_seconds": e.duration_seconds if e.duration_seconds is not None else "",
-                "peak_score":       e.peak_score,
-                "mean_score":       e.mean_score,
-                "severity_label":   sev_map.get(e.event_id, ""),
-                "dominant_state":   _STATE_LABELS.get(ds_key, ds_key),
-                "summary":          summary_map.get(e.event_id, ""),
+                "event_id":             e.event_id,
+                "event_type":           _SEMANTIC_LABELS_CSV.get(sem, _LABELS.get(sem, _LABELS.get(e.event_type, e.event_type))),
+                "semantic_event_type":  sem,
+                "start_time":           _dt_str(e.start_time) or "",
+                "end_time":             _dt_str(e.end_time)   or "",
+                "duration_points":      e.duration_points,
+                "duration_seconds":     e.duration_seconds if e.duration_seconds is not None else "",
+                "peak_score":           e.peak_score,
+                "mean_score":           e.mean_score,
+                "severity_label":       sev_map.get(e.event_id, ""),
+                "dominant_state":       _STATE_LABELS.get(ds_key, ds_key),
+                "summary":              summary_map.get(e.event_id, ""),
             })
 
     logger.info("Events CSV exported → %s", path)

@@ -122,6 +122,7 @@ def _process_one(csv_path: Path, output_dir: Path, cfg: "Any" = None) -> None:
     from tbm_diag.feature_engine import enrich_features
     from tbm_diag.ingestion import load_csv
     from tbm_diag.segmenter import segment_events
+    from tbm_diag.semantic_layer import apply_to_evidences
 
     if cfg is None:
         cfg = DiagConfig()
@@ -151,6 +152,7 @@ def _process_one(csv_path: Path, output_dir: Path, cfg: "Any" = None) -> None:
     # ── 分段 + 证据 + 解释 ────────────────────────────────────────────────────
     events = segment_events(detection.df, config=cfg.segmenter)
     evidences = extract_evidence(enriched, events)
+    apply_to_evidences(evidences)
     explanations = TemplateExplainer().explain_all(evidences)
 
     # ── 导出 ──────────────────────────────────────────────────────────────────

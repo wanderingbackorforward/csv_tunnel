@@ -23,6 +23,13 @@ import logging
 import sys
 from pathlib import Path
 
+# ── 本地 .env 自动加载（系统环境变量优先，.env 仅补充缺失项）─────────────────
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=False)   # override=False → 已有的系统变量不被覆盖
+except ImportError:
+    pass  # python-dotenv 未安装时静默跳过，行为与之前完全一致
+
 # Windows 控制台默认 GBK，强制 stdout/stderr 使用 UTF-8 输出
 # 仅在 stdout 不是真正的 UTF-8 流时才替换（避免影响管道/重定向）
 if hasattr(sys.stdout, "reconfigure"):
@@ -47,7 +54,10 @@ from tbm_diag.watcher import run_watch_loop
 from tbm_diag.config import DiagConfig, load_config
 from tbm_diag.state_engine import STATE_LABELS, classify_states, summarize_event_state
 from tbm_diag.summarizer import LLMSummaryResult, build_summary_input, summarize
+from tbm_diag.semantic_layer import apply_to_evidences, SEMANTIC_LABELS
 from tbm_diag.agent import AgentResult, run_agent
+from tbm_diag.scanner import ScanConfig, run_scan
+from tbm_diag.reviewer import ReviewConfig, run_review
 
 # tabulate 为可选依赖——若未安装，用简单对齐替代
 try:
@@ -283,6 +293,7 @@ def _print_event_summary(
     events: list[Event],
     verbose: bool = False,
     event_states: dict | None = None,
+    evidences: list | None = None,
 ) -> None:
     print("\n┌─ 事件摘要 " + "─" * 58)
 
@@ -290,13 +301,15 @@ def _print_event_summary(
         print("  ✓ 未形成有效异常事件（所有异常点均未达到最小持续时长）")
         return
 
-    # 按类型统计
+    # 按类型统计（用语义类型）
+    sem_map = {ev.event_id: ev.semantic_event_type for ev in (evidences or []) if ev.semantic_event_type}
     type_counts: dict[str, int] = {}
     for e in events:
-        type_counts[e.event_type] = type_counts.get(e.event_type, 0) + 1
+        sem = sem_map.get(e.event_id, e.event_type)
+        type_counts[sem] = type_counts.get(sem, 0) + 1
 
     print(f"  共检测到 {len(events)} 个异常事件：")
-    for atype, label in _ANOMALY_LABELS.items():
+    for atype, label in {**_ANOMALY_LABELS, **SEMANTIC_LABELS}.items():
         n = type_counts.get(atype, 0)
         if n > 0:
             print(f"    {label}: {n} 个")
@@ -312,7 +325,8 @@ def _print_event_summary(
     print(f"\n  {title}：")
     rows = []
     for e in show:
-        label = _ANOMALY_LABELS.get(e.event_type, e.event_type)
+        sem = sem_map.get(e.event_id, e.event_type)
+        label = SEMANTIC_LABELS.get(sem, _ANOMALY_LABELS.get(sem, sem))
         start = str(e.start_time)[:19] if e.start_time is not None else "—"
         end   = str(e.end_time)[:19]   if e.end_time   is not None else "—"
         dur_s = f"{e.duration_seconds:.0f}s" if e.duration_seconds is not None else "—"
@@ -571,10 +585,14 @@ def _cmd_detect(args: argparse.Namespace) -> int:
 
         try:
             evidences = extract_evidence(enriched, events, event_states=event_states)
+            apply_to_evidences(evidences)   # 语义重分类：(event_type, dominant_state) → semantic_event_type
             explanations = TemplateExplainer().explain_all(evidences, event_states=event_states)
         except Exception as exc:
             print(f"✗ 解释生成失败: {exc}", file=sys.stderr)
             return 1
+
+        # 重新打印带语义标签的事件摘要（替换上方无语义信息的早期打印）
+        _print_event_summary(events, verbose=args.verbose, event_states=event_states, evidences=evidences)
         _print_explanations(explanations, verbose=args.verbose, top_k=cfg.cli.top_k_explanations, event_states=event_states)
 
         # ── LLM 跨事件总结（可选）────────────────────────────────────────────
@@ -585,6 +603,7 @@ def _cmd_detect(args: argparse.Namespace) -> int:
             if getattr(args, "llm_model", None):
                 from dataclasses import replace as dc_replace
                 llm_cfg = dc_replace(llm_cfg, model=args.llm_model)
+            from tbm_diag.reviewer import _compute_semantic_stats
             summary_input = build_summary_input(
                 input_file=args.input,
                 total_rows=len(enriched),
@@ -593,6 +612,7 @@ def _cmd_detect(args: argparse.Namespace) -> int:
                 events=events,
                 event_states=event_states,
                 enriched_df=enriched,
+                semantic_stats=_compute_semantic_stats(evidences, events),
             )
             if summary_input:
                 print("\n[LLM] 正在生成跨事件总结 …", end="", flush=True)
@@ -717,6 +737,60 @@ def _cmd_agent(args: argparse.Namespace) -> int:
     return 0 if result.final_report else 1
 
 
+def _cmd_review(args: argparse.Namespace) -> int:
+    """review 子命令：对 scan_index.csv 中的高风险文件批量执行 AI 复核。"""
+    _setup_logging(args.verbose)
+    cfg = load_config(getattr(args, "config", None))
+
+    import dataclasses
+    review_cfg = dataclasses.replace(
+        cfg.review,
+        top_n=args.top_n,
+        use_agent=args.use_agent,
+        overwrite=args.overwrite,
+    )
+
+    run_review(
+        scan_index_path=Path(args.scan_index),
+        output_dir=Path(args.output_dir),
+        review_cfg=review_cfg,
+        shared_cfg=cfg,
+    )
+    return 0
+
+
+def _cmd_scan(args: argparse.Namespace) -> int:
+    """scan 子命令：批量扫描目录，生成 scan_index.csv。"""
+    _setup_logging(args.verbose)
+    cfg = load_config(getattr(args, "config", None))
+
+    # CLI 参数覆盖 ScanConfig 默认值
+    import dataclasses
+    scan_cfg = dataclasses.replace(
+        cfg.scan,
+        overwrite=args.overwrite,
+        recursive=not args.non_recursive,
+        max_file_size_mb=args.max_file_size_mb,
+    )
+    if args.max_workers is not None:
+        scan_cfg = dataclasses.replace(scan_cfg, max_workers=args.max_workers)
+    if args.llm_summary:
+        scan_cfg = dataclasses.replace(scan_cfg, include_llm_summary=True)
+    if args.agent:
+        scan_cfg = dataclasses.replace(scan_cfg, include_agent=True)
+
+    if scan_cfg.include_llm_summary or scan_cfg.include_agent:
+        print("⚠ 注意：大批量场景下不推荐默认开启 LLM/agent，建议仅对少量重点文件使用。")
+
+    run_scan(
+        input_dir=Path(args.input_dir),
+        output_dir=Path(args.output_dir),
+        scan_cfg=scan_cfg,
+        shared_cfg=cfg,
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m tbm_diag.cli",
@@ -804,6 +878,75 @@ def main(argv: list[str] | None = None) -> int:
     p_agent.add_argument("--config", default=None, metavar="PATH",
                          help="配置文件路径（.yaml / .yml / .json）")
 
+    # ── scan 子命令 ────────────────────────────────────────────────────────────
+    p_scan = subparsers.add_parser(
+        "scan",
+        help="批量扫描目录，对所有 CSV/XLS/XLSX 文件运行规则诊断，生成 scan_index.csv",
+        description=(
+            "批量扫描输入目录，对每个文件运行规则诊断内核，\n"
+            "生成每文件的 JSON / Markdown / events CSV，以及总索引 scan_index.csv。\n\n"
+            "默认不启用 LLM/agent（大批量场景下成本高、速度慢）。\n"
+            "如需对少量重点文件深度分析，请使用 detect --llm-summary 或 agent 子命令。\n\n"
+            "示例：\n"
+            "  python -m tbm_diag.cli scan --input-dir data/ --output-dir scan_out/\n"
+            "  python -m tbm_diag.cli scan --input-dir data/ --output-dir scan_out/ --overwrite"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_scan.add_argument("--input-dir",  "-I", required=True, metavar="DIR",
+                        help="输入目录（含 CSV/XLS/XLSX 文件）")
+    p_scan.add_argument("--output-dir", "-O", required=True, metavar="DIR",
+                        help="结果输出目录（自动创建）")
+    p_scan.add_argument("--config", default=None, metavar="PATH",
+                        help="配置文件路径（.yaml / .yml / .json）")
+    p_scan.add_argument("--overwrite", action="store_true",
+                        help="强制重新处理所有文件（忽略已有状态）")
+    p_scan.add_argument("--non-recursive", action="store_true",
+                        help="不递归扫描子目录（默认递归）")
+    p_scan.add_argument("--max-workers", type=int, default=None, metavar="N",
+                        help="并发数（v1 仅支持 1，保留参数供后续扩展）")
+    p_scan.add_argument("--llm-summary", action="store_true",
+                        help="为每个文件生成 LLM 跨事件总结（大批量不推荐，需设置 ANTHROPIC_API_KEY）")
+    p_scan.add_argument("--agent", action="store_true",
+                        help="为每个文件运行 agent 模式（大批量不推荐）")
+    p_scan.add_argument("--max-file-size-mb", type=float, default=0.0, metavar="MB",
+                        help="跳过超过此大小的文件（MB），0 表示不限制")
+    p_scan.add_argument("--verbose", "-v", action="store_true",
+                        help="显示 DEBUG 日志")
+
+    # ── review 子命令 ──────────────────────────────────────────────────────────
+    p_review = subparsers.add_parser(
+        "review",
+        help="对 scan_index.csv 中的高风险文件批量执行 AI 复核",
+        description=(
+            "读取 scan_index.csv，按 risk_rank_score 筛出 Top N 文件，\n"
+            "批量调用 LLM summary 或 agent，生成 review_summary.md / review_summary.json。\n\n"
+            "示例：\n"
+            "  python -m tbm_diag.cli review \\\n"
+            "    --scan-index scan_real_out/scan_index.csv \\\n"
+            "    --output-dir review_out --top-n 5\n\n"
+            "  # 使用 agent 模式（需设置 OPENAI_API_KEY / OPENAI_BASE_URL）\n"
+            "  python -m tbm_diag.cli review \\\n"
+            "    --scan-index scan_real_out/scan_index.csv \\\n"
+            "    --output-dir review_out --top-n 3 --use-agent"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_review.add_argument("--scan-index", required=True, metavar="PATH",
+                          help="scan_index.csv 路径")
+    p_review.add_argument("--output-dir", "-O", required=True, metavar="DIR",
+                          help="复核结果输出目录")
+    p_review.add_argument("--top-n", type=int, default=5, metavar="N",
+                          help="只 review Top N 高风险文件（默认 5）")
+    p_review.add_argument("--use-agent", action="store_true",
+                          help="使用 agent 模式（需设置 OPENAI_API_KEY / OPENAI_BASE_URL）")
+    p_review.add_argument("--overwrite", action="store_true",
+                          help="强制重新 review 已有结果")
+    p_review.add_argument("--config", default=None, metavar="PATH",
+                          help="配置文件路径（.yaml / .yml / .json）")
+    p_review.add_argument("--verbose", "-v", action="store_true",
+                          help="显示 DEBUG 日志")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -823,6 +966,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_watch(args)
     elif args.command == "agent":
         return _cmd_agent(args)
+    elif args.command == "scan":
+        return _cmd_scan(args)
+    elif args.command == "review":
+        return _cmd_review(args)
     else:
         parser.print_help()
         return 0

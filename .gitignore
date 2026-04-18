@@ -30,3 +30,6 @@ result.csv
 
 # Test leftovers
 _test_sample.csv
+
+# Local secrets — never commit
+.env

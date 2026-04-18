@@ -65,6 +65,14 @@ CSV File
 | `explainer.py` | Render human-readable explanation strings from event + evidence data |
 | `cli.py` | Argparse entry point; prints one-line summary and Top 3 anomalies |
 
+## Git Workflow
+
+After every coding session — whenever files are modified, added, or deleted — automatically stage and commit all changes before finishing. Do not wait to be asked.
+
+- Stage: `git add` all relevant changed files (exclude output dirs like `review_out/`, `scan_out/`, `scan_real_out/` which are in `.gitignore`)
+- Commit with a conventional commit message (`feat:` / `fix:` / `refactor:` / `docs:` / `chore:`) that accurately describes what changed
+- If changes span multiple logical concerns, split into separate commits
+
 ## Key Design Rules
 
 1. All detection thresholds are centralized in a single config file (e.g., `config.yaml` or `thresholds.py`) — never hardcoded in detector logic.

@@ -36,3 +36,9 @@ _test_sample.csv
 
 # Streamlit GUI temp runs
 tmp_drag_runs/
+
+# CLI run outputs
+review_out/
+review_out_agent/
+scan_out/
+scan_real_out/

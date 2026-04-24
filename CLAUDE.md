@@ -15,7 +15,7 @@ Output: Auto-detected anomaly events with severity ranking, evidence, and engine
 - Python 3.11+
 - pandas, numpy, dataclasses, argparse
 - openai SDK (optional, for LLM planner / agent)
-- CLI-first, with an optional local Streamlit demo entry
+- CLI only — no web UI
 
 ## Commands
 
@@ -110,24 +110,6 @@ python -m tbm_diag.cli investigate --input sample2.xls --output-dir investigatio
 ```
 
 3. Clean up test output directories after testing (they are in .gitignore).
-
-## GUI Development Rules
-
-- GUI must only call existing CLI or internal capabilities.
-- Do not copy core diagnosis algorithms into the GUI layer.
-- After adding or changing GUI code, run:
-
-```bash
-python -m py_compile app_demo.py
-python -c "import streamlit; print('streamlit OK')"
-```
-
-- Never commit:
-  - `tmp_demo_uploads/`
-  - `tmp_demo_outputs/`
-  - `scan_demo_out/`
-  - `review_demo_out/`
-  - `investigation_demo_out/`
 
 ## README Sync Rules
 

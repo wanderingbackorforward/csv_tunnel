@@ -93,24 +93,6 @@ python -m tbm_diag.cli investigate \
 
 ---
 
-## 本地 GUI 演示
-
-启动命令：
-
-```bash
-streamlit run app_demo.py
-```
-
-页面包含 5 个 Tab：
-
-- 项目说明：说明项目定位、问题背景和演示路线
-- 单文件诊断：对单个 CSV/XLS/XLSX 文件运行 `detect`，展示异常摘要与导出结果
-- 批量扫描：对目录运行 `scan`，从大量文件中筛出高风险文件并预览报告
-- AI 复核：对 `scan_index.csv` 的 Top 文件运行 `review`，展示 AI 总结
-- ReAct 停机追查：对单文件运行 `investigate`，把碎片停机事件归并成 case
-
----
-
 ## agent 与 investigate 的区别
 
 | | `agent` | `investigate` |

@@ -478,10 +478,17 @@ def classify_stoppage_case(
             reasons.append("前后窗口无异常事件，更像计划停机")
             score -= 0.25
 
+    has_drilldown = drilldown_data is not None
+
     if score >= 0.3:
-        case_type = "abnormal_like_stoppage"
-        confidence = min(0.4 + score * 0.3, 0.85)
-        reasons.append("（疑似，需结合施工日志确认）")
+        if has_drilldown:
+            case_type = "abnormal_like_stoppage"
+            confidence = min(0.4 + score * 0.3, 0.85)
+            reasons.append("（疑似，需结合施工日志确认）")
+        else:
+            case_type = "event_level_abnormal_unverified"
+            confidence = min(0.25 + score * 0.2, 0.5)
+            reasons.append("（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）")
     elif score <= -0.1:
         case_type = "planned_like_stoppage"
         confidence = min(0.45 + abs(score) * 0.5, 0.8)
@@ -1433,6 +1440,8 @@ def validate_final_conclusion(state: Any) -> None:
     # ── 3. 停机案例全是待确认时不能 high ──
     abnormal_count = sum(1 for cls in state.case_classifications.values()
                          if cls.case_type == "abnormal_like_stoppage")
+    unverified_count = sum(1 for cls in state.case_classifications.values()
+                           if cls.case_type == "event_level_abnormal_unverified")
     planned_count = sum(1 for cls in state.case_classifications.values()
                         if cls.case_type == "planned_like_stoppage")
     total_cases = sum(len(v) for v in state.stoppage_cases.values())

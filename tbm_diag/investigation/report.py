@@ -8,7 +8,8 @@ from tbm_diag.investigation.state import InvestigationState
 
 
 _CASE_TYPE_LABELS = {
-    "abnormal_like_stoppage": "异常停机（疑似）",
+    "abnormal_like_stoppage": "异常停机（疑似，已验证）",
+    "event_level_abnormal_unverified": "事件级异常线索，待验证",
     "planned_like_stoppage": "计划停机（疑似）",
     "uncertain_stoppage": "待确认停机",
     "short_operational_pause": "短暂运行暂停",
@@ -155,14 +156,14 @@ def _run_consistency_check(state: InvestigationState) -> tuple[list[str], list[s
                 continue
             filtered_reasons.append(r)
 
-        if cls.case_type == "abnormal_like_stoppage" and drilldown_clean_pre and drilldown_clean_post:
+        if cls.case_type in ("abnormal_like_stoppage", "event_level_abnormal_unverified") and drilldown_clean_pre and drilldown_clean_post:
             if "停机前未见明显异常" in hint:
                 old_type = cls.case_type
                 cls.case_type = "planned_like_stoppage"
                 cls.confidence = min(cls.confidence, 0.55)
                 corrections.append(
                     f"{case_id}: 分类从 {old_type} 降级为 {cls.case_type}——"
-                    f"drilldown 显示「{hint}」，与异常停机判定矛盾"
+                    f"drilldown 显示「{hint}」，与异常线索矛盾"
                 )
                 filtered_reasons = [
                     r for r in filtered_reasons
@@ -227,8 +228,10 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
             lines.append(f"- 模型：{fc.finalizer_model}")
         if fc.validator_applied and fc.downgraded_fields:
             lines.append(f"- Validator：已修正（{len(fc.downgraded_fields)} 项降级）")
+        elif fc.validator_applied and fc.validation_warnings:
+            lines.append(f"- Validator：有警告（{len(fc.validation_warnings)} 项）")
         elif fc.validator_applied:
-            lines.append("- Validator：通过（未触发降级）")
+            lines.append("- Validator：通过")
         lines.append("")
 
         if fc.downgraded_fields:
@@ -273,6 +276,10 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
     abnormal_cases = [
         (cid, cls) for cid, cls in state.case_classifications.items()
         if cls.case_type == "abnormal_like_stoppage"
+    ]
+    unverified_cases = [
+        (cid, cls) for cid, cls in state.case_classifications.items()
+        if cls.case_type == "event_level_abnormal_unverified"
     ]
     planned_cases = [
         (cid, cls) for cid, cls in state.case_classifications.items()
@@ -323,11 +330,15 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
         lines.append("- 整体结论置信度：未计算")
 
     if total_merged > 0:
+        unclassified = total_merged - len(state.case_classifications)
         lines.append(f"- 原始停机事件数: {total_original}")
         lines.append(f"- 合并后停机案例数: {total_merged}")
-        lines.append(f"- 异常停机（疑似）: {len(abnormal_cases)} 个")
+        lines.append(f"- 已验证异常停机（疑似）: {len(abnormal_cases)} 个")
+        lines.append(f"- 事件级异常线索，待验证: {len(unverified_cases)} 个")
         lines.append(f"- 计划停机（疑似）: {len(planned_cases)} 个")
         lines.append(f"- 待确认: {len(uncertain_cases)} 个")
+        if unclassified > 0:
+            lines.append(f"- 未分类: {unclassified} 个")
     lines.append("")
 
     # ── 掘进阻力分析结果 ──
@@ -481,9 +492,9 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
             )
         lines.append("")
 
-    # ── 异常停机疑似案例 ──
+    # ── 异常停机疑似案例（已验证）──
     if abnormal_cases:
-        lines.append("## 异常停机疑似案例\n")
+        lines.append("## 异常停机疑似案例（drilldown 已验证）\n")
         for cid, cls in abnormal_cases:
             lines.append(f"### {cid}\n")
             lines.append(f"- 置信度: {cls.confidence:.0%}")
@@ -494,6 +505,22 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
             if ta:
                 lines.append(f"- 停机前异常事件: {len(ta.pre_events)} 个")
                 lines.append(f"- 恢复后异常事件: {len(ta.post_events)} 个")
+            lines.append("")
+
+    # ── 事件级异常线索，待验证 ──
+    if unverified_cases:
+        lines.append("## 事件级异常线索，待验证\n")
+        lines.append("以下案例在事件摘要层面存在异常线索，但尚未经过 drilldown 窗口验证，不能直接判定为异常停机。\n")
+        for cid, cls in unverified_cases:
+            lines.append(f"### {cid}\n")
+            lines.append(f"- 证据来源：事件级摘要")
+            lines.append(f"- 验证状态：未 drilldown")
+            lines.append(f"- 置信度: {cls.confidence:.0%}")
+            lines.append("- 事件级线索:")
+            for r in cls.reasons:
+                if "事件级证据" in r or "drilldown" not in r:
+                    lines.append(f"  - {r}")
+            lines.append(f"- 建议：优先对该案例运行 `drilldown_time_window --target_id {cid}`")
             lines.append("")
 
     # ── 计划停机疑似案例 ──
@@ -546,7 +573,7 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
     lines.extend(_build_planner_audit_section(state))
 
     # ── 证据一致性检查 ──
-    if corrections or consistency_warnings:
+    if corrections or consistency_warnings or unverified_cases:
         lines.append("## 证据一致性检查\n")
         if corrections:
             lines.append("### 分类修正\n")
@@ -558,6 +585,12 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
             lines.append("### 需人工确认\n")
             for w in consistency_warnings:
                 lines.append(f"- {w}")
+            lines.append("")
+        if unverified_cases:
+            lines.append("### 证据等级提示\n")
+            lines.append('以下案例仅有事件级异常线索，尚无窗口级验证，已从异常停机降级为待验证线索：\n')
+            for cid, cls in unverified_cases:
+                lines.append(f"- {cid}：事件级证据显示异常迹象，但未运行 drilldown 验证")
             lines.append("")
     else:
         lines.append("## 证据一致性检查\n")

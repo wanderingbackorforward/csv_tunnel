@@ -197,7 +197,16 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
         }
 
     lines.append(f"- 调查轮次: {state.iteration_count}")
-    lines.append(f"- 置信度: {state.confidence:.2f}")
+
+    # 置信度：基于证据一致性而非固定 0.00
+    if corrections:
+        lines.append("- 整体结论置信度：低（存在证据口径冲突已修正）")
+    elif consistency_warnings:
+        lines.append("- 整体结论置信度：低（存在需人工确认的问题）")
+    elif total_merged > 0 or resistance_obs or hydraulic_obs:
+        lines.append("- 整体结论置信度：中（疑似，需施工日志确认）")
+    else:
+        lines.append("- 整体结论置信度：未计算")
 
     if total_merged > 0:
         lines.append(f"- 原始停机事件数: {total_original}")
@@ -270,19 +279,69 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
             data = obs.data or {}
             tid = data.get("target_id", "?")
             lines.append(f"### 钻取详情：{tid}\n")
-            hint = data.get("interpretation_hint", "")
-            lines.append(f"- 初步解释: {hint}")
-            tf = data.get("transition_findings", [])
-            if tf:
-                lines.append(f"- 转变发现: {'，'.join(tf)}")
+
+            # target_event_info
+            tei = data.get("target_event_info", {})
+            if tei.get("source") == "event":
+                lines.append(f"**事件级证据：**")
+                sem = tei.get("semantic_event_type", "")
+                lines.append(f"- 目标事件类型：{sem}")
+                lines.append(f"- 主导工况：{tei.get('dominant_state', '')}")
+                lines.append(f"- 持续时长：{tei.get('duration_seconds', 0)}s")
+
+            # semantic_overlap_summary
+            sem_overlap = data.get("semantic_overlap", {})
+            during_ol = sem_overlap.get("during", {})
+            if during_ol.get("total", 0) > 0:
+                lines.append(f"- 事件期间重叠事件数：{during_ol['total']}")
+                if during_ol.get("ser", 0) > 0:
+                    lines.append(f"- 重叠 SER 事件数：{during_ol['ser']}")
+                if during_ol.get("hyd", 0) > 0:
+                    lines.append(f"- 重叠 HYD 事件数：{during_ol['hyd']}")
+                if during_ol.get("stoppage", 0) > 0:
+                    lines.append(f"- 重叠停机事件数：{during_ol['stoppage']}")
+
+            # row-level summary
+            lines.append("")
+            lines.append("**行级规则命中：**")
             for label, key in [("前窗口", "pre_summary"), ("事件期间", "during_summary"), ("后窗口", "post_summary")]:
                 s = data.get(key, {})
                 if isinstance(s, dict) and not s.get("empty", True):
-                    lines.append(f"- {label}: {s.get('rows', 0)}行，"
-                                 f"速度={s.get('avg_advance_speed', 0)}，"
-                                 f"转矩={s.get('avg_cutter_torque', 0)}，"
-                                 f"SER={s.get('ser_hits', 0)}/{s.get('ser_ratio', 0):.1%}，"
-                                 f"HYD={s.get('hyd_hits', 0)}")
+                    lines.append(
+                        f"- {label}：{s.get('rows', 0)}行，"
+                        f"SER={s.get('ser_hits', 0)}/{s.get('ser_ratio', 0):.1%}，"
+                        f"HYD={s.get('hyd_hits', 0)}/{s.get('hyd_ratio', 0):.1%}，"
+                        f"LEE={s.get('lee_hits', 0)}/{s.get('lee_ratio', 0):.1%}"
+                    )
+
+            # state summary
+            lines.append("")
+            lines.append("**工况统计：**")
+            for label, key in [("前窗口", "pre_summary"), ("事件期间", "during_summary"), ("后窗口", "post_summary")]:
+                s = data.get(key, {})
+                if isinstance(s, dict) and not s.get("empty", True):
+                    sd = s.get("state_distribution", {})
+                    state_parts = [f"{k}={v:.0f}%" for k, v in sorted(sd.items(), key=lambda x: -x[1]) if v > 0]
+                    lines.append(
+                        f"- {label}：速度={s.get('avg_advance_speed', 0)}，"
+                        f"转矩={s.get('avg_cutter_torque', 0)}，"
+                        f"{'，'.join(state_parts)}"
+                    )
+
+            # divergence notes
+            div_notes = data.get("divergence_notes", [])
+            if div_notes:
+                lines.append("")
+                lines.append("**证据口径一致性提示：**")
+                for note in div_notes:
+                    lines.append(f"- {note}")
+
+            hint = data.get("interpretation_hint", "")
+            if hint:
+                lines.append(f"\n- 初步解释: {hint}")
+            tf = data.get("transition_findings", [])
+            if tf:
+                lines.append(f"- 转变发现: {'，'.join(tf)}")
             lines.append("")
 
     # ── Top 停机案例 ──

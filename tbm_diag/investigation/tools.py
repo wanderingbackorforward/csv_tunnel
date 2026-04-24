@@ -895,9 +895,9 @@ def _window_stats(
             return round(float(v), 2) if pd.notna(v) else 0.0
         return 0.0
 
-    ser_col = "flag_suspected_excavation_resistance"
-    lee_col = "flag_low_efficiency_excavation"
-    hyd_col = "flag_hydraulic_instability"
+    ser_col = "is_suspected_excavation_resistance"
+    lee_col = "is_low_efficiency_excavation"
+    hyd_col = "is_hydraulic_instability"
 
     ser_hits = int(subset[ser_col].sum()) if ser_col in subset.columns else 0
     lee_hits = int(subset[lee_col].sum()) if lee_col in subset.columns else 0
@@ -944,6 +944,7 @@ def drilldown_time_window(
     enriched: pd.DataFrame = cached["enriched"]
     events = cached["events"]
     evidences = cached["evidences"]
+    event_states = cached.get("event_states", {})
 
     if "timestamp" not in enriched.columns:
         return {"status": "error", "error": "no timestamp column"}
@@ -954,15 +955,15 @@ def drilldown_time_window(
     t_start = None
     t_end = None
     resolved_id = target_id or ""
+    target_event = None
 
     if target_id and not start_time:
-        # 先从事件列表找
         for e in events:
             if e.event_id == target_id:
                 t_start = e.start_time
                 t_end = e.end_time
+                target_event = e
                 break
-        # 再从 state 的 stoppage_cases 找
         if t_start is None and state is not None:
             for fp_key, cases in state.stoppage_cases.items():
                 for c in cases:
@@ -982,6 +983,27 @@ def drilldown_time_window(
     t_start = pd.Timestamp(t_start)
     t_end = pd.Timestamp(t_end) if t_end is not None else t_start
 
+    # ── target_event_info ──
+    target_event_info: dict[str, Any] = {"target_id": resolved_id, "source": "unknown"}
+    sem_map = {ev.event_id: ev.semantic_event_type or ev.event_type for ev in evidences}
+    if target_event:
+        es = event_states.get(target_event.event_id)
+        from tbm_diag.state_engine import STATE_LABELS
+        target_event_info = {
+            "target_id": resolved_id,
+            "event_type": target_event.event_type,
+            "semantic_event_type": sem_map.get(target_event.event_id, target_event.event_type),
+            "start_time": str(t_start)[:19],
+            "end_time": str(t_end)[:19],
+            "duration_seconds": round(target_event.duration_seconds) if target_event.duration_seconds else 0,
+            "dominant_state": STATE_LABELS.get(es.dominant_state, es.dominant_state) if es else "unknown",
+            "source": "event",
+        }
+    elif state is not None:
+        target_event_info["source"] = "stoppage_case"
+        target_event_info["start_time"] = str(t_start)[:19]
+        target_event_info["end_time"] = str(t_end)[:19]
+
     pre_start = t_start - pd.Timedelta(minutes=pre_minutes)
     post_end = t_end + pd.Timedelta(minutes=post_minutes)
 
@@ -997,14 +1019,54 @@ def drilldown_time_window(
     during_stats["time_range"] = f"{t_start} ~ {t_end}"
     post_stats["time_range"] = f"{t_end} ~ {post_end}"
 
+    # ── semantic_overlap_summary: 事件级重叠统计 ──
+    def _count_overlapping(mask_start, mask_end):
+        overlap = {"total": 0, "ser": 0, "hyd": 0, "stoppage": 0, "loweff": 0, "ids": []}
+        ser_types = {"suspected_excavation_resistance", "excavation_resistance_under_load"}
+        for e in events:
+            if e.start_time is None or e.end_time is None:
+                continue
+            if e.start_time <= mask_end and e.end_time >= mask_start:
+                sem = sem_map.get(e.event_id, e.event_type)
+                overlap["total"] += 1
+                overlap["ids"].append(e.event_id)
+                if sem in ser_types:
+                    overlap["ser"] += 1
+                elif sem == "hydraulic_instability":
+                    overlap["hyd"] += 1
+                elif sem == "stoppage_segment":
+                    overlap["stoppage"] += 1
+                elif sem == "low_efficiency_excavation":
+                    overlap["loweff"] += 1
+        return overlap
+
+    during_overlap = _count_overlapping(t_start, t_end)
+    pre_overlap = _count_overlapping(pre_start, t_start)
+    post_overlap = _count_overlapping(t_end, post_end)
+
+    # ── 证据口径一致性检查 ──
+    divergence_notes = []
+    target_sem = target_event_info.get("semantic_event_type", "")
+    ser_types_set = {"suspected_excavation_resistance", "excavation_resistance_under_load"}
+
+    if target_sem in ser_types_set and during_stats.get("ser_hits", 0) == 0:
+        divergence_notes.append(
+            "事件级语义标签为 SER，但行级 is_suspected_excavation_resistance 命中为 0。"
+            "事件级标签来自分段器（基于得分阈值的连续区间），行级标志来自逐行规则检测。"
+            "两者判定口径不同，当前结论应以事件级标签为线索，行级未确认。"
+        )
+    if target_sem == "hydraulic_instability" and during_stats.get("hyd_hits", 0) == 0:
+        divergence_notes.append(
+            "事件级语义标签为 HYD，但行级 is_hydraulic_instability 命中为 0。"
+            "两者判定口径不同。"
+        )
+
     # 转变检测
     transition_findings = []
-    pre_stopped = pre_stats.get("state_distribution", {}).get("stopped", 0)
     pre_advancing = (
         pre_stats.get("state_distribution", {}).get("normal_excavation", 0)
         + pre_stats.get("state_distribution", {}).get("heavy_load_excavation", 0)
     )
-    post_stopped = post_stats.get("state_distribution", {}).get("stopped", 0)
     post_advancing = (
         post_stats.get("state_distribution", {}).get("normal_excavation", 0)
         + post_stats.get("state_distribution", {}).get("heavy_load_excavation", 0)
@@ -1050,9 +1112,16 @@ def drilldown_time_window(
     return {
         "status": "ok",
         "target_id": resolved_id,
+        "target_event_info": target_event_info,
         "pre_summary": pre_stats,
         "during_summary": during_stats,
         "post_summary": post_stats,
+        "semantic_overlap": {
+            "during": during_overlap,
+            "pre": pre_overlap,
+            "post": post_overlap,
+        },
+        "divergence_notes": divergence_notes,
         "transition_findings": transition_findings,
         "interpretation_hint": "；".join(hints),
         "compact_pre": _compact(pre_stats),

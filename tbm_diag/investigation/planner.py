@@ -284,17 +284,19 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         avg_dur = 0
         if top_events:
             durs = [e.get("duration_s", 0) for e in top_events]
-            avg_dur = sum(durs) / len(durs) if durs else 0
+            if durs:
+                avg_dur = sum(durs) / len(durs)
+        dur_note = f"（Top {len(top_events)} 事件均值）" if top_events and len(top_events) < total_events else ""
         if avg_dur < 120 or total_events >= 15 or focus == "fragmentation":
             if "analyze_event_fragmentation" not in file_analyses_done:
                 return _select("analyze_event_fragmentation",
-                               f"事件 {total_events} 个，平均时长 {avg_dur:.0f}s，检查碎片化",
+                               f"事件 {total_events} 个，Top 事件平均时长 {avg_dur:.0f}s{dur_note}，检查碎片化",
                                {"file_path": fp})
             else:
                 _reject("analyze_event_fragmentation", "已执行")
         else:
             _reject("analyze_event_fragmentation",
-                    f"events={total_events}, avg_dur={avg_dur:.0f}s 不满足碎片化条件")
+                    f"events={total_events}, top_avg_dur={avg_dur:.0f}s 不满足碎片化条件")
     else:
         _reject("analyze_event_fragmentation",
                 f"focus={focus}" if not run_fragmentation else f"events={total_events}<8")

@@ -759,6 +759,61 @@ def _cmd_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_investigate(args: argparse.Namespace) -> int:
+    """investigate 子命令：停机案例追查 ReAct Agent。"""
+    _setup_logging(args.verbose)
+
+    from tbm_diag.investigation.controller import run_investigation
+
+    input_files: list[str] = []
+    mode = "single_file"
+
+    if args.input:
+        p = Path(args.input)
+        if not p.exists():
+            print(f"✗ 文件不存在: {p}", file=sys.stderr)
+            return 2
+        input_files = [str(p)]
+    elif args.scan_index:
+        idx_path = Path(args.scan_index)
+        if not idx_path.exists():
+            print(f"✗ scan_index 不存在: {idx_path}", file=sys.stderr)
+            return 2
+        idx_df = pd.read_csv(idx_path, encoding="utf-8-sig")
+        if "risk_rank_score" in idx_df.columns:
+            idx_df = idx_df.sort_values("risk_rank_score", ascending=False)
+        top_n = args.top_n
+        for _, row in idx_df.head(top_n).iterrows():
+            fp = row.get("file_path", "")
+            if fp and Path(fp).exists():
+                input_files.append(str(fp))
+        mode = "scan_topn"
+        if not input_files:
+            print("✗ scan_index 中无可用文件", file=sys.stderr)
+            return 1
+
+    result = run_investigation(
+        input_files=input_files,
+        mode=mode,
+        output_dir=args.output_dir,
+        use_llm=args.use_llm_planner,
+        max_iterations=args.max_iterations,
+    )
+
+    if result.report_text:
+        print(f"\n{'='*70}")
+        for line in result.report_text.splitlines()[:30]:
+            print(f"  {line}")
+        if len(result.report_text.splitlines()) > 30:
+            print(f"  ... (完整报告见 {result.report_path})")
+        print(f"{'='*70}")
+
+    print(f"\n✓ 报告: {result.report_path}")
+    print(f"✓ 状态: {result.state_path}")
+    print(f"✓ 记忆: {result.memory_path}")
+    return 0
+
+
 def _cmd_scan(args: argparse.Namespace) -> int:
     """scan 子命令：批量扫描目录，生成 scan_index.csv。"""
     _setup_logging(args.verbose)
@@ -947,6 +1002,38 @@ def main(argv: list[str] | None = None) -> int:
     p_review.add_argument("--verbose", "-v", action="store_true",
                           help="显示 DEBUG 日志")
 
+    # ── investigate 子命令 ─────────────────────────────────────────────────────
+    p_inv = subparsers.add_parser(
+        "investigate",
+        help="停机案例追查 ReAct Agent",
+        description=(
+            "对高风险文件运行停机案例追查，合并碎片停机事件为案例，\n"
+            "分析前后窗口，分类计划/异常停机，生成调查报告。\n\n"
+            "示例：\n"
+            "  python -m tbm_diag.cli investigate --input data.xls\n"
+            "  python -m tbm_diag.cli investigate --scan-index scan_real_out/scan_index.csv --top-n 3\n"
+            "  python -m tbm_diag.cli investigate --input data.xls --use-llm-planner"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    inv_input = p_inv.add_mutually_exclusive_group(required=True)
+    inv_input.add_argument("--input", "-i", metavar="FILE",
+                           help="单文件调查")
+    inv_input.add_argument("--scan-index", metavar="PATH",
+                           help="scan_index.csv 路径，取 Top N 高风险文件调查")
+    p_inv.add_argument("--top-n", type=int, default=3, metavar="N",
+                       help="从 scan_index 取 Top N 文件（默认 3）")
+    p_inv.add_argument("--output-dir", "-O", default="investigation_out", metavar="DIR",
+                       help="输出目录（默认 investigation_out）")
+    p_inv.add_argument("--use-llm-planner", action="store_true",
+                       help="使用 LLM planner（需设置 OPENAI_API_KEY）")
+    p_inv.add_argument("--max-iterations", type=int, default=15, metavar="N",
+                       help="最大迭代轮数（默认 15）")
+    p_inv.add_argument("--config", default=None, metavar="PATH",
+                       help="配置文件路径")
+    p_inv.add_argument("--verbose", "-v", action="store_true",
+                       help="显示 DEBUG 日志")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -970,6 +1057,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_scan(args)
     elif args.command == "review":
         return _cmd_review(args)
+    elif args.command == "investigate":
+        return _cmd_investigate(args)
     else:
         parser.print_help()
         return 0

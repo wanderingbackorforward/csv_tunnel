@@ -188,10 +188,15 @@ def run_investigation(
     max_runtime_seconds: int = 300,
     planner_audit: bool = False,
     focus: str = "auto",
+    planner_mode: str = "rule",
 ) -> InvestigationResult:
     """运行停机案例追查 ReAct 循环。"""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 兼容旧 use_llm 参数
+    if use_llm and planner_mode == "rule":
+        planner_mode = "llm"
 
     state = InvestigationState(
         task_id=str(uuid.uuid4())[:8],
@@ -199,6 +204,7 @@ def run_investigation(
         input_files=input_files,
         current_file=input_files[0] if input_files else "",
         focus=focus,
+        planner_type=planner_mode,
     )
 
     start_time = time.time()
@@ -206,7 +212,7 @@ def run_investigation(
     report_text = ""
 
     print(f"[investigate] task={state.task_id} mode={mode} focus={focus} files={len(input_files)}")
-    print(f"[investigate] planner={'LLM' if use_llm else 'rule-based'}")
+    print(f"[investigate] planner={planner_mode}")
 
     for iteration in range(1, max_iterations + 1):
         state.iteration_count = iteration
@@ -222,13 +228,17 @@ def run_investigation(
             print(f"[investigate] STOP: {state.stop_reason}")
             break
 
-        decision = plan_next_action(state, use_llm=use_llm, audit=planner_audit)
+        decision = plan_next_action(state, use_llm=use_llm, audit=planner_audit,
+                                    planner_mode=planner_mode)
         action = decision.get("action", "")
         arguments = decision.get("arguments", {})
         rationale = decision.get("rationale", "")
         audit_data = decision.pop("_audit", None)
+        round_planner_type = decision.pop("_planner_type", planner_mode)
+        round_llm_status = decision.pop("_llm_status", "skipped")
+        round_fallback = decision.pop("_fallback_used", False)
 
-        print(f"[investigate] round {iteration} reason: {rationale}")
+        print(f"[investigate] round {iteration} planner={round_planner_type} reason: {rationale}")
         print(f"[investigate] action: {action}({json.dumps({k:v for k,v in arguments.items() if k != 'state'}, ensure_ascii=False)})")
 
         if planner_audit and audit_data:
@@ -272,6 +282,10 @@ def run_investigation(
             action=action,
             arguments={k: v for k, v in arguments.items() if k != "state"},
             rationale=rationale,
+            planner_type=round_planner_type,
+            llm_called=round_llm_status != "skipped",
+            llm_status=round_llm_status,
+            fallback_used=round_fallback,
         ))
 
         result = _execute_action(action, arguments, state)

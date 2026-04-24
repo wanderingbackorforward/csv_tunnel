@@ -217,6 +217,11 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 - 演示时必须展示 action_sequence，而不是只展示 AI 自然语言总结。
 - GUI 中"智能复核"页面可直接运行推荐的 investigate mode 并展示 ReAct 轨迹。
 - `investigate-modes` 命令可用于演示不同 mode 的工具调用路径。
+- 不允许把 rule planner 伪装成 LLM ReAct。
+- 每次称为 LLM ReAct，必须能在报告里看到 llm_call_count > 0 且 llm_success_count > 0。
+- ReAct 报告必须显示"Planner 与大模型调用审计"，明确 planner_type 和 LLM 调用次数。
+- 如果没有 LLM 调用，只能称为"rule-based investigation"或"ReAct-style workflow"。
+- investigate 默认 --planner rule，演示 LLM ReAct 需显式 --planner llm。
 
 ## Change Output Format
 

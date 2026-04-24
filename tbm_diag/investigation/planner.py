@@ -1,7 +1,9 @@
-"""planner.py — LLM planner + rule-based fallback
+"""planner.py — investigation planner: rule / llm / hybrid
 
-LLM planner 使用 OpenAI-compatible API。
-无 API key 时自动降级为 rule-based fallback。
+planner_mode:
+- rule: 纯规则决策，不调用 LLM
+- llm: 每轮调用 LLM 选择 action
+- hybrid: 前 2 轮规则（overview/events），后续关键分支由 LLM 决策
 """
 
 from __future__ import annotations
@@ -9,11 +11,24 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from typing import Any, Optional
+from urllib.parse import urlparse
 
-from tbm_diag.investigation.state import InvestigationState, FileOverview
+from tbm_diag.investigation.state import InvestigationState, FileOverview, LlmCallRecord
 
 logger = logging.getLogger(__name__)
+
+LLM_TOOL_WHITELIST = [
+    "inspect_file_overview",
+    "load_event_summary",
+    "analyze_stoppage_cases",
+    "drilldown_time_window",
+    "analyze_resistance_pattern",
+    "analyze_hydraulic_pattern",
+    "analyze_event_fragmentation",
+    "generate_investigation_report",
+]
 
 AVAILABLE_ACTIONS = [
     "inspect_file_overview",
@@ -34,24 +49,155 @@ AVAILABLE_ACTIONS = [
 
 def _compress_state(state: InvestigationState) -> dict[str, Any]:
     """压缩 state 为 LLM 可消费的摘要。"""
+    overview = state.file_overviews.get(state.current_file)
+    sem_dist = overview.semantic_event_distribution if overview else {}
+    state_dist = overview.state_distribution if overview else {}
+
+    actions_done = [a.action for a in state.actions_taken]
+
     return {
         "mode": state.mode,
+        "focus": state.focus,
         "current_file": state.current_file,
-        "files": state.input_files,
-        "iteration": state.iteration_count,
-        "confidence": state.confidence,
-        "has_overview": bool(state.file_overviews),
-        "has_events": bool(state.event_summaries),
-        "stoppage_cases_count": sum(len(v) for v in state.stoppage_cases.values()),
-        "transitions_done": list(state.transition_analyses.keys()),
-        "classifications_done": list(state.case_classifications.keys()),
-        "has_cross_file": bool(state.cross_file_patterns),
-        "open_questions": state.open_questions[:3],
+        "round": state.iteration_count,
+        "max_iterations": 15,
+        "actions_done": actions_done,
         "last_observation": (
             state.observations[-1].result_summary if state.observations else ""
         ),
+        "indicators": {
+            "event_count": overview.event_count if overview else 0,
+            "stoppage_segment_count": sem_dist.get("stoppage_segment", 0),
+            "stopped_ratio_pct": state_dist.get("stopped", 0),
+            "ser_count": (sem_dist.get("suspected_excavation_resistance", 0)
+                         + sem_dist.get("excavation_resistance_under_load", 0)),
+            "hyd_count": sem_dist.get("hydraulic_instability", 0),
+        },
+        "available_tools": [t for t in LLM_TOOL_WHITELIST if t not in actions_done],
+        "completed_tools": [t for t in LLM_TOOL_WHITELIST if t in actions_done],
     }
 
+
+_LLM_SYSTEM_PROMPT = """你是 TBM 停机案例追查 agent 的决策器。根据当前调查状态，从可用工具中选择下一步 action。
+
+可用工具白名单: {tools}
+
+严格返回 JSON（不要包裹在 markdown 代码块中）：
+{{"thought_summary": "简短中文推理，不超过80字", "selected_action": "tool_name", "arguments": {{}}, "selected_reason": "选择理由", "stop": false}}
+
+规则：
+- selected_action 必须在可用工具白名单内
+- 如果所有必要分析已完成，设 selected_action="generate_investigation_report", stop=true
+- arguments 中 file_path 使用 current_file
+- 不要输出隐藏思维链，只要 thought_summary"""
+
+
+def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[dict[str, Any]], LlmCallRecord]:
+    """调用 OpenAI-compatible API 进行决策。返回 (decision, call_record)。"""
+    record = LlmCallRecord(round_num=state.iteration_count)
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        record.status = "no_sdk"
+        record.error_message = "openai SDK 未安装"
+        return None, record
+
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or None
+    if not api_key:
+        record.status = "no_key"
+        record.error_message = "OPENAI_API_KEY 未设置"
+        return None, record
+
+    model = os.environ.get("LLM_MODEL", "").strip()
+    if not model:
+        from tbm_diag.config import DiagConfig
+        cfg = DiagConfig()
+        model = cfg.llm.model or "gpt-4o-mini"
+    record.model = model
+    record.base_url_host = urlparse(base_url).hostname if base_url else "api.openai.com"
+
+    client_kwargs: dict[str, Any] = {"api_key": api_key}
+    if base_url:
+        client_kwargs["base_url"] = base_url
+
+    compressed = _compress_state(state)
+    available = compressed.get("available_tools", LLM_TOOL_WHITELIST)
+    system_msg = _LLM_SYSTEM_PROMPT.format(tools=", ".join(available))
+
+    client = OpenAI(**client_kwargs)
+    t0 = time.time()
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": json.dumps(compressed, ensure_ascii=False)},
+            ],
+            max_tokens=512,
+            temperature=0.2,
+            timeout=30,
+        )
+        record.latency_seconds = round(time.time() - t0, 2)
+        text = (resp.choices[0].message.content or "").strip()
+        record.raw_preview = text[:300]
+
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start < 0 or end <= start:
+            record.status = "parse_error"
+            record.error_message = "LLM 返回中未找到 JSON"
+            return None, record
+
+        parsed = json.loads(text[start:end])
+        action = parsed.get("selected_action", "")
+        if action not in LLM_TOOL_WHITELIST:
+            record.status = "parse_error"
+            record.error_message = f"LLM 选择了不在白名单中的 action: {action}"
+            return None, record
+
+        record.status = "success"
+        record.selected_action = action
+        record.selected_reason = parsed.get("selected_reason", "")
+        record.thought_summary = parsed.get("thought_summary", "")
+
+        arguments = parsed.get("arguments", {})
+        arguments.pop("current_file", None)
+        if "file_path" not in arguments and action != "generate_investigation_report":
+            arguments["file_path"] = state.current_file
+
+        result = {
+            "rationale": parsed.get("selected_reason", parsed.get("thought_summary", "")),
+            "action": action,
+            "arguments": arguments,
+        }
+        if audit:
+            rejected = parsed.get("rejected_actions", [])
+            result["_audit"] = {
+                "candidates": [(action, record.selected_reason)],
+                "rejected": [(r.get("action", ""), r.get("reason", "")) for r in rejected] if isinstance(rejected, list) else [],
+                "is_llm": True,
+                "triggered_by": "",
+                "observation_used": "",
+            }
+
+        if parsed.get("stop"):
+            result["action"] = "generate_investigation_report"
+            result["arguments"] = {}
+
+        return result, record
+
+    except Exception as exc:
+        record.latency_seconds = round(time.time() - t0, 2)
+        exc_name = type(exc).__name__
+        if "timeout" in exc_name.lower() or "timed out" in str(exc).lower():
+            record.status = "timeout"
+        else:
+            record.status = "api_error"
+        record.error_message = f"{exc_name}: {str(exc)[:200]}"
+        return None, record
 
 # ── Rule-based fallback planner ───────────────────────────────────────────────
 
@@ -332,87 +478,62 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
     return _select("generate_investigation_report", "证据收集完成，生成报告", {})
 
 
-# ── LLM planner ──────────────────────────────────────────────────────────────
-
-_SYSTEM_PROMPT = """你是一个 TBM 停机案例追查 agent 的决策器。
-根据当前调查状态，选择下一步 action。
-
-可用 actions: {actions}
-
-输出严格 JSON：
-{{"rationale": "简短理由", "action": "action_name", "arguments": {{...}}}}
-
-不要输出长思维链。action 必须在白名单内。"""
-
-
-def _llm_plan(state: InvestigationState) -> Optional[dict[str, Any]]:
-    """调用 OpenAI-compatible API 进行决策。"""
-    try:
-        from openai import OpenAI
-    except ImportError:
-        logger.info("openai SDK not installed, falling back to rule-based planner")
-        return None
-
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    base_url = os.environ.get("OPENAI_BASE_URL", "")
-    if not api_key:
-        logger.info("OPENAI_API_KEY not set, falling back to rule-based planner")
-        return None
-
-    client_kwargs: dict[str, Any] = {"api_key": api_key}
-    if base_url:
-        client_kwargs["base_url"] = base_url
-
-    client = OpenAI(**client_kwargs)
-    compressed = _compress_state(state)
-
-    model = os.environ.get("INVESTIGATION_MODEL", "MiniMax-M2.7")
-
-    try:
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": _SYSTEM_PROMPT.format(actions=", ".join(AVAILABLE_ACTIONS)),
-                },
-                {
-                    "role": "user",
-                    "content": json.dumps(compressed, ensure_ascii=False),
-                },
-            ],
-            max_tokens=256,
-            temperature=0.2,
-        )
-        text = resp.choices[0].message.content.strip()
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        if start >= 0 and end > start:
-            result = json.loads(text[start:end])
-            if result.get("action") in AVAILABLE_ACTIONS:
-                return result
-            logger.warning("LLM returned invalid action: %s", result.get("action"))
-    except Exception as exc:
-        logger.warning("LLM planner failed: %s", exc)
-
-    return None
-
-
 # ── 公开接口 ──────────────────────────────────────────────────────────────────
 
 def plan_next_action(
     state: InvestigationState,
     use_llm: bool = False,
     audit: bool = False,
+    planner_mode: str = "rule",
 ) -> dict[str, Any]:
-    """决定下一步 action。use_llm=True 时优先尝试 LLM，失败则 fallback。"""
-    if use_llm:
-        result = _llm_plan(state)
-        if result:
-            if audit:
-                result["_audit"] = {"candidates": [], "rejected": [], "is_llm": True}
-            return result
-        logger.info("LLM planner unavailable, using fallback")
+    """决定下一步 action。
 
-    return _fallback_plan(state, audit=audit)
+    planner_mode:
+    - rule: 纯规则
+    - llm: 每轮调 LLM，失败 fallback
+    - hybrid: 前 2 轮规则，后续调 LLM
+    """
+    # 兼容旧 use_llm 参数
+    if use_llm and planner_mode == "rule":
+        planner_mode = "llm"
+
+    use_llm_this_round = False
+    if planner_mode == "llm":
+        use_llm_this_round = True
+    elif planner_mode == "hybrid":
+        use_llm_this_round = state.iteration_count > 2
+
+    if use_llm_this_round:
+        result, call_record = _llm_plan(state, audit=audit)
+        state.llm_calls.append(call_record)
+        state.llm_call_count += 1
+        if call_record.model and not state.llm_model:
+            state.llm_model = call_record.model
+
+        if result:
+            state.llm_success_count += 1
+            result["_planner_type"] = "llm" if planner_mode == "llm" else "hybrid_llm"
+            result["_llm_status"] = "success"
+            return result
+        else:
+            state.llm_fallback_count += 1
+            logger.info("LLM planner %s (round %d), fallback to rule",
+                        call_record.status, state.iteration_count)
+            fb = _fallback_plan(state, audit=audit)
+            fb["_planner_type"] = "llm" if planner_mode == "llm" else "hybrid_llm"
+            fb["_llm_status"] = call_record.status
+            fb["_fallback_used"] = True
+            return fb
+
+    # rule planner (or hybrid early rounds)
+    skipped_record = LlmCallRecord(
+        round_num=state.iteration_count,
+        status="skipped",
+    )
+    state.llm_calls.append(skipped_record)
+
+    fb = _fallback_plan(state, audit=audit)
+    fb["_planner_type"] = "rule" if planner_mode == "rule" else "hybrid_rule"
+    fb["_llm_status"] = "skipped"
+    return fb
 

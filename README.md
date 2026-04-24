@@ -200,6 +200,30 @@ streamlit run app_demo.py
 
 review 不是 ReAct。review 是分诊，告诉你下一步该用什么工具查。investigate 才是真正的动态工具调用调查。
 
+### investigate 的 Planner 模式
+
+investigate 支持三种 planner：
+
+| 模式 | 说明 | 适用场景 |
+|------|------|----------|
+| `--planner rule` | 纯规则 planner，不调用 LLM API | 默认模式，零成本，确定性工具选择 |
+| `--planner llm` | 每轮调用 LLM 选择下一步工具 | 演示真正 LLM ReAct |
+| `--planner hybrid` | 前 2 轮规则，后续关键分支调 LLM | 节省成本的折中方案 |
+
+报告中会明确标注每轮的 planner 类型、是否调用 LLM、LLM 状态和 fallback 情况。
+rule planner 只能称为"规则驱动 ReAct-style 调查"，不能称为"LLM ReAct"。
+
+```bash
+# 规则 planner（默认）
+python -m tbm_diag.cli investigate --input data.xls --planner rule
+
+# LLM planner（需要 API Key）
+python -m tbm_diag.cli investigate --input data.xls --planner llm --planner-audit
+
+# 混合 planner
+python -m tbm_diag.cli investigate --input data.xls --planner hybrid --planner-audit
+```
+
 ### investigate 的 ReAct 工作流
 
 ```

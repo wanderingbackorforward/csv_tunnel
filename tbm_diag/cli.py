@@ -870,6 +870,7 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         max_iterations=args.max_iterations,
         planner_audit=getattr(args, "planner_audit", False),
         focus=getattr(args, "mode", "auto"),
+        planner_mode=getattr(args, "planner", "rule"),
     )
 
     if result.report_text:
@@ -1211,8 +1212,11 @@ def main(argv: list[str] | None = None) -> int:
     p_inv.add_argument("--mode", default="auto",
                        choices=["auto", "stoppage", "resistance", "hydraulic", "fragmentation"],
                        help="调查聚焦模式（默认 auto）")
+    p_inv.add_argument("--planner", default="rule",
+                       choices=["rule", "llm", "hybrid"],
+                       help="planner 模式：rule=纯规则 llm=每轮调LLM hybrid=混合（默认 rule）")
     p_inv.add_argument("--use-llm-planner", action="store_true",
-                       help="使用 LLM planner（需设置 OPENAI_API_KEY）")
+                       help="（已废弃，请用 --planner llm）使用 LLM planner")
     p_inv.add_argument("--max-iterations", type=int, default=15, metavar="N",
                        help="最大迭代轮数（默认 15）")
     p_inv.add_argument("--config", default=None, metavar="PATH",

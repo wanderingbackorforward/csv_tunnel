@@ -18,10 +18,12 @@ _CASE_TYPE_LABELS = {
 def _build_react_trace_table(state: InvestigationState) -> list[str]:
     """构建 ReAct 调查轨迹表。"""
     lines = ["## ReAct 调查轨迹", ""]
-    lines.append("| 轮次 | 决策理由 | 调用工具 | 观察结果 | 触发字段 |")
-    lines.append("|------|----------|----------|----------|----------|")
+    lines.append("| 轮次 | Planner | LLM | 决策理由 | 调用工具 | 观察结果 | 触发字段 | fallback |")
+    lines.append("|------|---------|-----|----------|----------|----------|----------|----------|")
 
     audit_map = {a.round_num: a for a in state.audit_log} if state.audit_log else {}
+
+    _PT = {"rule": "规则", "llm": "LLM", "hybrid_rule": "混合/规则", "hybrid_llm": "混合/LLM"}
 
     for action_rec in state.actions_taken:
         obs = None
@@ -29,15 +31,75 @@ def _build_react_trace_table(state: InvestigationState) -> list[str]:
             if o.round_num == action_rec.round_num:
                 obs = o
                 break
-        obs_text = (obs.result_summary[:80] if obs else "无").replace("|", "/")
-        rationale = (action_rec.rationale or "").replace("|", "/")[:60]
+        obs_text = (obs.result_summary[:60] if obs else "无").replace("|", "/")
+        rationale = (action_rec.rationale or "").replace("|", "/")[:50]
         ar = audit_map.get(action_rec.round_num)
         trigger = (ar.triggered_by_field if ar and ar.triggered_by_field else "—").replace("|", "/")
+        pt = _PT.get(action_rec.planner_type, action_rec.planner_type)
+        llm_col = action_rec.llm_status if action_rec.llm_called else "—"
+        fb = "是" if action_rec.fallback_used else "—"
         lines.append(
-            f"| {action_rec.round_num} | {rationale} "
-            f"| {action_rec.action} | {obs_text} | {trigger} |"
+            f"| {action_rec.round_num} | {pt} | {llm_col} "
+            f"| {rationale} | {action_rec.action} | {obs_text} | {trigger} | {fb} |"
         )
     lines.append("")
+    return lines
+
+
+def _build_planner_audit_section(state: InvestigationState) -> list[str]:
+    """构建 Planner 与大模型调用审计 section。"""
+    lines = ["## Planner 与大模型调用审计", ""]
+
+    _PT_LABELS = {
+        "rule": "规则 planner（未调用 LLM API）",
+        "llm": "LLM planner（每轮调用 LLM API）",
+        "hybrid": "混合 planner（关键分支调用 LLM）",
+    }
+    lines.append(f"- Planner 类型：{_PT_LABELS.get(state.planner_type, state.planner_type)}")
+
+    llm_attempted = sum(1 for c in state.llm_calls if c.status != "skipped")
+    lines.append(f"- LLM 调用次数：{llm_attempted}")
+    lines.append(f"- LLM 成功次数：{state.llm_success_count}")
+    lines.append(f"- fallback 次数：{state.llm_fallback_count}")
+    if state.llm_model:
+        lines.append(f"- 模型：{state.llm_model}")
+
+    lines.append("")
+    if state.planner_type == "rule":
+        lines.append("本次使用规则 planner，未调用 LLM API。")
+        lines.append("属于规则驱动的 ReAct-style 调查流程，每轮工具选择由确定性规则决定。")
+        lines.append("如需真正 LLM 驱动调查，请使用 `--planner llm`。")
+    elif llm_attempted > 0 and state.llm_success_count == llm_attempted:
+        lines.append(f"本次使用 {state.planner_type} planner，"
+                     f"共 {llm_attempted} 次 LLM planner 调用，全部成功。")
+    elif llm_attempted > 0:
+        lines.append(f"本次使用 {state.planner_type} planner，"
+                     f"共 {llm_attempted} 次 LLM 调用，"
+                     f"{state.llm_success_count} 次成功，"
+                     f"{state.llm_fallback_count} 次 fallback 到规则。")
+    elif state.planner_type in ("llm", "hybrid"):
+        no_key = any(c.status == "no_key" for c in state.llm_calls)
+        if no_key:
+            lines.append("未检测到 API Key，所有轮次 fallback 到规则 planner。")
+        else:
+            lines.append("LLM 调用全部跳过或失败，已 fallback 到规则 planner。")
+    lines.append("")
+
+    # LLM 调用明细
+    actual_calls = [c for c in state.llm_calls if c.status != "skipped"]
+    if actual_calls:
+        lines.append("### LLM 调用明细")
+        lines.append("")
+        lines.append("| 轮次 | 状态 | 选择 | 耗时 | 摘要 |")
+        lines.append("|------|------|------|------|------|")
+        for c in actual_calls:
+            thought = (c.thought_summary or c.error_message or "").replace("|", "/")[:40]
+            lines.append(
+                f"| {c.round_num} | {c.status} | {c.selected_action or '—'} "
+                f"| {c.latency_seconds:.1f}s | {thought} |"
+            )
+        lines.append("")
+
     return lines
 
 
@@ -427,6 +489,9 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
         for start, end, cid in check_periods:
             lines.append(f"- {start} ~ {end} (案例 {cid})")
         lines.append("")
+
+    # ── Planner 与大模型调用审计 ──
+    lines.extend(_build_planner_audit_section(state))
 
     # ── 证据一致性检查 ──
     if corrections or consistency_warnings:

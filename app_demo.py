@@ -293,12 +293,26 @@ def render_investigation_audit(output_dir: Path) -> None:
     action_seq = " → ".join(action_names) if action_names else "未记录"
     stop_reason = state_doc.get("stop_reason", "未记录")
     rounds = state_doc.get("iteration_count", 0)
+    planner_type = state_doc.get("planner_type", "rule")
+    _PT = {"rule": "规则", "llm": "LLM", "hybrid": "混合"}
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("调查模式", focus_label)
-    col2.metric("轮次", rounds)
-    col3.metric("停止原因", stop_reason)
+    col2.metric("Planner", _PT.get(planner_type, planner_type))
+    col3.metric("轮次", rounds)
     col4.metric("工具调用数", len(action_names))
+
+    # LLM 调用统计
+    llm_call_count = state_doc.get("llm_call_count", 0)
+    llm_success = state_doc.get("llm_success_count", 0)
+    llm_fallback = state_doc.get("llm_fallback_count", 0)
+    llm_attempted = sum(1 for c in state_doc.get("llm_calls", []) if c.get("status") != "skipped")
+    if llm_attempted > 0 or planner_type in ("llm", "hybrid"):
+        col_a, col_b, col_c, col_d = st.columns(4)
+        col_a.metric("LLM 调用", llm_attempted)
+        col_b.metric("LLM 成功", llm_success)
+        col_c.metric("fallback", llm_fallback)
+        col_d.metric("模型", state_doc.get("llm_model", "—") or "—")
 
     st.markdown(f"**action_sequence:** `{action_seq}`")
 
@@ -309,19 +323,19 @@ def render_investigation_audit(output_dir: Path) -> None:
 
     if actions:
         st.markdown("#### ReAct 调查轨迹")
+        _PT_LABELS = {"rule": "规则", "llm": "LLM", "hybrid_rule": "混合/规则", "hybrid_llm": "混合/LLM"}
         trace_rows = []
         for a in actions:
             rnum = a.get("round_num", "")
             audit = audit_map.get(rnum, {})
             trace_rows.append({
                 "轮次": rnum,
-                "模式": _MODE_LABELS.get(focus, focus),
-                "观察": (audit.get("current_observation_summary", "") or a.get("observation_summary", "") or "未记录")[:80],
-                "决策理由": (audit.get("selected_reason", "") or a.get("rationale", "") or "未记录")[:60],
+                "Planner": _PT_LABELS.get(a.get("planner_type", "rule"), a.get("planner_type", "")),
+                "LLM": a.get("llm_status", "") if a.get("llm_called") else "—",
+                "决策理由": (audit.get("selected_reason", "") or a.get("rationale", "") or "未记录")[:50],
                 "调用工具": a.get("action", "未记录"),
-                "工具输出": (a.get("observation_summary", "") or "未记录")[:80],
-                "触发字段": audit.get("triggered_by_field", "") or "未记录",
-                "下一步决策": audit.get("selected_reason", "")[:40] if audit else "未记录",
+                "观察结果": (a.get("observation_summary", "") or "未记录")[:60],
+                "fallback": "是" if a.get("fallback_used") else "—",
             })
         st.dataframe(pd.DataFrame(trace_rows), use_container_width=True, hide_index=True)
 
@@ -758,7 +772,15 @@ def render_investigation_tab() -> None:
         focus_mode = st.selectbox("调查聚焦模式", ["auto", "stoppage", "resistance", "hydraulic", "fragmentation"])
     with col_iter:
         max_iterations = st.number_input("最大轮数", min_value=1, max_value=50, value=12, step=1)
-    planner_audit = st.checkbox("启用 planner 审计日志", value=False)
+    col_planner, col_audit = st.columns(2)
+    with col_planner:
+        planner_mode = st.selectbox("Planner 模式", ["rule", "llm", "hybrid"],
+                                    help="rule=纯规则 | llm=每轮调LLM | hybrid=混合")
+    with col_audit:
+        planner_audit = st.checkbox("启用 planner 审计日志", value=True)
+
+    if planner_mode in ("llm", "hybrid") and not has_openai_compatible_config():
+        st.warning("未检测到 API Key，LLM planner 无法运行，将 fallback 到 rule 或终止。请检查 .env。")
 
     if st.button("运行 ReAct 调查", type="primary", use_container_width=True):
         input_path = normalize_path(selected_file or input_path_text)
@@ -779,6 +801,8 @@ def render_investigation_tab() -> None:
             str(output_dir),
             "--mode",
             focus_mode,
+            "--planner",
+            planner_mode,
             "--max-iterations",
             str(int(max_iterations)),
         ]

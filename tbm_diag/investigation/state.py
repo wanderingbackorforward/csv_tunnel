@@ -65,6 +65,10 @@ class ActionRecord:
     arguments: dict[str, Any] = field(default_factory=dict)
     rationale: str = ""
     observation_summary: str = ""
+    planner_type: str = "rule"  # rule / llm / hybrid_rule / hybrid_llm
+    llm_called: bool = False
+    llm_status: str = ""  # success / no_key / api_error / timeout / parse_error / skipped
+    fallback_used: bool = False
 
 
 @dataclass
@@ -80,6 +84,20 @@ class Hypothesis:
     text: str = ""
     confidence: float = 0.0
     supporting_evidence: list[str] = field(default_factory=list)
+
+
+@dataclass
+class LlmCallRecord:
+    round_num: int = 0
+    model: str = ""
+    base_url_host: str = ""
+    status: str = ""  # success / no_key / no_sdk / api_error / timeout / parse_error / skipped
+    selected_action: str = ""
+    selected_reason: str = ""
+    thought_summary: str = ""
+    raw_preview: str = ""
+    error_message: str = ""
+    latency_seconds: float = 0.0
 
 
 @dataclass
@@ -120,3 +138,9 @@ class InvestigationState:
     stop_reason: str = ""
     audit_log: list[PlannerAuditRecord] = field(default_factory=list)
     focus: str = "auto"  # auto / stoppage / resistance / hydraulic / fragmentation
+    planner_type: str = "rule"  # rule / llm / hybrid
+    llm_call_count: int = 0
+    llm_success_count: int = 0
+    llm_fallback_count: int = 0
+    llm_model: str = ""
+    llm_calls: list[LlmCallRecord] = field(default_factory=list)

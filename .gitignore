@@ -15,34 +15,48 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Data / outputs
-*.log
+# Secrets — never commit
+.env
+*.env
+!.env.example
+
+# Local data files — never commit real/sample data
+*.xls
+*.xlsx
+*.csv
+!sample_config.yaml
+!sample_config_torque_exempt.yaml
+
+# Temp / debug
+_cols.txt
+_test_sample.csv
 *.tmp
+*.log
+
+# Generated reports and scan artifacts
+*.result.json
+*.report.md
+*.events.csv
+scan_index.csv
+scan_summary.json
+.scan_state.json
+.watcher_state.json
+result.csv
+
+# Runtime / output directories
+incoming/
+out/
 output/
 outputs/
 artifacts/
 reports/
-incoming/
-out/
 watch_out/
-sample.csv
-result.csv
-
-# Test leftovers
-_test_sample.csv
-
-# Local secrets — never commit
-.env
-
-# Streamlit GUI temp runs
-tmp_drag_runs/
-
-# CLI run outputs
-review_out/
-review_out_agent/
 scan_out/
 scan_real_out/
+scan_test_out/
+review_out/
+review_out_agent/
+review_test_out/
 investigation_out/
 investigation_test_out/
-scan_test_out/
-review_test_out/
+tmp_drag_runs/

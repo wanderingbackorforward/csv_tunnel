@@ -132,6 +132,38 @@ After every coding session, stage and commit all changes before finishing.
 - Never commit real API keys into code, README, sample configs, or commit messages.
 - `.env` must be in `.gitignore`.
 - `.env.example` may only contain placeholder values.
+- CLAUDE.md is a project development spec and should be committed, but must not contain API keys, real file paths, real data content, or sensitive information.
+
+## Repository Hygiene / 文件提交规范
+
+### 不要提交真实数据文件
+
+- 不要提交 `*.xls` / `*.xlsx` / 大体积 `*.csv`
+- 不要提交来自微信、现场、客户、工程项目的原始数据
+- 不要提交 `scan_real_out/` / `review_out/` / `investigation_out/` 等运行结果
+
+### 不要提交运行产物
+
+- 不要提交 `*.result.json` / `*.report.md` / `*.events.csv`
+- 不要提交 `scan_index.csv` / `scan_summary.json`
+- 不要提交 `.scan_state.json` / `.watcher_state.json`
+
+### 如果需要示例文件
+
+- 只能提交脱敏、小体积、专门放在 `tests/fixtures/` 下的样例
+- 必须确认不包含真实工程信息
+
+### 每次 commit 前必须检查
+
+提交前运行以下命令，确认没有可疑文件被跟踪：
+
+```bash
+git status
+git diff --stat
+git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investigation_out|\.result\.json|\.report\.md|\.events\.csv)" || true
+```
+
+如果发现上述文件被跟踪，必须先停止并清理（`git rm --cached`），不能直接 commit。
 
 ## Change Output Format
 

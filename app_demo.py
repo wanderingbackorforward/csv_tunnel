@@ -316,6 +316,30 @@ def render_investigation_audit(output_dir: Path) -> None:
 
     st.markdown(f"**action_sequence:** `{action_seq}`")
 
+    # 最终调查结论（优先展示）
+    fc = state_doc.get("final_conclusion")
+    if fc and isinstance(fc, dict):
+        _CONV = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
+        _FT = {"rule": "规则", "llm": "LLM", "fallback": "LLM→规则"}
+        conv = _CONV.get(fc.get("convergence_status", ""), fc.get("convergence_status", ""))
+        st.markdown("#### 最终调查结论")
+        col_c1, col_c2, col_c3 = st.columns(3)
+        col_c1.metric("收敛状态", conv)
+        col_c2.metric("置信度", fc.get("confidence_label", "—"))
+        col_c3.metric("Finalizer", _FT.get(fc.get("finalizer_type", ""), "—"))
+        st.info(fc.get("primary_conclusion_zh", ""))
+        ruled_out = fc.get("ruled_out_zh", [])
+        unresolved = fc.get("unresolved_questions_zh", [])
+        checks = fc.get("next_manual_checks", [])
+        if ruled_out:
+            st.markdown("**已排除：**" + "；".join(ruled_out))
+        if unresolved:
+            st.markdown("**仍不确定：**" + "；".join(unresolved))
+        if checks:
+            with st.expander("下一步人工核查建议"):
+                for c in checks:
+                    st.markdown(f"- {c}")
+
     # ReAct 调查轨迹表
     actions = state_doc.get("actions_taken", [])
     audit_log = state_doc.get("audit_log", [])

@@ -210,6 +210,38 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
     # ── ReAct 调查轨迹（始终输出）──
     lines.extend(_build_react_trace_table(state))
 
+    # ── 最终调查结论（优先展示）──
+    fc = state.final_conclusion
+    if fc:
+        _CONV = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
+        _FT = {"rule": "规则 finalizer", "llm": "LLM finalizer", "fallback": "LLM 失败后 fallback 到规则"}
+        lines.append("## 最终调查结论\n")
+        lines.append(f"- 收敛状态：{_CONV.get(fc.convergence_status, fc.convergence_status)}")
+        lines.append(f"- 停止原因：{fc.stop_reason}")
+        lines.append(f"- 结论置信度：{fc.confidence_label}（{fc.confidence_reason_zh}）")
+        lines.append(f"- Finalizer：{_FT.get(fc.finalizer_type, fc.finalizer_type)}")
+        if fc.finalizer_model:
+            lines.append(f"- 模型：{fc.finalizer_model}")
+        lines.append("")
+        lines.append("**主要判断：**")
+        lines.append(f"{fc.primary_conclusion_zh}")
+        lines.append("")
+        if fc.ruled_out_zh:
+            lines.append("**已排除：**")
+            for r in fc.ruled_out_zh:
+                lines.append(f"- {r}")
+            lines.append("")
+        if fc.unresolved_questions_zh:
+            lines.append("**仍不确定：**")
+            for q in fc.unresolved_questions_zh:
+                lines.append(f"- {q}")
+            lines.append("")
+        if fc.next_manual_checks:
+            lines.append("**下一步人工核查：**")
+            for c in fc.next_manual_checks:
+                lines.append(f"- {c}")
+            lines.append("")
+
     # ── 核心结论 ──
     total_original = 0
     total_merged = 0

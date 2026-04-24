@@ -119,6 +119,23 @@ class PlannerAuditRecord:
 
 
 @dataclass
+class FinalConclusion:
+    convergence_status: str = "not_converged"  # converged / partially_converged / not_converged
+    stop_reason: str = ""
+    primary_conclusion_zh: str = ""
+    secondary_findings_zh: list[str] = field(default_factory=list)
+    ruled_out_zh: list[str] = field(default_factory=list)
+    unresolved_questions_zh: list[str] = field(default_factory=list)
+    confidence_label: str = "low"  # high / medium / low
+    confidence_reason_zh: str = ""
+    next_manual_checks: list[str] = field(default_factory=list)
+    finalizer_type: str = "rule"  # rule / llm / fallback
+    finalizer_llm_status: str = ""
+    finalizer_model: str = ""
+    finalizer_error_message: str = ""
+
+
+@dataclass
 class InvestigationState:
     task_id: str = ""
     mode: str = "single_file"
@@ -144,3 +161,4 @@ class InvestigationState:
     llm_fallback_count: int = 0
     llm_model: str = ""
     llm_calls: list[LlmCallRecord] = field(default_factory=list)
+    final_conclusion: Optional[FinalConclusion] = None

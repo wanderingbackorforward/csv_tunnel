@@ -328,10 +328,17 @@ def run_investigation(
     if not state.stop_reason:
         state.stop_reason = f"max_iterations ({max_iterations})"
 
-    if not report_text:
-        from tbm_diag.investigation.report import build_report
-        report_result = build_report(state)
-        report_text = report_result.get("report_text", "")
+    # ── 最终结论（必须在报告生成之前调用）──
+    from tbm_diag.investigation.tools import finalize_investigation
+    finalize_investigation(state, planner_mode=planner_mode)
+    if state.final_conclusion:
+        fc = state.final_conclusion
+        print(f"[investigate] conclusion: {fc.convergence_status} ({fc.finalizer_type})")
+
+    # 始终重新生成报告以包含最终结论
+    from tbm_diag.investigation.report import build_report
+    report_result = build_report(state)
+    report_text = report_result.get("report_text", "") or report_text
 
     report_path = output_dir / "investigation_report.md"
     report_path.write_text(report_text, encoding="utf-8")

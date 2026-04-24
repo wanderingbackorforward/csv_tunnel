@@ -78,7 +78,18 @@ def _compress_state(state: InvestigationState) -> dict[str, Any]:
     }
 
 
+_TBM_GLOSSARY = """TBM 术语表（严格遵守，禁止误翻）：
+- SER = suspected_excavation_resistance = 疑似掘进阻力异常（不是"电阻"）
+- HYD = hydraulic_instability = 液压系统不稳定
+- LEE = low_efficiency_excavation = 低效掘进
+- stoppage_segment = 停机片段
+- normal_excavation = 正常推进
+- heavy_load_excavation = 重载推进
+- low_load_operation = 低负载运行"""
+
 _LLM_SYSTEM_PROMPT = """你是 TBM 停机案例追查 agent 的决策器。根据当前调查状态，从可用工具中选择下一步 action。
+
+{glossary}
 
 可用工具白名单: {tools}
 
@@ -124,7 +135,7 @@ def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[
 
     compressed = _compress_state(state)
     available = compressed.get("available_tools", LLM_TOOL_WHITELIST)
-    system_msg = _LLM_SYSTEM_PROMPT.format(tools=", ".join(available))
+    system_msg = _LLM_SYSTEM_PROMPT.format(tools=", ".join(available), glossary=_TBM_GLOSSARY)
 
     client = OpenAI(**client_kwargs)
     t0 = time.time()

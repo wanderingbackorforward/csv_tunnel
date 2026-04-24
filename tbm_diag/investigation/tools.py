@@ -1135,6 +1135,241 @@ def drilldown_time_window(
     }
 
 
+# ── Tool 14: finalize_investigation ──────────────────────────────────────────
+
+_TBM_TERMINOLOGY = """TBM 术语表（禁止误翻）：
+- SER = suspected_excavation_resistance = 疑似掘进阻力异常（不是"电阻"）
+- HYD = hydraulic_instability = 液压系统不稳定
+- LEE = low_efficiency_excavation = 低效掘进
+- stoppage_segment = 停机片段
+- normal_excavation = 正常推进
+- heavy_load_excavation = 重载推进
+- low_load_operation = 低负载运行
+- row-level rule hit = 行级规则命中
+- event-level semantic label = 事件级语义标签
+禁止：把 resistance 翻译成"电阻"；把疑似写成确认；把无施工日志的判断写成事实。"""
+
+
+def _rule_finalize(state: Any) -> dict[str, Any]:
+    """基于已有证据生成最终结论（规则版）。"""
+    from tbm_diag.investigation.state import FinalConclusion
+
+    actions_done = {a.action for a in state.actions_taken}
+    drilldown_obs = [o for o in state.observations if o.action == "drilldown_time_window"]
+    res_obs = [o for o in state.observations if o.action == "analyze_resistance_pattern"]
+    hyd_obs = [o for o in state.observations if o.action == "analyze_hydraulic_pattern"]
+    frag_obs = [o for o in state.observations if o.action == "analyze_event_fragmentation"]
+
+    total_cases = sum(len(v) for v in state.stoppage_cases.values())
+    abnormal = [c for c, cls in state.case_classifications.items() if cls.case_type == "abnormal_like_stoppage"]
+    planned = [c for c, cls in state.case_classifications.items() if cls.case_type == "planned_like_stoppage"]
+
+    findings = []
+    ruled_out = []
+    unresolved = []
+    checks = []
+
+    # 停机分析结论
+    if total_cases > 0:
+        if planned and not abnormal:
+            findings.append(f"共 {total_cases} 个停机案例，{len(planned)} 个疑似计划性/管理性停机，未发现明显异常停机前兆。")
+        elif abnormal:
+            findings.append(f"共 {total_cases} 个停机案例，{len(abnormal)} 个疑似异常停机，{len(planned)} 个疑似计划性停机。")
+        else:
+            findings.append(f"共 {total_cases} 个停机案例，暂无明确分类。")
+
+    if drilldown_obs:
+        clean_pre = sum(1 for o in drilldown_obs
+                        if "停机前未见明显异常" in (o.data.get("interpretation_hint") or ""))
+        if clean_pre == len(drilldown_obs) and drilldown_obs:
+            findings.append("所有钻取窗口显示停机前后未见明显异常，停机更像计划性/管理性停机。")
+            ruled_out.append("暂未发现停机前明显 SER/HYD 前兆。")
+
+    # SER 分析结论
+    for obs in res_obs:
+        d = obs.data or {}
+        if d.get("all_stopped_overlap"):
+            findings.append("SER 事件多与停机片段重叠，暂不能证明推进中的掘进阻力异常。")
+            unresolved.append("SER 事件级标签与行级规则命中不一致，需检查检测列对齐。")
+        elif d.get("ser_count", 0) > 0:
+            adv = d.get("in_advancing_ratio", 0)
+            findings.append(f"SER 事件 {d['ser_count']} 个，推进中占比 {adv:.0%}。")
+
+    # 口径冲突检测
+    for obs in drilldown_obs:
+        d = obs.data or {}
+        if d.get("divergence_notes"):
+            unresolved.append("事件级 SER 与行级规则命中存在口径差异，需检查事件标签生成逻辑。")
+            break
+
+    # HYD 分析
+    for obs in hyd_obs:
+        d = obs.data or {}
+        if d.get("isolated_short_fluctuation"):
+            findings.append("HYD 事件多为孤立短时波动，不构成系统性液压异常。")
+            ruled_out.append("液压系统不稳定未达到系统性异常级别。")
+
+    # 缺失证据
+    missing = []
+    if "analyze_stoppage_cases" not in actions_done and total_cases == 0:
+        missing.append("未执行停机分析")
+    if not drilldown_obs:
+        missing.append("未执行窗口钻取")
+
+    # 核查建议
+    for cases in state.stoppage_cases.values():
+        for c in cases[:3]:
+            if c.duration_seconds > 1800:
+                checks.append(f"核查 {c.start_time} ~ {c.end_time} 对应施工日志（{c.case_id}，{c.duration_seconds/60:.0f}分钟）")
+    if unresolved:
+        checks.append("核查 SER 事件标签生成逻辑与行级规则列的对齐方式")
+
+    # 收敛状态
+    has_evidence = bool(drilldown_obs or res_obs or total_cases > 0)
+    has_conflict = bool(unresolved)
+    if has_evidence and not has_conflict and not missing:
+        convergence = "converged"
+        conf_label = "medium"
+        conf_reason = "主要证据一致，但所有结论均为疑似，需施工日志确认"
+    elif has_evidence:
+        convergence = "partially_converged"
+        conf_label = "low"
+        conf_reason = "存在证据口径冲突或关键证据缺失"
+    else:
+        convergence = "not_converged"
+        conf_label = "low"
+        conf_reason = "证据不足，无法形成判断"
+
+    primary = "；".join(findings) if findings else "证据不足，无法形成明确判断。"
+
+    conclusion = FinalConclusion(
+        convergence_status=convergence,
+        stop_reason=state.stop_reason,
+        primary_conclusion_zh=primary,
+        secondary_findings_zh=findings[1:] if len(findings) > 1 else [],
+        ruled_out_zh=ruled_out,
+        unresolved_questions_zh=unresolved,
+        confidence_label=conf_label,
+        confidence_reason_zh=conf_reason,
+        next_manual_checks=checks,
+        finalizer_type="rule",
+    )
+    return conclusion
+
+
+def _llm_finalize(state: Any) -> tuple[Any, str, str, str]:
+    """调用 LLM 生成最终结论。返回 (conclusion_or_None, status, model, error)。"""
+    import os
+    import time as _time
+    from urllib.parse import urlparse as _urlparse
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        return None, "no_sdk", "", "openai SDK 未安装"
+
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or None
+    if not api_key:
+        return None, "no_key", "", "OPENAI_API_KEY 未设置"
+
+    model = os.environ.get("LLM_MODEL", "").strip()
+    if not model:
+        from tbm_diag.config import DiagConfig
+        cfg = DiagConfig()
+        model = cfg.llm.model or "gpt-4o-mini"
+
+    from tbm_diag.investigation.state import FinalConclusion
+
+    evidence_summary = {
+        "rounds": state.iteration_count,
+        "stop_reason": state.stop_reason,
+        "planner_type": state.planner_type,
+        "stoppage_cases": sum(len(v) for v in state.stoppage_cases.values()),
+        "abnormal_count": sum(1 for cls in state.case_classifications.values() if cls.case_type == "abnormal_like_stoppage"),
+        "planned_count": sum(1 for cls in state.case_classifications.values() if cls.case_type == "planned_like_stoppage"),
+        "drilldown_hints": [o.data.get("interpretation_hint", "") for o in state.observations if o.action == "drilldown_time_window"],
+        "resistance_summary": next((o.data.get("summary", "") for o in state.observations if o.action == "analyze_resistance_pattern"), ""),
+        "hydraulic_summary": next((o.data.get("summary", "") for o in state.observations if o.action == "analyze_hydraulic_pattern"), ""),
+        "divergence_notes": [n for o in state.observations if o.action == "drilldown_time_window" for n in (o.data.get("divergence_notes") or [])],
+    }
+
+    import json as _json
+    system_prompt = f"""你是 TBM 停机案例调查的最终裁决器。基于工具调用结果，生成最终调查结论。
+
+{_TBM_TERMINOLOGY}
+
+严格返回 JSON（不要包裹在 markdown 代码块中）：
+{{"convergence_status": "converged/partially_converged/not_converged",
+"primary_conclusion_zh": "主要判断（中文，2-3句）",
+"ruled_out_zh": ["已排除的假设"],
+"unresolved_questions_zh": ["仍不确定的问题"],
+"confidence_label": "high/medium/low",
+"confidence_reason_zh": "置信度原因",
+"next_manual_checks": ["下一步人工核查建议"]}}"""
+
+    client = OpenAI(api_key=api_key, **({"base_url": base_url} if base_url else {}))
+    t0 = _time.time()
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": _json.dumps(evidence_summary, ensure_ascii=False)},
+            ],
+            max_tokens=1024,
+            temperature=0.1,
+            timeout=30,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start < 0 or end <= start:
+            return None, "parse_error", model, "未找到 JSON"
+        parsed = _json.loads(text[start:end])
+
+        conclusion = FinalConclusion(
+            convergence_status=parsed.get("convergence_status", "partially_converged"),
+            stop_reason=state.stop_reason,
+            primary_conclusion_zh=parsed.get("primary_conclusion_zh", ""),
+            ruled_out_zh=parsed.get("ruled_out_zh", []),
+            unresolved_questions_zh=parsed.get("unresolved_questions_zh", []),
+            confidence_label=parsed.get("confidence_label", "low"),
+            confidence_reason_zh=parsed.get("confidence_reason_zh", ""),
+            next_manual_checks=parsed.get("next_manual_checks", []),
+            finalizer_type="llm",
+            finalizer_llm_status="success",
+            finalizer_model=model,
+        )
+        return conclusion, "success", model, ""
+    except Exception as exc:
+        return None, "api_error", model, f"{type(exc).__name__}: {str(exc)[:200]}"
+
+
+def finalize_investigation(state: Any, planner_mode: str = "rule") -> dict[str, Any]:
+    """生成最终调查结论。planner_mode=llm/hybrid 时尝试 LLM finalizer。"""
+    conclusion = None
+
+    if planner_mode in ("llm", "hybrid"):
+        conclusion, status, model, error = _llm_finalize(state)
+        if conclusion:
+            state.final_conclusion = conclusion
+            return {"status": "ok", "finalizer_type": "llm", "convergence": conclusion.convergence_status}
+        # LLM failed, fallback
+        rule_conclusion = _rule_finalize(state)
+        rule_conclusion.finalizer_type = "fallback"
+        rule_conclusion.finalizer_llm_status = status
+        rule_conclusion.finalizer_model = model
+        rule_conclusion.finalizer_error_message = error
+        state.final_conclusion = rule_conclusion
+        return {"status": "ok", "finalizer_type": "fallback", "convergence": rule_conclusion.convergence_status}
+
+    conclusion = _rule_finalize(state)
+    state.final_conclusion = conclusion
+    return {"status": "ok", "finalizer_type": "rule", "convergence": conclusion.convergence_status}
+
+
 # ── 工具注册表 ────────────────────────────────────────────────────────────────
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {

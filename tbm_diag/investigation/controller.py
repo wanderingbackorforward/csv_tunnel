@@ -51,6 +51,7 @@ def _execute_action(
         return {"status": "error", "error": f"unknown action: {action}"}
 
     fn = tool_info["fn"]
+    allowed_params = set(tool_info.get("params", []))
 
     if action == "inspect_transition_window":
         arguments["state"] = state
@@ -65,8 +66,11 @@ def _execute_action(
     elif action == "drilldown_time_window":
         arguments["state"] = state
 
+    allowed_params.add("state")
+    clean_args = {k: v for k, v in arguments.items() if k in allowed_params}
+
     try:
-        return fn(**arguments)
+        return fn(**clean_args)
     except Exception as exc:
         logger.error("tool %s failed: %s", action, exc)
         return {"status": "error", "error": str(exc)}

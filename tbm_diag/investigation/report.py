@@ -219,10 +219,30 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
         lines.append(f"- 收敛状态：{_CONV.get(fc.convergence_status, fc.convergence_status)}")
         lines.append(f"- 停止原因：{fc.stop_reason}")
         lines.append(f"- 结论置信度：{fc.confidence_label}（{fc.confidence_reason_zh}）")
-        lines.append(f"- Finalizer：{_FT.get(fc.finalizer_type, fc.finalizer_type)}")
+        ft_label = _FT.get(fc.finalizer_type, fc.finalizer_type)
+        if fc.validator_applied:
+            ft_label += " + rule validator"
+        lines.append(f"- Finalizer：{ft_label}")
         if fc.finalizer_model:
             lines.append(f"- 模型：{fc.finalizer_model}")
+        if fc.validator_applied and fc.downgraded_fields:
+            lines.append(f"- Validator：已修正（{len(fc.downgraded_fields)} 项降级）")
+        elif fc.validator_applied:
+            lines.append("- Validator：通过（未触发降级）")
         lines.append("")
+
+        if fc.downgraded_fields:
+            lines.append("**降级原因：**")
+            for d in fc.downgraded_fields:
+                lines.append(f"- {d}")
+            lines.append("")
+
+        if fc.validation_warnings:
+            lines.append("**Validator 警告：**")
+            for w in fc.validation_warnings:
+                lines.append(f"- {w}")
+            lines.append("")
+
         lines.append("**主要判断：**")
         lines.append(f"{fc.primary_conclusion_zh}")
         lines.append("")

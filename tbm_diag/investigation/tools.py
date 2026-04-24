@@ -1288,9 +1288,12 @@ def _llm_finalize(state: Any) -> tuple[Any, str, str, str]:
         "stoppage_cases": sum(len(v) for v in state.stoppage_cases.values()),
         "abnormal_count": sum(1 for cls in state.case_classifications.values() if cls.case_type == "abnormal_like_stoppage"),
         "planned_count": sum(1 for cls in state.case_classifications.values() if cls.case_type == "planned_like_stoppage"),
+        "unclassified_count": sum(len(v) for v in state.stoppage_cases.values()) - sum(1 for _ in state.case_classifications.values()),
         "drilldown_hints": [o.data.get("interpretation_hint", "") for o in state.observations if o.action == "drilldown_time_window"],
+        "drilldown_count": sum(1 for o in state.observations if o.action == "drilldown_time_window"),
         "resistance_summary": next((o.data.get("summary", "") for o in state.observations if o.action == "analyze_resistance_pattern"), ""),
         "hydraulic_summary": next((o.data.get("summary", "") for o in state.observations if o.action == "analyze_hydraulic_pattern"), ""),
+        "tool_errors": [f"{o.action}: {o.data.get('error', '')}" for o in state.observations if o.data.get("status") == "error"],
         "divergence_notes": [n for o in state.observations if o.action == "drilldown_time_window" for n in (o.data.get("divergence_notes") or [])],
     }
 
@@ -1298,6 +1301,15 @@ def _llm_finalize(state: Any) -> tuple[Any, str, str, str]:
     system_prompt = f"""你是 TBM 停机案例调查的最终裁决器。基于工具调用结果，生成最终调查结论。
 
 {_TBM_TERMINOLOGY}
+
+硬约束（必须遵守）：
+- 如果工具执行报错，convergence_status 不能是 converged，confidence_label 不能是 high
+- 如果 drilldown 显示"停机前未见明显异常"，不能写"SER 主导停机"
+- 如果没有施工日志，不能把"疑似"写成事实，不能写"计划停机已排除"
+- 如果 drilldown 只覆盖 1-2 个案例，不能泛化到全部停机
+- 如果 event-level SER 与 row-level SER 不一致，不能写 high
+- 所有分类必须标注"疑似"
+- 优先输出 partially_converged，除非确实所有证据一致
 
 严格返回 JSON（不要包裹在 markdown 代码块中）：
 {{"convergence_status": "converged/partially_converged/not_converged",
@@ -1355,19 +1367,121 @@ def finalize_investigation(state: Any, planner_mode: str = "rule") -> dict[str, 
         conclusion, status, model, error = _llm_finalize(state)
         if conclusion:
             state.final_conclusion = conclusion
-            return {"status": "ok", "finalizer_type": "llm", "convergence": conclusion.convergence_status}
-        # LLM failed, fallback
+            validate_final_conclusion(state)
+            return {"status": "ok", "finalizer_type": "llm", "convergence": state.final_conclusion.convergence_status}
         rule_conclusion = _rule_finalize(state)
         rule_conclusion.finalizer_type = "fallback"
         rule_conclusion.finalizer_llm_status = status
         rule_conclusion.finalizer_model = model
         rule_conclusion.finalizer_error_message = error
         state.final_conclusion = rule_conclusion
-        return {"status": "ok", "finalizer_type": "fallback", "convergence": rule_conclusion.convergence_status}
+        validate_final_conclusion(state)
+        return {"status": "ok", "finalizer_type": "fallback", "convergence": state.final_conclusion.convergence_status}
 
     conclusion = _rule_finalize(state)
     state.final_conclusion = conclusion
-    return {"status": "ok", "finalizer_type": "rule", "convergence": conclusion.convergence_status}
+    validate_final_conclusion(state)
+    return {"status": "ok", "finalizer_type": "rule", "convergence": state.final_conclusion.convergence_status}
+
+
+def validate_final_conclusion(state: Any) -> None:
+    """校验 final_conclusion，基于工具证据强制降级过度自信结论。"""
+    fc = state.final_conclusion
+    if fc is None:
+        return
+
+    fc.original_convergence_status = fc.convergence_status
+    fc.original_confidence_label = fc.confidence_label
+    warnings = []
+    downgrades = []
+
+    # ── 1. 工具错误时不能 high ──
+    tool_errors = [o for o in state.observations if o.data.get("status") == "error"]
+    error_actions = [o.action for o in tool_errors]
+    core_tools = {"analyze_stoppage_cases", "analyze_resistance_pattern",
+                  "analyze_hydraulic_pattern", "analyze_event_fragmentation",
+                  "drilldown_time_window"}
+    core_errors = [a for a in error_actions if a in core_tools]
+    if core_errors:
+        if fc.confidence_label == "high":
+            fc.confidence_label = "medium"
+            downgrades.append("confidence: high→medium（核心工具报错）")
+        if fc.convergence_status == "converged":
+            fc.convergence_status = "partially_converged"
+            downgrades.append("convergence: converged→partially_converged（核心工具报错）")
+        warnings.append(f"核心工具报错（{', '.join(core_errors)}），结论需谨慎解读")
+
+    # ── 2. drilldown 不支持时不能说 SER 主导停机 ──
+    drilldown_obs = [o for o in state.observations if o.action == "drilldown_time_window"]
+    stoppage_case_drilldowns = [o for o in drilldown_obs
+                                 if o.data.get("target_event_info", {}).get("source") == "stoppage_case"
+                                 or (o.data.get("target_id", "").startswith("SC_"))]
+    clean_pre_drilldowns = [o for o in stoppage_case_drilldowns
+                            if "停机前未见明显异常" in (o.data.get("interpretation_hint") or "")]
+
+    if clean_pre_drilldowns and ("SER 主导" in fc.primary_conclusion_zh or "SER主导" in fc.primary_conclusion_zh):
+        fc.primary_conclusion_zh = fc.primary_conclusion_zh.replace(
+            "SER 主导停机", "SER 是重要线索，但当前 drilldown 未证明 SER 是停机直接前兆"
+        ).replace(
+            "SER主导停机", "SER 是重要线索，但当前 drilldown 未证明 SER 是停机直接前兆"
+        )
+        if fc.convergence_status == "converged":
+            fc.convergence_status = "partially_converged"
+            downgrades.append("convergence: converged→partially_converged（drilldown 未支持 SER 主导）")
+        warnings.append("停机案例 drilldown 未发现停机前 SER/HYD 行级异常，不支持 SER 主导停机结论")
+
+    # ── 3. 停机案例全是待确认时不能 high ──
+    abnormal_count = sum(1 for cls in state.case_classifications.values()
+                         if cls.case_type == "abnormal_like_stoppage")
+    planned_count = sum(1 for cls in state.case_classifications.values()
+                        if cls.case_type == "planned_like_stoppage")
+    total_cases = sum(len(v) for v in state.stoppage_cases.values())
+    classified_count = abnormal_count + planned_count
+
+    if total_cases > 0 and classified_count == 0:
+        if fc.confidence_label == "high":
+            fc.confidence_label = "medium"
+            downgrades.append("confidence: high→medium（Top 停机案例均未明确分类）")
+        if fc.convergence_status == "converged":
+            fc.convergence_status = "partially_converged"
+            downgrades.append("convergence: converged→partially_converged（Top 停机案例均未明确分类）")
+        warnings.append("Top 停机案例均为待确认/未分类，分类证据不足")
+
+    # ── 4. drilldown 覆盖不足时不能泛化 ──
+    top_n = min(3, total_cases)
+    if total_cases > 0 and len(stoppage_case_drilldowns) < top_n:
+        if "本次停机" in fc.primary_conclusion_zh and ("由" in fc.primary_conclusion_zh or "主导" in fc.primary_conclusion_zh):
+            warnings.append(
+                f"仅 drilldown {len(stoppage_case_drilldowns)}/{top_n} 个停机案例，"
+                f"结论不能泛化到全部 {total_cases} 个停机"
+            )
+            if fc.convergence_status == "converged" and len(stoppage_case_drilldowns) < 2:
+                fc.convergence_status = "partially_converged"
+                downgrades.append("convergence: converged→partially_converged（drilldown 覆盖不足）")
+
+    # ── 5. event-level 与 row-level 不一致时不能 high ──
+    has_divergence = any(
+        o.data.get("divergence_notes") for o in drilldown_obs
+    )
+    if has_divergence:
+        if fc.confidence_label == "high":
+            fc.confidence_label = "medium"
+            downgrades.append("confidence: high→medium（事件级/行级证据口径差异）")
+        warnings.append("事件级语义标签与行级规则命中存在口径差异，结论需检查检测列对齐")
+
+    # ── 6. planned_count=0 不能等于排除计划停机 ──
+    for i, item in enumerate(fc.ruled_out_zh):
+        if "计划" in item and ("排除" in item or "已确认" in item) and planned_count == 0:
+            fc.ruled_out_zh[i] = "暂无证据确认计划性停机；仍需施工日志确认"
+            warnings.append("planned_count=0 不等于排除计划性停机，已修正")
+            downgrades.append("ruled_out 修正：计划停机排除→待施工日志确认")
+
+    fc.validator_applied = True
+    fc.validation_warnings = warnings
+    fc.downgraded_fields = downgrades
+
+    if downgrades:
+        fc.confidence_reason_zh = (fc.confidence_reason_zh or "") + "；validator 已修正过度自信结论"
 
 
 # ── 工具注册表 ────────────────────────────────────────────────────────────────

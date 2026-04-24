@@ -322,12 +322,26 @@ def render_investigation_audit(output_dir: Path) -> None:
         _CONV = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
         _FT = {"rule": "规则", "llm": "LLM", "fallback": "LLM→规则"}
         conv = _CONV.get(fc.get("convergence_status", ""), fc.get("convergence_status", ""))
+        validated = fc.get("validator_applied", False)
+        n_downgrades = len(fc.get("downgraded_fields", []))
+
         st.markdown("#### 最终调查结论")
-        col_c1, col_c2, col_c3 = st.columns(3)
+        col_c1, col_c2, col_c3, col_c4 = st.columns(4)
         col_c1.metric("收敛状态", conv)
         col_c2.metric("置信度", fc.get("confidence_label", "—"))
         col_c3.metric("Finalizer", _FT.get(fc.get("finalizer_type", ""), "—"))
+        col_c4.metric("Validator", f"已修正({n_downgrades}项)" if n_downgrades else ("通过" if validated else "—"))
         st.info(fc.get("primary_conclusion_zh", ""))
+
+        downgrades = fc.get("downgraded_fields", [])
+        v_warnings = fc.get("validation_warnings", [])
+        if downgrades or v_warnings:
+            with st.expander(f"Validator 降级详情（{len(downgrades)} 项降级，{len(v_warnings)} 项警告）"):
+                for d in downgrades:
+                    st.markdown(f"- 降级：{d}")
+                for w in v_warnings:
+                    st.markdown(f"- 警告：{w}")
+
         ruled_out = fc.get("ruled_out_zh", [])
         unresolved = fc.get("unresolved_questions_zh", [])
         checks = fc.get("next_manual_checks", [])

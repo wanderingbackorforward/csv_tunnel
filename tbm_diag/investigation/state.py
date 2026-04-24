@@ -133,6 +133,12 @@ class FinalConclusion:
     finalizer_llm_status: str = ""
     finalizer_model: str = ""
     finalizer_error_message: str = ""
+    # validation fields
+    validator_applied: bool = False
+    validation_warnings: list[str] = field(default_factory=list)
+    downgraded_fields: list[str] = field(default_factory=list)
+    original_convergence_status: str = ""
+    original_confidence_label: str = ""
 
 
 @dataclass

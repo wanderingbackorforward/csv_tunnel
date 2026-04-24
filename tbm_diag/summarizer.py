@@ -51,8 +51,6 @@ class DiagSummaryInput:
     events: list[EventSummaryItem]
     semantic_stats: dict = field(default_factory=dict)
     """各 semantic_event_type 的统计：{sem_type: {"count": N, "total_seconds": X}}"""
-    hypothesis_board_text: str = ""
-    """假设收敛板的文本摘要，供 LLM prompt 使用。"""
 
 
 # ── 输出 dataclass ─────────────────────────────────────────────────────────────
@@ -217,33 +215,24 @@ def _build_prompt(summary_input: DiagSummaryInput) -> str:
         for bullet in ev.top_evidence:
             lines.append(f"     • {bullet}")
 
-    # 假设收敛板
-    if si.hypothesis_board_text:
-        lines += ["", si.hypothesis_board_text]
-
     lines += [
         "",
         "【输出要求】",
         "请严格输出以下 JSON 格式，不要输出任何其他内容：",
         "{",
-        '  "overall_summary": "2~3句整体评估，引用证据编号和假设编号（H1-H6），说明哪个假设最强",',
+        '  "overall_summary": "2~3句整体评估，引用证据编号，明确区分停机问题与推进效率问题",',
         '  "top_risks": [',
-        '    {"text": "风险描述", "evidence_ids": ["E1","E2"], "hypothesis_ids": ["H3"], "confidence": "data_supported|derived|needs_confirmation"}',
+        '    {"text": "风险描述", "evidence_ids": ["E1","E2"], "confidence": "data_supported|derived|needs_confirmation"}',
         '  ],',
         '  "suggested_actions": [',
         '    {"text": "建议描述", "evidence_ids": ["E2"]}',
         '  ],',
-        '  "referenced_hypotheses": ["H2", "H3"],',
-        '  "convergence_comment": "对假设收敛状态的一句话评价",',
         '  "limitations": ["本次分析的局限性说明"]',
         "}",
         "",
         "注意：",
-        "- 只基于上方证据 E1-E4 和假设收敛板，不要编造未在证据中出现的指标",
-        "- 必须说明哪个假设（H1-H6）最强、哪个仍不确定",
-        "- 不允许推翻规则评分结论，除非明确说明证据不足",
-        "- 如果收敛状态是部分收敛或未收敛，不要写成确定结论",
-        "- 每条 top_risks 必须包含 evidence_ids、hypothesis_ids 和 confidence",
+        "- 只基于上方证据 E1-E4，不要编造原始数据中不存在的指标",
+        "- 每条 top_risks 必须包含 evidence_ids 和 confidence",
         "- confidence 取值：data_supported（数据直接支持）、derived（派生统计）、needs_confirmation（需施工日志确认）",
         "- 停机片段不是推进效率问题，请单独描述",
         "- 不要把时间窗口推测写成确定结论",

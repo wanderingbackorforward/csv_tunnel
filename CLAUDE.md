@@ -185,14 +185,11 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 ## AI Review Report Rules
 
 - AI 复核报告不得只给自然语言结论，必须展示工具轨迹和证据链。
-- 每个文件的 review 结果必须包含 tool_traces、evidence_items 和 hypothesis_board。
-- LLM 输出必须引用 evidence_id（E1-E6）和 hypothesis_id（H1-H6），不允许编造未在证据中出现的指标。
-- LLM 不得直接决定最终问题，必须基于 hypothesis_board 的规则评分结果写总结。
+- 每个文件的 review 结果必须包含 tool_traces 和 evidence_items。
+- LLM 输出必须引用 evidence_id（E1-E6），不允许编造未在证据中出现的指标。
 - 不允许把时间窗口推测（E6 停机时间模式）写成确定结论，必须标注"需施工日志确认"。
-- 没有关键证据时必须输出 partially_converged 或 not_converged，禁止标记为 converged。
-- 禁止把"吃饭停机""计划停机"写成确认事实，H1/H2 没有施工日志时最多 partially_converged。
 - 跨文件核心问题判断必须同时看事件数和持续时长，不能只按事件数占比判断。
-- 演示页面必须展示"工具调用与证据链"和"诊断假设收敛"，不能只显示"运行状态：成功"。
+- 演示页面必须展示"工具调用与证据链"，不能只显示"运行状态：成功"。
 
 ## Change Output Format
 

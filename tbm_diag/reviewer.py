@@ -99,7 +99,6 @@ class ReviewRecord:
     tool_traces: list = field(default_factory=list)
     evidence_items: list = field(default_factory=list)
     stoppage_pattern: Optional[StoppageTimePattern] = None
-    hypothesis_board: Optional[HypothesisBoard] = None
 
 
 # ── 读取 scan_index ────────────────────────────────────────────────────────────
@@ -379,273 +378,6 @@ def _build_tool_traces(evidence_items: list[ReviewEvidenceItem]) -> list[ReviewT
     return traces
 
 
-# ── 诊断假设收敛层 ──────────────────────────────────────────────────────────
-
-@dataclass
-class EvidenceDelta:
-    evidence_id: str
-    delta: int
-    reason: str
-    reliability: str
-
-@dataclass
-class HypothesisScore:
-    hypothesis_id: str
-    hypothesis_name_zh: str
-    initial_score: int = 0
-    evidence_deltas: list = field(default_factory=list)
-    final_score: int = 0
-    confidence_label: str = "low"
-    conclusion: str = ""
-    missing_evidence: list = field(default_factory=list)
-
-@dataclass
-class HypothesisBoard:
-    file_name: str
-    hypotheses: list = field(default_factory=list)
-    top_hypothesis: str = ""
-    second_hypothesis: str = ""
-    score_margin: int = 0
-    convergence_status: str = "not_converged"
-    board_summary: str = ""
-    missing_evidence: list = field(default_factory=list)
-
-
-_HYPOTHESIS_DEFS = [
-    ("H1", "计划性停机 / 班次或检修安排"),
-    ("H2", "疑似异常停机 / 设备或地层导致停机"),
-    ("H3", "推进中掘进阻力异常 / 地层或刀盘负载问题"),
-    ("H4", "推进参数不匹配 / 操作策略问题"),
-    ("H5", "液压系统问题"),
-    ("H6", "事件切片或规则放大"),
-]
-
-
-def _clamp(v: int, lo: int = -100, hi: int = 100) -> int:
-    return max(lo, min(hi, v))
-
-
-def _get_sem(stats: dict, key: str) -> dict:
-    return stats.get(key, {"count": 0, "total_seconds": 0.0})
-
-
-def score_hypotheses(
-    semantic_stats: dict,
-    stoppage_pattern: StoppageTimePattern,
-    evidence_items: list[ReviewEvidenceItem],
-) -> HypothesisBoard:
-    """基于 E1-E6 证据对 H1-H6 假设进行规则评分。"""
-
-    stop = _get_sem(semantic_stats, "stoppage_segment")
-    ser = _get_sem(semantic_stats, "suspected_excavation_resistance")
-    ler = _get_sem(semantic_stats, "excavation_resistance_under_load")
-    lee = _get_sem(semantic_stats, "low_efficiency_excavation")
-    hyd = _get_sem(semantic_stats, "hydraulic_instability")
-
-    total_events = sum(v["count"] for v in semantic_stats.values()) or 1
-    total_seconds = sum(v["total_seconds"] for v in semantic_stats.values()) or 1.0
-
-    stop_dur_h = stop["total_seconds"] / 3600
-    ser_dur_h = ser["total_seconds"] / 3600
-    lee_dur_h = lee["total_seconds"] / 3600
-    hyd_dur_h = hyd["total_seconds"] / 3600
-
-    pat = stoppage_pattern
-    has_time_pattern = any(lb.startswith("possible_") for lb in pat.labels)
-    has_noon = "possible_meal_break_pattern" in pat.labels
-    has_evening = "possible_shift_or_evening_stop_pattern" in pat.labels
-    has_night = "possible_overnight_stop_pattern" in pat.labels
-
-    avg_lee_dur = (lee["total_seconds"] / lee["count"]) if lee["count"] > 0 else 0
-    avg_event_dur = total_seconds / total_events
-
-    scores: dict[str, HypothesisScore] = {}
-    for hid, name_zh in _HYPOTHESIS_DEFS:
-        scores[hid] = HypothesisScore(hypothesis_id=hid, hypothesis_name_zh=name_zh)
-
-    def _add(hid: str, eid: str, delta: int, reason: str, rel: str = "direct_stat"):
-        h = scores[hid]
-        h.evidence_deltas.append(EvidenceDelta(eid, delta, reason, rel))
-
-    # ── H1 planned_stoppage ──────────────────────────────────────────────────
-    if stop_dur_h >= 2:
-        _add("H1", "E2", 20, f"停机总时长 {stop_dur_h:.1f}h，较高")
-    if has_time_pattern:
-        bonus = 15
-        if has_noon:
-            bonus = 25
-        elif has_night:
-            bonus = 20
-        elif has_evening:
-            bonus = 20
-        parts = []
-        if has_noon: parts.append("午间")
-        if has_evening: parts.append("晚间")
-        if has_night: parts.append("夜间")
-        _add("H1", "E6", bonus, f"停机具有{'、'.join(parts)}规律性特征", "needs_external_confirmation")
-    if ser_dur_h >= 2 or hyd["count"] >= 10:
-        _add("H1", "E2", -20, "停机前后存在阻力/液压异常，不像纯计划停机")
-    scores["H1"].missing_evidence = ["施工日志", "班次记录"]
-
-    # ── H2 abnormal_stoppage ─────────────────────────────────────────────────
-    if stop_dur_h >= 2:
-        _add("H2", "E2", 20, f"停机总时长 {stop_dur_h:.1f}h")
-    if pat.max_single_duration_seconds >= 3600:
-        _add("H2", "E6", 15, f"单次最长停机 {pat.max_single_duration_seconds/3600:.1f}h，超过 1h")
-    if ser_dur_h >= 2:
-        _add("H2", "E2", 25, f"掘进阻力异常 {ser_dur_h:.1f}h，停机可能与阻力相关")
-    if hyd["count"] >= 10:
-        _add("H2", "E2", 15, f"液压不稳定 {hyd['count']} 次，可能与停机相关")
-    if has_time_pattern and ser_dur_h < 1 and hyd["count"] < 5:
-        _add("H2", "E6", -15, "停机具有规律性且无前置异常，更像计划停机")
-    scores["H2"].missing_evidence = ["施工日志", "停机前后窗口详细分析"]
-
-    # ── H3 excavation_resistance ──────────────────────────────────────────────
-    if ser_dur_h >= 5:
-        _add("H3", "E2", 30, f"掘进阻力异常累计 {ser_dur_h:.1f}h，时长显著")
-    elif ser_dur_h >= 1:
-        _add("H3", "E2", 20, f"掘进阻力异常累计 {ser_dur_h:.1f}h")
-    if ser["count"] >= 50:
-        _add("H3", "E2", 20, f"掘进阻力异常 {ser['count']} 个事件，频次高")
-    if ler["count"] >= 1:
-        _add("H3", "E2", 20, f"重载推进下阻力异常 {ler['count']} 个，确认重载工况下也存在")
-    if ser["count"] / total_events >= 0.3:
-        _add("H3", "E2", 15, f"正常推进中也频繁出现阻力异常（占 {ser['count']/total_events*100:.0f}%）")
-    scores["H3"].missing_evidence = ["地层记录", "刀盘磨损记录"]
-
-    # ── H4 parameter_mismatch ────────────────────────────────────────────────
-    if lee["count"] >= 30:
-        _add("H4", "E2", 20, f"低效掘进 {lee['count']} 个事件")
-    if lee_dur_h >= 2:
-        _add("H4", "E2", 20, f"低效掘进累计 {lee_dur_h:.1f}h")
-    elif lee["count"] >= 30 and lee_dur_h < 0.5:
-        _add("H4", "E2", -10, f"低效事件多但总时长仅 {lee_dur_h:.1f}h，碎片化严重")
-        _add("H6", "E2", 20, f"低效事件 {lee['count']} 个但仅 {lee_dur_h:.1f}h，疑似规则切片")
-    scores["H4"].missing_evidence = ["推进参数设定记录", "地层记录"]
-
-    # ── H5 hydraulic_issue ───────────────────────────────────────────────────
-    if hyd["count"] >= 20:
-        _add("H5", "E2", 15, f"液压不稳定 {hyd['count']} 次")
-    if hyd_dur_h >= 0.5:
-        _add("H5", "E2", 20, f"液压不稳定累计 {hyd_dur_h:.1f}h")
-    elif hyd["count"] >= 5 and hyd_dur_h < 0.1:
-        _add("H5", "E2", -10, f"液压事件 {hyd['count']} 次但总时长仅 {hyd_dur_h*60:.0f}min，孤立短暂")
-    scores["H5"].missing_evidence = ["液压系统检修记录"]
-
-    # ── H6 rule_fragmentation ────────────────────────────────────────────────
-    if total_events >= 100 and avg_event_dur < 60:
-        _add("H6", "E2", 25, f"事件数 {total_events}，平均时长仅 {avg_event_dur:.0f}s，碎片化明显")
-    if lee["count"] >= 50 and avg_lee_dur < 30:
-        _add("H6", "E2", 20, f"低效事件 {lee['count']} 个，平均仅 {avg_lee_dur:.0f}s")
-    if stop["count"] >= 20 and stop_dur_h >= 5:
-        _add("H6", "E2", 20, f"停机片段 {stop['count']} 个切分自 {stop_dur_h:.1f}h，可能过度切分")
-
-    # ── 计算最终分 ───────────────────────────────────────────────────────────
-    for h in scores.values():
-        h.final_score = _clamp(h.initial_score + sum(d.delta for d in h.evidence_deltas))
-
-    ranked = sorted(scores.values(), key=lambda h: h.final_score, reverse=True)
-    top = ranked[0] if ranked else None
-    second = ranked[1] if len(ranked) > 1 else None
-
-    margin = (top.final_score - second.final_score) if top and second else 0
-
-    # ── 收敛判断 ─────────────────────────────────────────────────────────────
-    if top and top.final_score >= 60 and margin >= 20:
-        convergence = "converged"
-    elif top and top.final_score >= 40:
-        convergence = "partially_converged"
-    else:
-        convergence = "not_converged"
-
-    # planned/abnormal 停机没有施工日志时降级
-    if top and top.hypothesis_id in ("H1", "H2") and convergence == "converged":
-        convergence = "partially_converged"
-
-    # ── 生成结论 ─────────────────────────────────────────────────────────────
-    _CONF_MAP = {"converged": "high", "partially_converged": "medium", "not_converged": "low"}
-    for h in scores.values():
-        if h.final_score >= 50:
-            h.confidence_label = "medium"
-        if h.final_score >= 70:
-            h.confidence_label = "high"
-        if h.hypothesis_id in ("H1", "H2") and h.confidence_label == "high":
-            h.confidence_label = "medium"
-
-    if top:
-        if convergence == "converged":
-            top.conclusion = f"证据较充分支持此假设（得分 {top.final_score}）"
-        elif convergence == "partially_converged":
-            top.conclusion = f"证据部分支持此假设（得分 {top.final_score}），需补充关键证据确认"
-        else:
-            top.conclusion = f"证据不足以确认（得分 {top.final_score}），建议逐文件详查"
-
-    all_missing = set()
-    for h in scores.values():
-        all_missing.update(h.missing_evidence)
-
-    _CONV_ZH = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
-    summary_parts = [
-        f"最可能：{top.hypothesis_name_zh}（{top.final_score}分）" if top else "",
-        f"次可能：{second.hypothesis_name_zh}（{second.final_score}分）" if second else "",
-        f"分差 {margin}，{_CONV_ZH.get(convergence, convergence)}",
-    ]
-
-    return HypothesisBoard(
-        file_name="",
-        hypotheses=list(scores.values()),
-        top_hypothesis=top.hypothesis_id if top else "",
-        second_hypothesis=second.hypothesis_id if second else "",
-        score_margin=margin,
-        convergence_status=convergence,
-        board_summary="；".join(p for p in summary_parts if p),
-        missing_evidence=sorted(all_missing),
-    )
-
-
-def _serialize_hypothesis(h: HypothesisScore) -> dict:
-    return {
-        "hypothesis_id": h.hypothesis_id,
-        "hypothesis_name_zh": h.hypothesis_name_zh,
-        "initial_score": h.initial_score,
-        "evidence_deltas": [
-            {"evidence_id": d.evidence_id, "delta": d.delta, "reason": d.reason, "reliability": d.reliability}
-            for d in h.evidence_deltas
-        ],
-        "final_score": h.final_score,
-        "confidence_label": h.confidence_label,
-        "conclusion": h.conclusion,
-        "missing_evidence": h.missing_evidence,
-    }
-
-
-def _serialize_board(board: HypothesisBoard) -> dict:
-    return {
-        "hypotheses": [_serialize_hypothesis(h) for h in board.hypotheses],
-        "top_hypothesis": board.top_hypothesis,
-        "second_hypothesis": board.second_hypothesis,
-        "score_margin": board.score_margin,
-        "convergence_status": board.convergence_status,
-        "board_summary": board.board_summary,
-        "missing_evidence": board.missing_evidence,
-    }
-
-
-def _format_board_for_prompt(board: HypothesisBoard) -> str:
-    """将假设收敛板格式化为 LLM prompt 文本。"""
-    _CONV_ZH = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
-    lines = ["[假设收敛板] 以下是规则评分系统对多个候选假设的评分结果，请基于此写总结："]
-    ranked = sorted(board.hypotheses, key=lambda h: h.final_score, reverse=True)
-    for h in ranked:
-        delta_str = "，".join(f"{d.evidence_id}{'+' if d.delta>=0 else ''}{d.delta}" for d in h.evidence_deltas)
-        lines.append(f"  {h.hypothesis_id} {h.hypothesis_name_zh}：{h.final_score}分（{delta_str or '无证据影响'}）")
-    lines.append(f"  收敛状态：{_CONV_ZH.get(board.convergence_status, board.convergence_status)}")
-    lines.append(f"  最可能：{board.top_hypothesis}，次可能：{board.second_hypothesis}，分差：{board.score_margin}")
-    if board.missing_evidence:
-        lines.append(f"  缺失证据：{'、'.join(board.missing_evidence)}")
-    return "\n".join(lines)
-
-
 def _run_detect_and_summarize(
     file_path: str,
     output_dir: Path,
@@ -710,18 +442,12 @@ def _run_detect_and_summarize(
             label_zh = STATE_LABELS.get(key, key)
             state_dist[label_zh] = f"{pct:.1f}%"
 
-    # 停机时间模式 + 假设收敛板（在 LLM 调用前计算，供 prompt 使用）
-    stoppage_pat = analyze_stoppage_time_pattern(evidences, events)
-    hyp_board = score_hypotheses(semantic_stats, stoppage_pat, [])
-    hyp_board.file_name = Path(file_path).name
-
     llm_result = None
     if events:
         si = build_summary_input(file_path, len(enriched), explanations,
                                  evidences, events, event_states, enriched,
                                  semantic_stats=semantic_stats)
         if si:
-            si.hypothesis_board_text = _format_board_for_prompt(hyp_board)
             llm_result = summarize(si, cfg.llm)
 
     fallback = None
@@ -731,7 +457,7 @@ def _run_detect_and_summarize(
         fallback = f"共 {len(events)} 个事件，最高 {top.severity_label}。{top.summary}"
 
     return (llm_result, fallback, str(json_path), str(md_path), semantic_stats,
-            state_dist, explanations, events, evidences, stoppage_pat, hyp_board)
+            state_dist, explanations, events, evidences)
 
 
 # ── 单文件 review ──────────────────────────────────────────────────────────────
@@ -749,8 +475,7 @@ def _review_one_llm(row: dict, output_dir: Path, shared_cfg: Any) -> ReviewRecor
         return rec
     try:
         (llm_result, fallback, jp, mp, sem_stats,
-         state_dist, explanations, events, evidences,
-         stoppage_pat, hyp_board) = _run_detect_and_summarize(
+         state_dist, explanations, events, evidences) = _run_detect_and_summarize(
             file_path, output_dir, shared_cfg)
         rec.review_json_path = jp
         rec.review_md_path   = mp
@@ -781,15 +506,11 @@ def _review_one_llm(row: dict, output_dir: Path, shared_cfg: Any) -> ReviewRecor
             rec.llm_status = "no_events"
 
         # 构建证据链和工具轨迹
+        stoppage_pat = analyze_stoppage_time_pattern(evidences, events)
         rec.stoppage_pattern = stoppage_pat
         rec.evidence_items = _build_evidence_items(
             row, sem_stats, state_dist, explanations, events, stoppage_pat, llm_result)
         rec.tool_traces = _build_tool_traces(rec.evidence_items)
-
-        # 使用完整证据重新评分假设收敛板
-        board = score_hypotheses(sem_stats, stoppage_pat, rec.evidence_items)
-        board.file_name = rec.file_name
-        rec.hypothesis_board = board
     except Exception as exc:
         rec.error_message = str(exc)
         logger.exception("review_one_llm failed for %s", file_path)
@@ -927,20 +648,6 @@ def _build_cross_analysis(records: list[ReviewRecord]) -> dict:
     # ── 优先级排序 ────────────────────────────────────────────────────────────
     priority = sorted(ok, key=lambda r: r.risk_rank_score, reverse=True)
 
-    # ── 假设分布（跨文件）────────────────────────────────────────────────────
-    hyp_top_dist: dict[str, int] = {}
-    conv_dist: dict[str, int] = {}
-    cross_missing: set[str] = set()
-    for r in ok:
-        if r.hypothesis_board:
-            th = r.hypothesis_board.top_hypothesis
-            hyp_top_dist[th] = hyp_top_dist.get(th, 0) + 1
-            cs = r.hypothesis_board.convergence_status
-            conv_dist[cs] = conv_dist.get(cs, 0) + 1
-            cross_missing.update(r.hypothesis_board.missing_evidence)
-
-    hyp_name_map = dict(_HYPOTHESIS_DEFS)
-
     return {
         "total_reviewed": len(ok),
         "high_risk_count": high_risk_count,
@@ -959,12 +666,6 @@ def _build_cross_analysis(records: list[ReviewRecord]) -> dict:
         "rank_by_duration": rank_by_duration,
         "composite_judgment": composite_judgment,
         "dominant_issue": composite_judgment,
-        "hypothesis_distribution": {
-            hid: {"name_zh": hyp_name_map.get(hid, hid), "file_count": cnt}
-            for hid, cnt in sorted(hyp_top_dist.items(), key=lambda x: -x[1])
-        },
-        "convergence_distribution": conv_dist,
-        "cross_missing_evidence": sorted(cross_missing),
         "priority_order": [
             {"rank": i + 1, "file": r.file_name, "score": r.risk_rank_score,
              "events": r.event_count, "severity": r.max_severity_label}
@@ -996,13 +697,6 @@ def _serialize_tool_trace(tt: ReviewToolTrace) -> dict:
     }
 
 
-def _hypothesis_name_zh(board: HypothesisBoard, hid: str) -> str:
-    for h in board.hypotheses:
-        if h.hypothesis_id == hid:
-            return h.hypothesis_name_zh
-    return ""
-
-
 def _write_review_summary(
     records: list[ReviewRecord],
     targets: list[dict],
@@ -1031,7 +725,6 @@ def _write_review_summary(
              "review_json_path": r.review_json_path, "review_md_path": r.review_md_path,
              "tool_traces": [_serialize_tool_trace(t) for t in r.tool_traces],
              "evidence_items": [_serialize_evidence(e) for e in r.evidence_items],
-             "hypothesis_board": _serialize_board(r.hypothesis_board) if r.hypothesis_board else None,
              }
             for r in records
         ],
@@ -1082,30 +775,6 @@ def _write_review_summary(
             for tt in r.tool_traces:
                 lines.append(f"| {tt.tool_name} | {tt.purpose_zh} | {tt.output_summary[:50]} | {', '.join(tt.evidence_ids)} |")
             lines.append("")
-
-        # 诊断假设收敛
-        if r.hypothesis_board and r.hypothesis_board.hypotheses:
-            board = r.hypothesis_board
-            _CONV_ZH = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
-            lines += ["#### 诊断假设收敛", "",
-                      "| 假设 | 初始分 | 证据影响 | 最终分 | 置信度 | 结论 |",
-                      "|------|-------:|----------|-------:|--------|------|"]
-            for h in sorted(board.hypotheses, key=lambda x: x.final_score, reverse=True):
-                delta_parts = []
-                for d in h.evidence_deltas:
-                    sign = "+" if d.delta >= 0 else ""
-                    delta_parts.append(f"{d.evidence_id} {sign}{d.delta}：{d.reason[:20]}")
-                delta_str = "；".join(delta_parts) if delta_parts else "无"
-                conf_zh = {"high": "高", "medium": "中", "low": "低", "unresolved": "待定"}.get(h.confidence_label, h.confidence_label)
-                lines.append(f"| {h.hypothesis_id} {h.hypothesis_name_zh} | {h.initial_score} | {delta_str} | {h.final_score} | {conf_zh} | {h.conclusion} |")
-            lines += ["",
-                      f"综合收敛判断：",
-                      f"- 最可能解释：{board.top_hypothesis} {_hypothesis_name_zh(board, board.top_hypothesis)}",
-                      f"- 次可能解释：{board.second_hypothesis} {_hypothesis_name_zh(board, board.second_hypothesis)}",
-                      f"- 分差：{board.score_margin}",
-                      f"- 收敛状态：{_CONV_ZH.get(board.convergence_status, board.convergence_status)}",
-                      f"- 缺失证据：{'、'.join(board.missing_evidence) if board.missing_evidence else '无'}",
-                      ""]
 
         if r.ai_summary:
             lines += ["#### AI 复核结论", ""]
@@ -1184,24 +853,6 @@ def _write_review_summary(
     # 综合判断
     if cross.get("composite_judgment"):
         lines += [f"> **综合判断**：{cross['composite_judgment']}", ""]
-
-    # 跨文件假设分布
-    hyp_dist = cross.get("hypothesis_distribution", {})
-    conv_dist = cross.get("convergence_distribution", {})
-    cross_missing = cross.get("cross_missing_evidence", [])
-    if hyp_dist:
-        _CONV_ZH = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
-        lines += ["**跨文件假设分布**", ""]
-        for hid, info in hyp_dist.items():
-            lines.append(f"- {hid} {info['name_zh']}：{info['file_count']} 个文件为 Top 假设")
-        lines.append("")
-        if conv_dist:
-            conv_parts = [f"{_CONV_ZH.get(k, k)} {v} 个" for k, v in conv_dist.items()]
-            lines.append(f"收敛状态分布：{'，'.join(conv_parts)}")
-            lines.append("")
-        if cross_missing:
-            lines.append(f"共同缺失证据：{'、'.join(cross_missing)}")
-            lines.append("")
 
     sem_breakdown = cross.get("semantic_event_breakdown", {})
     if sem_breakdown:

@@ -579,36 +579,6 @@ def render_review_tab() -> None:
                     })
                 st.dataframe(pd.DataFrame(ev_rows), use_container_width=True, hide_index=True)
 
-        # 诊断假设收敛
-        hboard = fr.get("hypothesis_board")
-        if hboard and hboard.get("hypotheses"):
-            with st.expander(f"{fname} — 诊断假设收敛"):
-                _CONV_ZH = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
-                _CONF_ZH = {"high": "高", "medium": "中", "low": "低", "unresolved": "待定"}
-                hyp_rows = []
-                for h in sorted(hboard["hypotheses"], key=lambda x: x.get("final_score", 0), reverse=True):
-                    deltas = h.get("evidence_deltas", [])
-                    delta_str = "；".join(
-                        f"{d['evidence_id']} {'+' if d['delta']>=0 else ''}{d['delta']}"
-                        for d in deltas
-                    ) if deltas else "无"
-                    hyp_rows.append({
-                        "假设": f"{h.get('hypothesis_id', '')} {h.get('hypothesis_name_zh', '')}",
-                        "最终分": h.get("final_score", 0),
-                        "证据影响": delta_str[:60],
-                        "置信度": _CONF_ZH.get(h.get("confidence_label", ""), ""),
-                        "结论": h.get("conclusion", ""),
-                    })
-                st.dataframe(pd.DataFrame(hyp_rows), use_container_width=True, hide_index=True)
-
-                conv = _CONV_ZH.get(hboard.get("convergence_status", ""), hboard.get("convergence_status", ""))
-                st.markdown(f"- 最可能解释：{hboard.get('top_hypothesis', '')}")
-                st.markdown(f"- 次可能解释：{hboard.get('second_hypothesis', '')}")
-                st.markdown(f"- 分差：{hboard.get('score_margin', 0)}，收敛状态：{conv}")
-                missing = hboard.get("missing_evidence", [])
-                if missing:
-                    st.markdown(f"- 缺失证据：{'、'.join(missing)}")
-
     # 跨文件分析
     cross = summary_doc.get("cross_file_analysis", {})
     if cross.get("composite_judgment"):

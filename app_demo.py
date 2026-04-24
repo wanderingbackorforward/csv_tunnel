@@ -498,32 +498,98 @@ def render_review_tab() -> None:
     summary_md = review_dir / "review_summary.md"
     summary_json = review_dir / "review_summary.json"
 
-    if summary_md.exists():
-        st.markdown("**复核报告预览**")
-        st.markdown(read_markdown_text(summary_md))
-        render_download(summary_md, "下载复核 Markdown 报告", "text/markdown")
-    else:
+    if not summary_json.exists():
+        if summary_md.exists():
+            st.markdown("**复核报告预览**")
+            st.markdown(read_markdown_text(summary_md))
+        else:
+            st.info("当前还没有可预览的智能复核报告。")
+        return
+
+    try:
+        summary_doc = read_json(summary_json)
+    except Exception as exc:
+        st.error(f"读取 review_summary.json 失败：{exc}")
+        return
+
+    file_results = summary_doc.get("file_results", [])
+    if not file_results:
         st.info("当前还没有可预览的智能复核报告。")
+        return
 
-    if summary_json.exists():
-        try:
-            summary_doc = read_json(summary_json)
-        except Exception as exc:
-            st.error(f"读取 review_summary.json 失败：{exc}")
-            return
+    # LLM 状态汇总
+    llm_count = sum(1 for f in file_results if f.get("summary_source") == "llm")
+    fb_count = sum(1 for f in file_results if f.get("summary_source") == "fallback")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("LLM 成功", f"{llm_count} 个")
+    col2.metric("规则降级", f"{fb_count} 个")
+    col3.metric("文件总数", f"{len(file_results)} 个")
 
-        file_results = summary_doc.get("file_results", [])
-        if file_results:
-            llm_count = sum(1 for f in file_results if f.get("summary_source") == "llm")
-            fb_count = sum(1 for f in file_results if f.get("summary_source") == "fallback")
-            if llm_count > 0 and fb_count == 0:
-                st.success(f"全部 {llm_count} 个文件均获得大模型总结。")
-            elif llm_count > 0:
-                st.info(f"{llm_count} 个文件 LLM 成功，{fb_count} 个规则降级。")
-            elif fb_count > 0:
-                st.warning("本次没有获得可解析的大模型总结，当前展示的是规则降级摘要。")
-            st.markdown("**重点文件复核结论**")
-            st.dataframe(build_review_display_table(file_results), use_container_width=True, hide_index=True)
+    # 工具调用摘要
+    tool_names_used = set()
+    for fr in file_results:
+        for tt in fr.get("tool_traces", []):
+            tool_names_used.add(tt.get("tool_name", ""))
+    if tool_names_used:
+        _TOOL_ZH = {
+            "scan_index_reader": "扫描索引读取",
+            "semantic_event_summary": "语义事件统计",
+            "state_distribution": "工况分布统计",
+            "top_events_summary": "Top 事件提取",
+            "stoppage_time_pattern": "停机时间模式分析",
+            "llm_summary": "AI 总结生成",
+        }
+        tool_labels = [_TOOL_ZH.get(t, t) for t in sorted(tool_names_used) if t]
+        st.caption(f"本次复核调用工具：{'、'.join(tool_labels)}")
+
+    # 每个文件的详细结果
+    st.markdown("**重点文件复核结论**")
+    st.dataframe(build_review_display_table(file_results), use_container_width=True, hide_index=True)
+
+    for fr in file_results:
+        fname = fr.get("file_name", "")
+        with st.expander(f"{fname} — 工具证据链与详情"):
+            _SRC = {"llm": "LLM 成功", "fallback": "规则降级", "none": "未生成"}
+            src = _SRC.get(fr.get("summary_source", ""), fr.get("summary_source", ""))
+            st.markdown(f"- 规则复核流程：{'成功' if fr.get('status') == 'ok' else '失败'}")
+            st.markdown(f"- LLM 总结状态：{src}")
+            st.markdown(f"- 工具证据链：见下方")
+
+            traces = fr.get("tool_traces", [])
+            if traces:
+                trace_rows = []
+                for tt in traces:
+                    trace_rows.append({
+                        "工具": tt.get("tool_name", ""),
+                        "作用": tt.get("purpose_zh", ""),
+                        "关键输出": (tt.get("output_summary", "") or "")[:60],
+                        "证据编号": ", ".join(tt.get("evidence_ids", [])),
+                    })
+                st.dataframe(pd.DataFrame(trace_rows), use_container_width=True, hide_index=True)
+
+            evidence = fr.get("evidence_items", [])
+            if evidence:
+                ev_rows = []
+                for ei in evidence:
+                    ev_rows.append({
+                        "编号": ei.get("evidence_id", ""),
+                        "标题": ei.get("title", ""),
+                        "解读": (ei.get("interpretation", "") or "")[:80],
+                        "可靠性": ei.get("reliability", ""),
+                    })
+                st.dataframe(pd.DataFrame(ev_rows), use_container_width=True, hide_index=True)
+
+    # 跨文件分析
+    cross = summary_doc.get("cross_file_analysis", {})
+    if cross.get("composite_judgment"):
+        st.markdown("**跨文件综合判断**")
+        st.info(cross["composite_judgment"])
+
+    if summary_md.exists():
+        st.markdown("**完整复核报告预览**")
+        with st.expander("展开查看 Markdown 报告"):
+            st.markdown(read_markdown_text(summary_md))
+        render_download(summary_md, "下载复核 Markdown 报告", "text/markdown")
 
 
 def render_investigation_tab() -> None:

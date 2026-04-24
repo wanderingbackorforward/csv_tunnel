@@ -182,6 +182,15 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 - 演示前必须跑 `python -m tbm_diag.cli llm-check` 确认 API 可用。
 - GUI 必须展示 LLM 状态（总结来源列），不得把 fallback 伪装成 AI 成功。
 
+## AI Review Report Rules
+
+- AI 复核报告不得只给自然语言结论，必须展示工具轨迹和证据链。
+- 每个文件的 review 结果必须包含 tool_traces 和 evidence_items。
+- LLM 输出必须引用 evidence_id（E1-E6），不允许编造未在证据中出现的指标。
+- 不允许把时间窗口推测（E6 停机时间模式）写成确定结论，必须标注"需施工日志确认"。
+- 跨文件核心问题判断必须同时看事件数和持续时长，不能只按事件数占比判断。
+- 演示页面必须展示"工具调用与证据链"，不能只显示"运行状态：成功"。
+
 ## Change Output Format
 
 After completing a task, output:

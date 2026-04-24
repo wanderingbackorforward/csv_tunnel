@@ -110,6 +110,43 @@ review 每个文件会明确标记总结来源：
 
 加 `--require-llm` 可在演示前自检：任何文件 LLM 未成功则 exit code 非 0。
 
+### review 报告中的工具轨迹与证据链
+
+review_summary.md 和 review_summary.json 中每个文件包含：
+
+- **工具调用轨迹**（tool_traces）：记录本次复核调用了哪些分析工具，每个工具的作用和关键输出
+- **证据链**（evidence_items）：每条证据有唯一编号（E1-E6），标注来源工具、解读和可靠性级别
+  - E1：扫描索引基础信息（risk_rank_score / event_count / max_severity_label）
+  - E2：语义事件分类统计（各类型事件数和持续时长）
+  - E3：工况分布（stopped / normal / heavy_load 等占比）
+  - E4：Top 事件摘要（类型、时长、状态）
+  - E5：LLM 总结状态（summary_source / llm_status / model）
+  - E6：停机时间模式分析（时间窗口分布和疑似标签）
+- **AI 结论引用证据**：LLM 输出的每条风险和建议引用 evidence_id，标注 confidence 级别
+
+可靠性级别：
+- `direct_stat`：数据直接统计
+- `derived_stat`：派生统计
+- `llm_inference`：LLM 推断
+- `needs_external_confirmation`：需施工日志等外部信息确认
+
+### 停机时间模式分析
+
+review 会对每个文件的停机片段进行时间窗口分析，输出疑似标签：
+- `possible_meal_break_pattern`：疑似午间停机特征（11:30-13:30）
+- `possible_shift_or_evening_stop_pattern`：疑似晚间/交接停机特征（17:00-20:30）
+- `possible_overnight_stop_pattern`：疑似夜间停机特征（22:00-06:00）
+
+这些标签只是时间窗口特征的统计结果，不等于确认计划停机。确认需要施工日志。
+
+### 跨文件核心问题判断
+
+review 的跨文件分析同时从两个维度评估核心问题：
+- **按事件数**：哪类事件出现最多
+- **按持续时长**：哪类事件累计影响时间最长
+
+综合判断基于事件数（30%权重）、持续时长（50%权重）、涉及文件数（20%权重）的加权评分，避免仅按事件数低估长时间停机的影响。
+
 ```bash
 python -m tbm_diag.cli review \
   --scan-index scan_real_out/scan_index.csv \

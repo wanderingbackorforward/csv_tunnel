@@ -176,59 +176,67 @@ def _build_prompt(summary_input: DiagSummaryInput) -> str:
 
     lines = [
         "你是一名盾构/TBM 施工数据分析助手。",
-        "以下是本次诊断的结构化结果，请基于这些信息做跨事件归纳总结。",
+        "以下是本次诊断的结构化证据，请严格基于这些证据做跨事件归纳总结。",
+        "每条结论必须引用证据编号（E1-E6），不允许编造未在证据中出现的指标。",
         "",
-        f"【数据概况】",
-        f"- 文件：{si.input_file}",
-        f"- 数据行数：{si.total_rows:,}",
-        f"- 时间范围：{si.time_range_start} ~ {si.time_range_end}",
+        "【证据清单】",
+        "",
+        f"[E1] 扫描索引基础信息：文件 {si.input_file}，数据行数 {si.total_rows:,}，"
+        f"时间范围 {si.time_range_start} ~ {si.time_range_end}",
     ]
 
     if si.state_distribution:
-        lines.append("- 工况分布：" + "，".join(f"{k} {v}" for k, v in si.state_distribution.items()))
+        lines.append(f"[E3] 工况分布：" + "，".join(f"{k} {v}" for k, v in si.state_distribution.items()))
 
-    # ── 语义事件分类统计（关键：帮助 LLM 区分停机 vs 推进效率）────────────────
     if si.semantic_stats:
-        lines += ["", "【语义事件分类统计】（重要：请在总结中明确区分以下类别，不要混淆）"]
-        for sem, stats in sorted(si.semantic_stats.items(), key=lambda x: -x[1].get("count", 0)):
+        lines += ["", "[E2] 语义事件分类统计（重要：请在总结中明确区分以下类别，不要混淆）"]
+        for sem, stats in sorted(si.semantic_stats.items(), key=lambda x: -x[1].get("total_seconds", 0)):
             label = _SEM_LABELS_ZH.get(sem, sem)
             dur_s = stats.get("total_seconds", 0)
             dur_str = f"，总时长 {dur_s/3600:.1f}h" if dur_s >= 3600 else (f"，总时长 {dur_s/60:.0f}min" if dur_s > 0 else "")
-            lines.append(f"- {label}：{stats['count']} 个{dur_str}")
+            lines.append(f"  - {label}：{stats['count']} 个{dur_str}")
         stoppage = si.semantic_stats.get("stoppage_segment", {})
         if stoppage.get("count", 0) > 0:
-            lines.append("⚠ 注意：停机片段属于停机/静止工况，不是推进参数问题，请在总结中单独说明停机情况，不要归入低效掘进。")
+            lines.append("  ⚠ 停机片段属于停机/静止工况，不是推进参数问题，请单独说明")
 
     total_note = f"（共 {len(si.events)} 个，以下展示风险最高的 {len(events_for_prompt)} 个）" if truncated else f"（共 {len(si.events)} 个）"
     lines += [
         "",
-        f"【异常事件列表】{total_note}",
+        f"[E4] 异常事件列表 {total_note}",
     ]
 
     for i, ev in enumerate(events_for_prompt, 1):
         dur_str = f"，持续 {ev.duration_seconds:.0f}s" if ev.duration_seconds else ""
-        lines.append(f"{i}. [{ev.severity_label}] {ev.event_id} — {ev.event_type_zh}")
-        lines.append(f"   时间：{ev.start_time} ~ {ev.end_time}{dur_str}")
+        lines.append(f"  {i}. [{ev.severity_label}] {ev.event_id} — {ev.event_type_zh}")
+        lines.append(f"     时间：{ev.start_time} ~ {ev.end_time}{dur_str}")
         if ev.dominant_state_zh:
-            lines.append(f"   主导工况：{ev.dominant_state_zh}")
-        lines.append(f"   摘要：{ev.one_line_summary}")
+            lines.append(f"     主导工况：{ev.dominant_state_zh}")
+        lines.append(f"     摘要：{ev.one_line_summary}")
         for bullet in ev.top_evidence:
-            lines.append(f"   • {bullet}")
+            lines.append(f"     • {bullet}")
 
     lines += [
         "",
         "【输出要求】",
         "请严格输出以下 JSON 格式，不要输出任何其他内容：",
         "{",
-        '  "overall_summary": "2~3句整体评估，明确区分停机问题与推进效率问题，说明本次掘进的整体状态和主要问题",',
-        '  "top_risks": ["风险1", "风险2", "风险3"],  // 3~5条，跨事件归纳，停机问题和推进效率问题分开列',
-        '  "suggested_actions": ["建议1", "建议2", "建议3"]  // 3~5条，可操作的具体建议',
+        '  "overall_summary": "2~3句整体评估，引用证据编号，明确区分停机问题与推进效率问题",',
+        '  "top_risks": [',
+        '    {"text": "风险描述", "evidence_ids": ["E1","E2"], "confidence": "data_supported|derived|needs_confirmation"}',
+        '  ],',
+        '  "suggested_actions": [',
+        '    {"text": "建议描述", "evidence_ids": ["E2"]}',
+        '  ],',
+        '  "limitations": ["本次分析的局限性说明"]',
         "}",
         "",
         "注意：",
-        "- 只基于上方提供的数据，不要编造原始数据中不存在的指标",
-        "- 停机片段（停机/静止工况）不是推进效率问题，请单独描述，不要与低效掘进混淆",
-        "- top_risks 要做跨事件归纳（如多个事件集中在某时段、某工况），不要逐条重复事件摘要",
+        "- 只基于上方证据 E1-E4，不要编造原始数据中不存在的指标",
+        "- 每条 top_risks 必须包含 evidence_ids 和 confidence",
+        "- confidence 取值：data_supported（数据直接支持）、derived（派生统计）、needs_confirmation（需施工日志确认）",
+        "- 停机片段不是推进效率问题，请单独描述",
+        "- 不要把时间窗口推测写成确定结论",
+        "- top_risks 要做跨事件归纳，不要逐条重复事件摘要",
         "- 语言面向现场工程师，简洁务实",
         "- 输出必须是合法 JSON，不要加 markdown 代码块",
         "- 不要输出任何思考过程或分析步骤，直接输出 JSON",

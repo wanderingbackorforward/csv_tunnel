@@ -43,3 +43,6 @@ review_out_agent/
 scan_out/
 scan_real_out/
 investigation_out/
+investigation_test_out/
+scan_test_out/
+review_test_out/

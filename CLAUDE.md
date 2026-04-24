@@ -6,14 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **盾构/TBM CSV 智能诊断助手** — A CLI tool for intelligent diagnosis of shield/TBM (Tunnel Boring Machine) time-series data exported as CSV files.
 
-Input: Manually exported CSV files containing high-frequency TBM parameters (timestamp, cutter torque, advance speed, thrust force, penetration rate, cylinder pressure, inclination, stabilizer stroke, etc.)
+Input: Manually exported CSV/XLS files containing high-frequency TBM parameters (timestamp, cutter torque, advance speed, thrust force, penetration rate, cylinder pressure, inclination, stabilizer stroke, etc.)
 
-Output: Auto-detected anomaly events with severity ranking, evidence, and engineer-friendly explanations via CLI.
+Output: Auto-detected anomaly events with severity ranking, evidence, and engineer-friendly explanations via CLI. Investigation-level stoppage case reports with classification and transition analysis.
 
 ## Tech Stack
 
 - Python 3.11+
 - pandas, numpy, dataclasses, argparse
+- openai SDK (optional, for LLM planner / agent)
 - CLI only — no web UI
 
 ## Commands
@@ -22,61 +23,122 @@ Output: Auto-detected anomaly events with severity ranking, evidence, and engine
 # Install dependencies
 pip install -r requirements.txt
 
-# Run diagnosis on a CSV file
-python -m tbm_diag.cli --input data.csv
+# Inspect a file
+python -m tbm_diag.cli inspect --input data.csv
 
-# Run with custom config
-python -m tbm_diag.cli --input data.csv --config config.yaml
+# Run anomaly detection
+python -m tbm_diag.cli detect --input data.csv
 
-# Run a single module test
-python -m tbm_diag.ingestion data.csv
+# Batch scan a directory
+python -m tbm_diag.cli scan --input-dir data/ --output-dir scan_out/
+
+# AI review of top high-risk files
+python -m tbm_diag.cli review --scan-index scan_out/scan_index.csv --output-dir review_out --top-n 5
+
+# Tool-using agent diagnosis
+python -m tbm_diag.cli agent --input data.csv
+
+# Stoppage investigation (ReAct agent)
+python -m tbm_diag.cli investigate --input data.xls --output-dir investigation_out
+python -m tbm_diag.cli investigate --scan-index scan_out/scan_index.csv --top-n 3 --output-dir investigation_out
 ```
 
 ## Architecture
 
-Detection logic and explanation logic are strictly separated. The system is event-driven — anomalies are merged into event segments, not treated as individual data points.
+Detection and explanation logic are strictly separated. The system is event-driven.
+
+### Core Detection Pipeline
 
 ```
-CSV File
-  └─> ingestion.py      # Load CSV, auto-detect delimiter/encoding
-        └─> schema.py   # Field mapping, canonical name normalization
-              └─> cleaning.py      # Missing value handling, outlier removal, resampling
+CSV/XLS File
+  └─> ingestion.py       # Load file, auto-detect delimiter/encoding
+        └─> schema.py    # Field mapping, canonical name normalization
+              └─> cleaning.py       # Missing value handling, outlier removal, resampling
                     └─> feature_engine.py  # Compute derived time-series features
-                          └─> detector.py  # Rule-based anomaly detection (thresholds from config)
-                                └─> segmenter.py  # Merge consecutive anomaly points into event segments
-                                      └─> scorer.py    # Assign severity and priority to each event
-                                            └─> evidence.py  # Extract supporting data for each event
-                                                  └─> explainer.py  # Generate engineer-facing text explanations
-                                                        └─> cli.py  # Output: one-line conclusion + Top 3 events
+                          └─> detector.py  # Rule-based anomaly detection
+                                └─> segmenter.py  # Merge consecutive anomaly points into events
+                                      └─> state_engine.py  # Classify machine state per row
+                                            └─> evidence.py    # Extract supporting data
+                                                  └─> semantic_layer.py  # Reclassify events by state
+                                                        └─> explainer.py   # Generate explanations
 ```
 
-## Module Responsibilities
+### Investigation Module (ReAct Agent)
 
-| File | Responsibility |
-|------|---------------|
-| `schema.py` | Field alias mapping, canonical column names, unit definitions |
-| `ingestion.py` | CSV loading with encoding/delimiter auto-detection, graceful handling of missing fields |
-| `cleaning.py` | Null filling, spike removal, resampling to uniform time grid |
-| `feature_engine.py` | Compute rolling stats, rate-of-change, penetration index, etc. |
-| `detector.py` | Apply threshold rules to produce per-row anomaly flags; all thresholds in config |
-| `segmenter.py` | Merge consecutive flagged rows into named event segments with start/end time |
-| `scorer.py` | Score each event segment by severity (low/medium/high/critical) and priority |
-| `evidence.py` | Pull raw values and stats that support each event's diagnosis |
-| `explainer.py` | Render human-readable explanation strings from event + evidence data |
-| `cli.py` | Argparse entry point; prints one-line summary and Top 3 anomalies |
-
-## Git Workflow
-
-After every coding session — whenever files are modified, added, or deleted — automatically stage and commit all changes before finishing. Do not wait to be asked.
-
-- Stage: `git add` all relevant changed files (exclude output dirs like `review_out/`, `scan_out/`, `scan_real_out/` which are in `.gitignore`)
-- Commit with a conventional commit message (`feat:` / `fix:` / `refactor:` / `docs:` / `chore:`) that accurately describes what changed
-- If changes span multiple logical concerns, split into separate commits
+```
+tbm_diag/investigation/
+  state.py             # InvestigationState and related dataclasses
+  tools.py             # 8 investigation tools
+  planner.py           # LLM planner + rule-based fallback
+  controller.py        # Reason-Act-Observe loop
+  memory.py            # Case-level structured memory
+  context_retriever.py # Keyword-based context retrieval
+  report.py            # Markdown report generator
+```
 
 ## Key Design Rules
 
-1. All detection thresholds are centralized in a single config file (e.g., `config.yaml` or `thresholds.py`) — never hardcoded in detector logic.
+1. All detection thresholds are centralized in config — never hardcoded in detector logic.
 2. Missing CSV fields must be tolerated gracefully — skip unavailable checks, do not exit.
 3. Detection logic (`detector.py`) must not contain any text/explanation — that belongs in `explainer.py`.
 4. The unit of output is an **event segment**, not a data point.
 5. Each module has a single responsibility — no cross-module logic leakage.
+6. Investigation classify results are always "疑似" — never claim certainty without ops logs.
+
+## Stable Core Pipeline — Do Not Refactor
+
+These modules form the stable core. Do not refactor unless the task explicitly requires it:
+
+- `ingestion.py`, `cleaning.py`, `detector.py`, `segmenter.py`
+- `evidence.py`, `explainer.py`, `state_engine.py`
+- `schema.py`, `feature_engine.py`
+
+New features should be added via new modules or minimal integration points in `cli.py`.
+
+## Testing Rules
+
+Every code change must be tested before committing.
+
+1. Run the CLI command(s) related to the change.
+2. If the change touches the core pipeline, run the full regression set:
+
+```bash
+python -m tbm_diag.cli inspect --input incoming/anomaly_segment.csv
+python -m tbm_diag.cli detect --input incoming/anomaly_segment.csv
+python -m tbm_diag.cli scan --input-dir incoming --output-dir scan_test_out --overwrite
+python -m tbm_diag.cli investigate --input sample2.xls --output-dir investigation_test_out --max-iterations 12
+```
+
+3. Clean up test output directories after testing (they are in .gitignore).
+
+## README Sync Rules
+
+- If you add a CLI command, parameter, output file, config option, or module capability, update README.md.
+- README must only describe implemented and verified features.
+- Do not write future plans as if they are implemented.
+
+## Git Workflow
+
+After every coding session, stage and commit all changes before finishing.
+
+- Run `git status` to confirm the change scope.
+- `git add` relevant files. Exclude output dirs in .gitignore.
+- Commit with conventional message (`feat:` / `fix:` / `refactor:` / `docs:` / `chore:`).
+- Split commits if changes span multiple concerns.
+- If a remote is configured, run `git push`. If push fails, report the reason — do not fake success.
+
+## Sensitive Information Rules
+
+- Never commit real API keys into code, README, sample configs, or commit messages.
+- `.env` must be in `.gitignore`.
+- `.env.example` may only contain placeholder values.
+
+## Change Output Format
+
+After completing a task, output:
+
+- Which files were changed
+- Which tests were run and their results
+- Whether README was updated
+- Whether changes were committed
+- Whether changes were pushed (and if not, why)

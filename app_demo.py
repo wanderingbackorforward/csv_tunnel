@@ -673,6 +673,42 @@ def render_investigation_tab() -> None:
                         "观察结果": (a.get("observation_summary", "") or "")[:80],
                     })
                 st.dataframe(pd.DataFrame(trace_rows), use_container_width=True, hide_index=True)
+
+            # 时间窗口钻取结果
+            observations = state_doc.get("observations", [])
+            drilldown_obs = [o for o in observations if o.get("action") == "drilldown_time_window"]
+            if drilldown_obs:
+                st.markdown("**时间窗口钻取结果**")
+                dd_rows = []
+                for obs in drilldown_obs:
+                    data = obs.get("data", {})
+                    dd_rows.append({
+                        "目标": data.get("target_id", ""),
+                        "前窗口": (data.get("compact_pre", "") or "")[:50],
+                        "事件期间": (data.get("compact_during", "") or "")[:50],
+                        "后窗口": (data.get("compact_post", "") or "")[:50],
+                        "初步解释": data.get("interpretation_hint", ""),
+                    })
+                st.dataframe(pd.DataFrame(dd_rows), use_container_width=True, hide_index=True)
+
+                for obs in drilldown_obs:
+                    data = obs.get("data", {})
+                    tid = data.get("target_id", "?")
+                    with st.expander(f"钻取详情：{tid}"):
+                        st.markdown(f"- 初步解释：{data.get('interpretation_hint', '')}")
+                        tf = data.get("transition_findings", [])
+                        if tf:
+                            st.markdown(f"- 转变发现：{'，'.join(tf)}")
+                        for label, key in [("前窗口", "pre_summary"), ("事件期间", "during_summary"), ("后窗口", "post_summary")]:
+                            s = data.get(key, {})
+                            if isinstance(s, dict) and not s.get("empty", True):
+                                st.markdown(
+                                    f"- {label}：{s.get('rows', 0)}行，"
+                                    f"速度={s.get('avg_advance_speed', 0)}，"
+                                    f"转矩={s.get('avg_cutter_torque', 0)}，"
+                                    f"SER={s.get('ser_hits', 0)}，"
+                                    f"HYD={s.get('hyd_hits', 0)}"
+                                )
         except Exception:
             pass
 

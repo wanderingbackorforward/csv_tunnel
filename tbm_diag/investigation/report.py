@@ -141,6 +141,41 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
             lines.append(f"- 摘要: {data.get('summary', '')}")
             lines.append("")
 
+    # ── 时间窗口钻取结果 ──
+    drilldown_obs = [o for o in state.observations if o.action == "drilldown_time_window"]
+    if drilldown_obs:
+        lines.append("## 时间窗口钻取结果\n")
+        lines.append("| 目标 | 前窗口观察 | 事件期间观察 | 后窗口观察 | 初步解释 |")
+        lines.append("|------|-----------|-------------|-----------|----------|")
+        for obs in drilldown_obs:
+            data = obs.data or {}
+            tid = data.get("target_id", "?")
+            cpre = (data.get("compact_pre", "") or "").replace("|", "/")[:40]
+            cdur = (data.get("compact_during", "") or "").replace("|", "/")[:40]
+            cpost = (data.get("compact_post", "") or "").replace("|", "/")[:40]
+            hint = (data.get("interpretation_hint", "") or "").replace("|", "/")[:40]
+            lines.append(f"| {tid} | {cpre} | {cdur} | {cpost} | {hint} |")
+        lines.append("")
+
+        for obs in drilldown_obs:
+            data = obs.data or {}
+            tid = data.get("target_id", "?")
+            lines.append(f"### 钻取详情：{tid}\n")
+            hint = data.get("interpretation_hint", "")
+            lines.append(f"- 初步解释: {hint}")
+            tf = data.get("transition_findings", [])
+            if tf:
+                lines.append(f"- 转变发现: {'，'.join(tf)}")
+            for label, key in [("前窗口", "pre_summary"), ("事件期间", "during_summary"), ("后窗口", "post_summary")]:
+                s = data.get(key, {})
+                if isinstance(s, dict) and not s.get("empty", True):
+                    lines.append(f"- {label}: {s.get('rows', 0)}行，"
+                                 f"速度={s.get('avg_advance_speed', 0)}，"
+                                 f"转矩={s.get('avg_cutter_torque', 0)}，"
+                                 f"SER={s.get('ser_hits', 0)}/{s.get('ser_ratio', 0):.1%}，"
+                                 f"HYD={s.get('hyd_hits', 0)}")
+            lines.append("")
+
     # ── Top 停机案例 ──
     all_cases = []
     for fp, cases in state.stoppage_cases.items():

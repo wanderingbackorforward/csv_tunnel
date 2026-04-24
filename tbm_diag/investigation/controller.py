@@ -62,6 +62,8 @@ def _execute_action(
         arguments["state"] = state
     elif action == "analyze_stoppage_cases":
         arguments["state"] = state
+    elif action == "drilldown_time_window":
+        arguments["state"] = state
 
     try:
         return fn(**arguments)
@@ -171,6 +173,8 @@ def _make_observation_summary(action: str, result: dict[str, Any]) -> str:
         return result.get("summary", f"hyd={result.get('hyd_count')}")
     elif action == "analyze_event_fragmentation":
         return result.get("summary", f"events={result.get('event_count')}")
+    elif action == "drilldown_time_window":
+        return result.get("summary", f"target={result.get('target_id')}")
     return json.dumps({k: v for k, v in result.items() if not k.startswith("_")}, ensure_ascii=False)[:200]
 
 

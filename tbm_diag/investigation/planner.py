@@ -28,6 +28,7 @@ AVAILABLE_ACTIONS = [
     "analyze_resistance_pattern",
     "analyze_hydraulic_pattern",
     "analyze_event_fragmentation",
+    "drilldown_time_window",
 ]
 
 
@@ -57,7 +58,6 @@ def _compress_state(state: InvestigationState) -> dict[str, Any]:
 def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
     """无 LLM 时的动态规则决策。根据观察结果选择不同调查路径。"""
     fp = state.current_file
-    actions_done = {a.action for a in state.actions_taken}
 
     # Step 1: 先获取文件概览
     if fp and fp not in state.file_overviews:
@@ -79,26 +79,32 @@ def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
     overview = state.file_overviews.get(fp)
     event_summary = state.event_summaries.get(fp)
     sem_dist = overview.semantic_event_distribution if overview else {}
-    state_dist = overview.state_distribution if overview else {}
+    state_dist_map = overview.state_distribution if overview else {}
 
     stoppage_count = sem_dist.get("stoppage_segment", 0)
     ser_count = (sem_dist.get("suspected_excavation_resistance", 0)
                  + sem_dist.get("excavation_resistance_under_load", 0))
     hyd_count = sem_dist.get("hydraulic_instability", 0)
     total_events = overview.event_count if overview else 0
-    stopped_pct = state_dist.get("stopped", 0)
+    stopped_pct = state_dist_map.get("stopped", 0)
 
-    # 记录已对当前文件执行过的分析工具
+    # 记录已对当前文件执行过的分析工具和 drilldown 目标
     file_analyses_done = set()
+    drilldown_targets_done = set()
     for a in state.actions_taken:
         args = a.arguments or {}
-        if args.get("file_path", "") == fp or (not args.get("file_path") and a.action in (
+        afp = args.get("file_path", "")
+        if afp == fp or (not afp and a.action in (
             "analyze_stoppage_cases", "analyze_resistance_pattern",
             "analyze_hydraulic_pattern", "analyze_event_fragmentation",
         )):
             file_analyses_done.add(a.action)
+        if a.action == "drilldown_time_window" and afp == fp:
+            tid = args.get("target_id", "")
+            if tid:
+                drilldown_targets_done.add(tid)
 
-    # 路径 A: 停机主导 — stopped 占比高或 stoppage_segment 多
+    # 路径 A: 停机主导
     if (stoppage_count >= 3 or stopped_pct >= 30) and "analyze_stoppage_cases" not in file_analyses_done:
         return {
             "rationale": f"stoppage_segment={stoppage_count}, stopped={stopped_pct:.0f}%，优先停机追查",
@@ -106,7 +112,18 @@ def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
             "arguments": {"file_path": fp},
         }
 
-    # 路径 B: 掘进阻力主导 — SER 事件多
+    # 停机 drilldown：对 top cases 做窗口钻取
+    if "analyze_stoppage_cases" in file_analyses_done:
+        cases = state.stoppage_cases.get(fp, [])
+        for c in cases[:3]:
+            if c.case_id not in drilldown_targets_done:
+                return {
+                    "rationale": f"对停机案例 {c.case_id} ({c.duration_seconds/60:.0f}min) 做窗口钻取",
+                    "action": "drilldown_time_window",
+                    "arguments": {"file_path": fp, "target_id": c.case_id},
+                }
+
+    # 路径 B: 掘进阻力主导
     if ser_count >= 3 and "analyze_resistance_pattern" not in file_analyses_done:
         return {
             "rationale": f"SER 事件 {ser_count} 个，进入掘进阻力模式分析",
@@ -114,7 +131,27 @@ def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
             "arguments": {"file_path": fp},
         }
 
-    # 路径 C: 液压问题 — HYD 事件频繁
+    # SER drilldown：对 top SER 事件做窗口钻取
+    if "analyze_resistance_pattern" in file_analyses_done and ser_count >= 2:
+        top_events = event_summary.top_events if event_summary else []
+        ser_types = {"suspected_excavation_resistance", "excavation_resistance_under_load"}
+        ser_targets = [
+            e for e in top_events
+            if e.get("event_type") in ser_types or
+            any(st in (e.get("semantic_type", "") or e.get("event_type", "")) for st in ser_types)
+        ]
+        if not ser_targets:
+            ser_targets = [e for e in top_events if "resistance" in (e.get("event_type", "") or "").lower()]
+        for e in ser_targets[:2]:
+            eid = e.get("event_id", "")
+            if eid and eid not in drilldown_targets_done:
+                return {
+                    "rationale": f"对 SER 事件 {eid} 做窗口钻取，判断是否发生在推进中",
+                    "action": "drilldown_time_window",
+                    "arguments": {"file_path": fp, "target_id": eid},
+                }
+
+    # 路径 C: 液压问题
     if hyd_count >= 3 and "analyze_hydraulic_pattern" not in file_analyses_done:
         return {
             "rationale": f"HYD 事件 {hyd_count} 个，分析液压异常模式",
@@ -122,7 +159,20 @@ def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
             "arguments": {"file_path": fp},
         }
 
-    # 路径 D: 碎片化 — 事件多但可能都很短
+    # HYD drilldown：对 top HYD 事件做窗口钻取
+    if "analyze_hydraulic_pattern" in file_analyses_done and hyd_count >= 2:
+        top_events = event_summary.top_events if event_summary else []
+        hyd_targets = [e for e in top_events if e.get("event_type") == "hydraulic_instability"]
+        for e in hyd_targets[:2]:
+            eid = e.get("event_id", "")
+            if eid and eid not in drilldown_targets_done:
+                return {
+                    "rationale": f"对 HYD 事件 {eid} 做窗口钻取，判断是否在停机边界",
+                    "action": "drilldown_time_window",
+                    "arguments": {"file_path": fp, "target_id": eid},
+                }
+
+    # 路径 D: 碎片化
     if total_events >= 8 and "analyze_event_fragmentation" not in file_analyses_done:
         top_events = event_summary.top_events if event_summary else []
         avg_dur = 0

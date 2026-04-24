@@ -808,6 +808,197 @@ def analyze_event_fragmentation(file_path: str) -> dict[str, Any]:
     }
 
 
+# ── Tool 13: drilldown_time_window ───────────────────────────────────────────
+
+def _window_stats(
+    enriched: pd.DataFrame,
+    mask: pd.Series,
+    evidences: list,
+    events: list,
+) -> dict[str, Any]:
+    """计算单个时间窗口的统计摘要。"""
+    subset = enriched.loc[mask]
+    n = len(subset)
+    if n == 0:
+        return {"rows": 0, "empty": True}
+
+    def _safe_mean(col: str) -> float:
+        if col in subset.columns:
+            v = subset[col].mean()
+            return round(float(v), 2) if pd.notna(v) else 0.0
+        return 0.0
+
+    ser_col = "flag_suspected_excavation_resistance"
+    lee_col = "flag_low_efficiency_excavation"
+    hyd_col = "flag_hydraulic_instability"
+
+    ser_hits = int(subset[ser_col].sum()) if ser_col in subset.columns else 0
+    lee_hits = int(subset[lee_col].sum()) if lee_col in subset.columns else 0
+    hyd_hits = int(subset[hyd_col].sum()) if hyd_col in subset.columns else 0
+
+    state_dist: dict[str, float] = {}
+    if "machine_state" in subset.columns:
+        counts = subset["machine_state"].value_counts()
+        for s, cnt in counts.items():
+            state_dist[s] = round(cnt / n * 100, 1)
+
+    return {
+        "rows": n,
+        "empty": False,
+        "avg_advance_speed": _safe_mean("advance_speed_mm_per_min"),
+        "avg_penetration_rate": _safe_mean("penetration_rate_mm_per_rev"),
+        "avg_cutter_torque": _safe_mean("cutter_torque_kNm"),
+        "avg_total_thrust": _safe_mean("total_thrust_kN"),
+        "ser_hits": ser_hits,
+        "ser_ratio": round(ser_hits / n, 3) if n else 0,
+        "lee_hits": lee_hits,
+        "lee_ratio": round(lee_hits / n, 3) if n else 0,
+        "hyd_hits": hyd_hits,
+        "hyd_ratio": round(hyd_hits / n, 3) if n else 0,
+        "state_distribution": state_dist,
+    }
+
+
+def drilldown_time_window(
+    file_path: str,
+    target_id: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    pre_minutes: float = 10,
+    post_minutes: float = 10,
+    state: Any = None,
+) -> dict[str, Any]:
+    """对指定事件/case 做前后窗口钻取分析。"""
+    try:
+        cached = _run_pipeline(file_path)
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+    enriched: pd.DataFrame = cached["enriched"]
+    events = cached["events"]
+    evidences = cached["evidences"]
+
+    if "timestamp" not in enriched.columns:
+        return {"status": "error", "error": "no timestamp column"}
+
+    ts_col = enriched["timestamp"]
+
+    # 解析目标时间范围
+    t_start = None
+    t_end = None
+    resolved_id = target_id or ""
+
+    if target_id and not start_time:
+        # 先从事件列表找
+        for e in events:
+            if e.event_id == target_id:
+                t_start = e.start_time
+                t_end = e.end_time
+                break
+        # 再从 state 的 stoppage_cases 找
+        if t_start is None and state is not None:
+            for fp_key, cases in state.stoppage_cases.items():
+                for c in cases:
+                    if c.case_id == target_id:
+                        t_start = pd.Timestamp(c.start_time)
+                        t_end = pd.Timestamp(c.end_time)
+                        break
+        if t_start is None:
+            return {"status": "error", "error": f"target_id {target_id} not found"}
+    elif start_time:
+        t_start = pd.Timestamp(start_time)
+        t_end = pd.Timestamp(end_time) if end_time else t_start + pd.Timedelta(minutes=5)
+        resolved_id = resolved_id or f"{start_time}~{end_time}"
+    else:
+        return {"status": "error", "error": "need target_id or start_time"}
+
+    t_start = pd.Timestamp(t_start)
+    t_end = pd.Timestamp(t_end) if t_end is not None else t_start
+
+    pre_start = t_start - pd.Timedelta(minutes=pre_minutes)
+    post_end = t_end + pd.Timedelta(minutes=post_minutes)
+
+    pre_mask = (ts_col >= pre_start) & (ts_col < t_start)
+    during_mask = (ts_col >= t_start) & (ts_col <= t_end)
+    post_mask = (ts_col > t_end) & (ts_col <= post_end)
+
+    pre_stats = _window_stats(enriched, pre_mask, evidences, events)
+    during_stats = _window_stats(enriched, during_mask, evidences, events)
+    post_stats = _window_stats(enriched, post_mask, evidences, events)
+
+    pre_stats["time_range"] = f"{pre_start} ~ {t_start}"
+    during_stats["time_range"] = f"{t_start} ~ {t_end}"
+    post_stats["time_range"] = f"{t_end} ~ {post_end}"
+
+    # 转变检测
+    transition_findings = []
+    pre_stopped = pre_stats.get("state_distribution", {}).get("stopped", 0)
+    pre_advancing = (
+        pre_stats.get("state_distribution", {}).get("normal_excavation", 0)
+        + pre_stats.get("state_distribution", {}).get("heavy_load_excavation", 0)
+    )
+    post_stopped = post_stats.get("state_distribution", {}).get("stopped", 0)
+    post_advancing = (
+        post_stats.get("state_distribution", {}).get("normal_excavation", 0)
+        + post_stats.get("state_distribution", {}).get("heavy_load_excavation", 0)
+    )
+
+    if pre_advancing > 30 and during_stats.get("state_distribution", {}).get("stopped", 0) > 50:
+        transition_findings.append("推进→停机转变")
+    if during_stats.get("state_distribution", {}).get("stopped", 0) > 50 and post_advancing > 30:
+        transition_findings.append("停机→恢复转变")
+
+    # interpretation_hint
+    hints = []
+    if pre_stats.get("ser_ratio", 0) > 0.1 or pre_stats.get("hyd_ratio", 0) > 0.1:
+        hints.append("停机前存在异常迹象")
+    elif not pre_stats.get("empty", True):
+        hints.append("停机前未见明显异常")
+
+    if post_stats.get("empty", True):
+        pass
+    elif post_stats.get("ser_ratio", 0) > 0.05 or post_stats.get("hyd_ratio", 0) > 0.05:
+        hints.append("停机后恢复异常")
+    else:
+        hints.append("停机后恢复正常")
+
+    if not hints:
+        hints.append("需要施工日志确认")
+
+    def _compact(stats: dict) -> str:
+        if stats.get("empty"):
+            return "无数据"
+        parts = [f"{stats['rows']}行"]
+        if stats.get("avg_advance_speed", 0) > 0:
+            parts.append(f"速度{stats['avg_advance_speed']}")
+        if stats.get("ser_hits", 0) > 0:
+            parts.append(f"SER{stats['ser_hits']}")
+        if stats.get("hyd_hits", 0) > 0:
+            parts.append(f"HYD{stats['hyd_hits']}")
+        top_state = max(stats.get("state_distribution", {"?": 100}).items(),
+                        key=lambda x: x[1], default=("?", 0))
+        parts.append(f"{top_state[0]}{top_state[1]:.0f}%")
+        return "，".join(parts)
+
+    return {
+        "status": "ok",
+        "target_id": resolved_id,
+        "pre_summary": pre_stats,
+        "during_summary": during_stats,
+        "post_summary": post_stats,
+        "transition_findings": transition_findings,
+        "interpretation_hint": "；".join(hints),
+        "compact_pre": _compact(pre_stats),
+        "compact_during": _compact(during_stats),
+        "compact_post": _compact(post_stats),
+        "summary": (
+            f"[{resolved_id}] 前:{_compact(pre_stats)} | "
+            f"中:{_compact(during_stats)} | "
+            f"后:{_compact(post_stats)} → {'；'.join(hints)}"
+        ),
+    }
+
+
 # ── 工具注册表 ────────────────────────────────────────────────────────────────
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {
@@ -870,6 +1061,11 @@ TOOL_REGISTRY: dict[str, dict[str, Any]] = {
         "fn": analyze_event_fragmentation,
         "description": "分析事件碎片化：短事件占比、平均时长、碎片化风险",
         "params": ["file_path"],
+    },
+    "drilldown_time_window": {
+        "fn": drilldown_time_window,
+        "description": "对指定事件/case 做前后窗口钻取：推进参数、异常命中、工况转变",
+        "params": ["file_path", "target_id", "start_time", "end_time", "pre_minutes", "post_minutes"],
     },
 }
 

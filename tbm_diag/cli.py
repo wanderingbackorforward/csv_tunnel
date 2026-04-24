@@ -868,6 +868,7 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         output_dir=args.output_dir,
         use_llm=args.use_llm_planner,
         max_iterations=args.max_iterations,
+        planner_audit=getattr(args, "planner_audit", False),
     )
 
     if result.report_text:
@@ -1107,6 +1108,8 @@ def main(argv: list[str] | None = None) -> int:
                        help="配置文件路径")
     p_inv.add_argument("--verbose", "-v", action="store_true",
                        help="显示 DEBUG 日志")
+    p_inv.add_argument("--planner-audit", action="store_true",
+                       help="启用 planner 审计模式，记录每轮候选/拒绝 action")
 
     # ── llm-check 子命令 ──────────────────────────────────────────────────────
     p_llm = subparsers.add_parser(

@@ -186,6 +186,7 @@ def run_investigation(
     max_iterations: int = 15,
     max_tool_calls: int = 20,
     max_runtime_seconds: int = 300,
+    planner_audit: bool = False,
 ) -> InvestigationResult:
     """运行停机案例追查 ReAct 循环。"""
     output_dir = Path(output_dir)
@@ -219,13 +220,46 @@ def run_investigation(
             print(f"[investigate] STOP: {state.stop_reason}")
             break
 
-        decision = plan_next_action(state, use_llm=use_llm)
+        decision = plan_next_action(state, use_llm=use_llm, audit=planner_audit)
         action = decision.get("action", "")
         arguments = decision.get("arguments", {})
         rationale = decision.get("rationale", "")
+        audit_data = decision.pop("_audit", None)
 
         print(f"[investigate] round {iteration} reason: {rationale}")
         print(f"[investigate] action: {action}({json.dumps({k:v for k,v in arguments.items() if k != 'state'}, ensure_ascii=False)})")
+
+        if planner_audit and audit_data:
+            from tbm_diag.investigation.state import PlannerAuditRecord
+            last_obs_summary = state.observations[-1].result_summary if state.observations else ""
+            overview = state.file_overviews.get(state.current_file)
+            snapshot = {}
+            if overview:
+                snapshot = {
+                    "events": overview.event_count,
+                    "stoppage_segment": overview.semantic_event_distribution.get("stoppage_segment", 0),
+                    "SER": (overview.semantic_event_distribution.get("suspected_excavation_resistance", 0)
+                            + overview.semantic_event_distribution.get("excavation_resistance_under_load", 0)),
+                    "HYD": overview.semantic_event_distribution.get("hydraulic_instability", 0),
+                    "stopped_pct": overview.state_distribution.get("stopped", 0),
+                }
+            audit_rec = PlannerAuditRecord(
+                round_num=iteration,
+                current_file=state.current_file,
+                current_observation_summary=last_obs_summary,
+                open_questions=state.open_questions[:3],
+                candidate_actions=[a for a, _ in audit_data.get("candidates", [])],
+                candidate_reasons=[r for _, r in audit_data.get("candidates", [])],
+                rejected_actions=[a for a, _ in audit_data.get("rejected", [])],
+                rejected_reasons=[r for _, r in audit_data.get("rejected", [])],
+                selected_action=action,
+                selected_reason=rationale,
+                is_rule_based=not audit_data.get("is_llm", False),
+                state_snapshot=snapshot,
+            )
+            state.audit_log.append(audit_rec)
+            print(f"[audit] candidates: {audit_rec.candidate_actions}")
+            print(f"[audit] rejected: {[f'{a}({r})' for a, r in zip(audit_rec.rejected_actions, audit_rec.rejected_reasons)]}")
 
         state.actions_taken.append(ActionRecord(
             round_num=iteration,
@@ -249,13 +283,6 @@ def run_investigation(
 
         # 回填 observation_summary 到 action record
         state.actions_taken[-1].observation_summary = obs_summary
-
-        state.observations.append(Observation(
-            round_num=iteration,
-            action=action,
-            result_summary=obs_summary,
-            data={k: v for k, v in result.items() if not k.startswith("_")},
-        ))
 
         _update_state(state, action, arguments, result)
 

@@ -83,6 +83,22 @@ class Hypothesis:
 
 
 @dataclass
+class PlannerAuditRecord:
+    round_num: int = 0
+    current_file: str = ""
+    current_observation_summary: str = ""
+    open_questions: list[str] = field(default_factory=list)
+    candidate_actions: list[str] = field(default_factory=list)
+    candidate_reasons: list[str] = field(default_factory=list)
+    rejected_actions: list[str] = field(default_factory=list)
+    rejected_reasons: list[str] = field(default_factory=list)
+    selected_action: str = ""
+    selected_reason: str = ""
+    is_rule_based: bool = True
+    state_snapshot: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class InvestigationState:
     task_id: str = ""
     mode: str = "single_file"
@@ -100,3 +116,4 @@ class InvestigationState:
     confidence: float = 0.0
     iteration_count: int = 0
     stop_reason: str = ""
+    audit_log: list[PlannerAuditRecord] = field(default_factory=list)

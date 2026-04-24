@@ -748,15 +748,85 @@ def _cmd_review(args: argparse.Namespace) -> int:
         top_n=args.top_n,
         use_agent=args.use_agent,
         overwrite=args.overwrite,
+        require_llm=getattr(args, "require_llm", False),
     )
 
-    run_review(
+    if getattr(args, "llm_model", None):
+        cfg.llm = dataclasses.replace(cfg.llm, model=args.llm_model)
+
+    records = run_review(
         scan_index_path=Path(args.scan_index),
         output_dir=Path(args.output_dir),
         review_cfg=review_cfg,
         shared_cfg=cfg,
     )
+
+    if review_cfg.require_llm:
+        ok_n = sum(1 for r in records if r.status == "ok")
+        llm_ok = sum(1 for r in records if r.summary_source == "llm")
+        if llm_ok < ok_n:
+            return 1
     return 0
+
+
+def _cmd_llm_check(args: argparse.Namespace) -> int:
+    """llm-check 子命令：测试 OpenAI-compatible API 连通性。"""
+    import os
+    cfg = load_config(getattr(args, "config", None))
+
+    api_key = os.environ.get(cfg.llm.api_key_env, "").strip()
+    base_url = os.environ.get(cfg.llm.base_url_env, "").strip() or None
+    model = os.environ.get("LLM_MODEL", "").strip() or cfg.llm.model
+
+    print("[llm-check] OpenAI-compatible API 连通性测试")
+    print(f"  API Key 环境变量 : {cfg.llm.api_key_env} = {'已设置' if api_key else '未设置'}")
+    print(f"  Base URL         : {base_url or '(默认 OpenAI)'}")
+    print(f"  模型             : {model}")
+
+    if not api_key:
+        print("\n✗ 状态: no_key — 未设置 API Key")
+        return 1
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        print("\n✗ 状态: no_sdk — openai SDK 未安装 (pip install openai)")
+        return 1
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    print("\n  发送测试请求 …", end="", flush=True)
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            max_tokens=256,
+            temperature=0,
+            timeout=30,
+            messages=[{"role": "user", "content": '直接输出 JSON，不要思考：{"ok": true, "message": "hello"}'}],
+        )
+        raw = (resp.choices[0].message.content or "").strip()
+        print(" 收到响应")
+    except Exception as exc:
+        exc_name = type(exc).__name__
+        if "timeout" in exc_name.lower() or "timed out" in str(exc).lower():
+            print(f"\n✗ 状态: timeout — {exc}")
+            return 1
+        print(f"\n✗ 状态: api_error — {exc_name}: {exc}")
+        return 1
+
+    print(f"  原始响应预览     : {raw[:200]}")
+
+    from tbm_diag.summarizer import robust_json_extract
+    parsed = robust_json_extract(raw)
+    if parsed and parsed.get("ok"):
+        print(f"\n✓ 状态: success — API 调用成功，JSON 解析成功")
+        return 0
+    elif parsed:
+        print(f"\n⚠ 状态: success (partial) — JSON 解析成功但内容不符预期: {parsed}")
+        return 0
+    else:
+        print(f"\n⚠ 状态: parse_error — API 调用成功但 JSON 解析失败")
+        return 1
 
 
 def _cmd_investigate(args: argparse.Namespace) -> int:
@@ -997,6 +1067,10 @@ def main(argv: list[str] | None = None) -> int:
                           help="使用 agent 模式（需设置 OPENAI_API_KEY / OPENAI_BASE_URL）")
     p_review.add_argument("--overwrite", action="store_true",
                           help="强制重新 review 已有结果")
+    p_review.add_argument("--llm-model", default=None, metavar="MODEL",
+                          help="覆盖 config 中的 LLM 模型名")
+    p_review.add_argument("--require-llm", action="store_true",
+                          help="要求所有文件 LLM 成功，否则 exit code 非 0")
     p_review.add_argument("--config", default=None, metavar="PATH",
                           help="配置文件路径（.yaml / .yml / .json）")
     p_review.add_argument("--verbose", "-v", action="store_true",
@@ -1034,6 +1108,14 @@ def main(argv: list[str] | None = None) -> int:
     p_inv.add_argument("--verbose", "-v", action="store_true",
                        help="显示 DEBUG 日志")
 
+    # ── llm-check 子命令 ──────────────────────────────────────────────────────
+    p_llm = subparsers.add_parser(
+        "llm-check",
+        help="测试当前 OpenAI-compatible API 是否可用",
+    )
+    p_llm.add_argument("--config", default=None, metavar="PATH",
+                       help="配置文件路径")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -1059,6 +1141,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_review(args)
     elif args.command == "investigate":
         return _cmd_investigate(args)
+    elif args.command == "llm-check":
+        return _cmd_llm_check(args)
     else:
         parser.print_help()
         return 0

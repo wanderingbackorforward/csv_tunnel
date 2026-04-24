@@ -63,6 +63,11 @@ class LLMSummaryResult:
     suggested_actions: list[str]
     model_used: str
     generated_at: str
+    summary_source: str = "llm"
+    llm_status: str = "success"
+    llm_error_message: str = ""
+    llm_provider: str = ""
+    raw_text_preview: str = ""
 
 
 # ── 构造输入 ───────────────────────────────────────────────────────────────────
@@ -239,31 +244,42 @@ def summarize(
     cfg: "LLMConfig",  # type: ignore[name-defined]
 ) -> Optional[LLMSummaryResult]:
     """
-    调用 OpenAI-compatible LLM（默认 MiniMax）生成跨事件总结。
+    调用 OpenAI-compatible LLM 生成跨事件总结。
 
-    任何失败均返回 None，不向上抛异常。
+    返回 LLMSummaryResult（含 summary_source / llm_status），
+    失败时 summary_source="none"，llm_status 标明具体原因。
     """
+    from datetime import datetime
+    now_str = datetime.now().isoformat()
+
+    def _fail(status: str, msg: str) -> LLMSummaryResult:
+        return LLMSummaryResult(
+            overall_summary="", top_risks=[], suggested_actions=[],
+            model_used=cfg.model, generated_at=now_str,
+            summary_source="none", llm_status=status, llm_error_message=msg,
+        )
+
     if not summary_input or not summary_input.events:
         logger.debug("summarizer: no events, skipping LLM call")
-        return None
+        return _fail("no_events", "无异常事件")
 
-    # 检查 openai SDK
     try:
         from openai import OpenAI
     except ImportError:
         logger.warning("summarizer: openai SDK 未安装，跳过 LLM 总结（pip install openai）")
-        return None
+        return _fail("no_sdk", "openai SDK 未安装")
 
-    # 读取 API key
     api_key = os.environ.get(cfg.api_key_env, "").strip()
     if not api_key:
         logger.warning("summarizer: 未找到环境变量 %s，跳过 LLM 总结", cfg.api_key_env)
-        return None
+        return _fail("no_key", f"未设置 {cfg.api_key_env}")
 
     base_url = os.environ.get(cfg.base_url_env, "").strip() or None
+    provider = base_url or "openai"
     client = OpenAI(api_key=api_key, base_url=base_url)
 
     prompt = _build_prompt(summary_input)
+    raw_text = ""
 
     try:
         response = client.chat.completions.create(
@@ -275,39 +291,55 @@ def summarize(
         )
         raw_text = (response.choices[0].message.content or "").strip()
     except Exception as exc:
-        logger.warning("summarizer: LLM 调用失败（%s: %s），跳过总结", type(exc).__name__, exc)
-        return None
+        exc_name = type(exc).__name__
+        if "timeout" in exc_name.lower() or "timed out" in str(exc).lower():
+            logger.warning("summarizer: LLM 调用超时")
+            return _fail("timeout", str(exc)[:200])
+        logger.warning("summarizer: LLM 调用失败（%s: %s）", exc_name, exc)
+        return _fail("api_error", f"{exc_name}: {str(exc)[:200]}")
 
-    parsed = _parse_llm_response(raw_text)
+    if not raw_text:
+        return _fail("api_error", "LLM 返回内容为空")
+
+    parsed = robust_json_extract(raw_text)
     if parsed is None:
-        return None
+        logger.warning("summarizer: 无法解析 LLM 返回的 JSON\n原始响应：%s", raw_text[:300])
+        return LLMSummaryResult(
+            overall_summary="", top_risks=[], suggested_actions=[],
+            model_used=cfg.model, generated_at=now_str,
+            summary_source="none", llm_status="parse_error",
+            llm_error_message="无法解析 LLM 返回的 JSON",
+            llm_provider=provider, raw_text_preview=raw_text[:300],
+        )
 
-    from datetime import datetime
     return LLMSummaryResult(
         overall_summary=parsed.get("overall_summary", ""),
         top_risks=parsed.get("top_risks", []),
         suggested_actions=parsed.get("suggested_actions", []),
         model_used=cfg.model,
-        generated_at=datetime.now().isoformat(),
+        generated_at=now_str,
+        summary_source="llm",
+        llm_status="success",
+        llm_provider=provider,
     )
 
 
-def _parse_llm_response(raw_text: str) -> Optional[dict]:
+def robust_json_extract(raw_text: str) -> Optional[dict]:
     """
-    解析 LLM 返回的 JSON 文本。
+    从 LLM 返回文本中提取 JSON dict。
 
-    先剥离 <think>...</think> 推理块（部分模型如 MiniMax-M2.7 会输出 CoT）；
-    再尝试直接解析；若失败则尝试提取 {...} 块；仍失败则返回 None。
+    处理：<think> 块、markdown ```json 包裹、前后说明文字。
     """
     import re
 
-    # 剥离 <think>...</think> 块（含跨行）；也处理未闭合的 <think> 块
     text = re.sub(r"<think>[\s\S]*?</think>", "", raw_text, flags=re.IGNORECASE).strip()
     m_open = re.search(r"<think>", text, flags=re.IGNORECASE)
     if m_open:
         text = text[:m_open.start()].strip()
 
-    # 直接解析
+    text = re.sub(r"```(?:json)?\s*", "", text)
+    text = text.strip()
+
     try:
         data = json.loads(text)
         if isinstance(data, dict):
@@ -315,7 +347,6 @@ def _parse_llm_response(raw_text: str) -> Optional[dict]:
     except json.JSONDecodeError:
         pass
 
-    # 尝试提取第一个 {...} 块
     m = re.search(r"\{[\s\S]*\}", text)
     if m:
         try:
@@ -325,5 +356,4 @@ def _parse_llm_response(raw_text: str) -> Optional[dict]:
         except json.JSONDecodeError:
             pass
 
-    logger.warning("summarizer: 无法解析 LLM 返回的 JSON，跳过总结\n原始响应：%s", raw_text[:300])
     return None

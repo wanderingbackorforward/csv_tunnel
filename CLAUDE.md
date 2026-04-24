@@ -174,6 +174,14 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 
 如果发现上述文件被跟踪，必须先停止并清理（`git rm --cached`），不能直接 commit。
 
+## LLM Status Tracking Rules
+
+- 不允许用 `ai_summary` 非空判断 LLM 是否成功。必须检查 `summary_source` 字段。
+- LLM 调用必须记录 `summary_source` / `llm_status` / `llm_error_message`。
+- fallback 摘要仍然保留，但必须标记为 `summary_source="fallback"`。
+- 演示前必须跑 `python -m tbm_diag.cli llm-check` 确认 API 可用。
+- GUI 必须展示 LLM 状态（总结来源列），不得把 fallback 伪装成 AI 成功。
+
 ## Change Output Format
 
 After completing a task, output:

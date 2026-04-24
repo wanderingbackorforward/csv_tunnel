@@ -17,6 +17,7 @@
 | `review` | 对 scan_index 中高风险文件批量执行 AI 复核 |
 | `agent` | OpenAI-compatible tool-using agent，单文件工具编排和报告生成 |
 | `investigate` | ReAct-style 停机案例追查 agent，合并碎片停机事件为 case，检查前后窗口，分类输出追查报告 |
+| `llm-check` | 测试当前 OpenAI-compatible API 连通性 |
 
 - **配置文件**：通过 `.yaml` / `.json` 调整清洗参数、检测阈值、分段规则、输出行为
 - **容错设计**：CSV 缺列自动跳过对应规则，不中断流程
@@ -90,6 +91,43 @@ python -m tbm_diag.cli investigate \
   --output-dir investigation_out \
   --max-iterations 30
 ```
+
+### API 连通性检查
+
+```bash
+python -m tbm_diag.cli llm-check
+```
+
+输出 API Key 是否设置、模型名、API 调用是否成功、JSON 解析是否成功。演示前建议先跑一次。
+
+### review 中的 LLM 状态
+
+review 每个文件会明确标记总结来源：
+
+- `LLM成功`：大模型返回了可解析的 JSON 总结
+- `规则降级`：LLM 调用失败或 JSON 解析失败，使用规则生成的摘要
+- `无事件/未请求LLM`：文件无异常事件，未调用 LLM
+
+加 `--require-llm` 可在演示前自检：任何文件 LLM 未成功则 exit code 非 0。
+
+```bash
+python -m tbm_diag.cli review \
+  --scan-index scan_real_out/scan_index.csv \
+  --output-dir review_out --top-n 3 \
+  --require-llm
+```
+
+### OpenAI-compatible API 配置
+
+通过环境变量或 `.env` 文件配置：
+
+```
+OPENAI_API_KEY=your_api_key_here
+OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
+LLM_MODEL=your-model-name
+```
+
+review 也支持 `--llm-model` 覆盖配置文件中的模型名。
 
 ---
 

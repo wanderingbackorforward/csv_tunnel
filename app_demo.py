@@ -12,6 +12,11 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
 
 ROOT = Path(__file__).resolve().parent
 PYTHON_BIN = sys.executable
@@ -21,6 +26,9 @@ SCAN_DEMO_DIR = ROOT / "scan_demo_out"
 REVIEW_DEMO_DIR = ROOT / "review_demo_out"
 INVESTIGATION_DEMO_DIR = ROOT / "investigation_demo_out"
 SUPPORTED_EXTENSIONS = {".csv", ".xls", ".xlsx"}
+
+if load_dotenv is not None:
+    load_dotenv(ROOT / ".env", override=False)
 
 
 def ensure_demo_directories() -> None:
@@ -119,6 +127,10 @@ def render_download(path: Path, label: str, mime: str) -> None:
     )
 
 
+def has_openai_compatible_config() -> bool:
+    return bool(os.getenv("OPENAI_API_KEY")) and bool(os.getenv("OPENAI_BASE_URL"))
+
+
 def choose_scan_index(preferred: str = "") -> Path | None:
     for candidate in [
         normalize_path(preferred),
@@ -189,7 +201,9 @@ def build_scan_display_table(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_review_display_table(file_results: list[dict[str, Any]]) -> pd.DataFrame:
     rows = []
+    _SRC = {"llm": "LLM 成功", "fallback": "规则降级", "none": "未生成"}
     for item in file_results:
+        src = _SRC.get(item.get("summary_source", ""), item.get("summary_source", ""))
         rows.append(
             {
                 "文件名": item.get("file_name", ""),
@@ -197,6 +211,9 @@ def build_review_display_table(file_results: list[dict[str, Any]]) -> pd.DataFra
                 "风险分数": item.get("risk_rank_score", ""),
                 "事件数": item.get("event_count", ""),
                 "最高风险": item.get("max_severity_label", ""),
+                "总结来源": src,
+                "LLM状态": item.get("llm_status", ""),
+                "模型": item.get("llm_model", ""),
                 "复核结论": item.get("ai_summary", ""),
             }
         )
@@ -438,7 +455,7 @@ def render_review_tab() -> None:
     output_dir_text = st.text_input("输入输出目录", value=str(REVIEW_DEMO_DIR))
     top_n = st.number_input("输入复核文件数量", min_value=1, max_value=20, value=3, step=1)
 
-    if not os.getenv("OPENAI_API_KEY"):
+    if not has_openai_compatible_config():
         st.warning("未检测到大模型 API Key，无法运行智能复核。请检查 .env 中的 OPENAI_API_KEY 和 OPENAI_BASE_URL。")
 
     if st.button("运行智能复核", type="primary", use_container_width=True):
@@ -450,7 +467,7 @@ def render_review_tab() -> None:
         if not output_dir:
             st.error("请输入有效的输出目录。")
             return
-        if not os.getenv("OPENAI_API_KEY"):
+        if not has_openai_compatible_config():
             st.error("未检测到大模型 API Key，无法运行智能复核。请检查 .env 中的 OPENAI_API_KEY 和 OPENAI_BASE_URL。")
             return
 
@@ -497,6 +514,14 @@ def render_review_tab() -> None:
 
         file_results = summary_doc.get("file_results", [])
         if file_results:
+            llm_count = sum(1 for f in file_results if f.get("summary_source") == "llm")
+            fb_count = sum(1 for f in file_results if f.get("summary_source") == "fallback")
+            if llm_count > 0 and fb_count == 0:
+                st.success(f"全部 {llm_count} 个文件均获得大模型总结。")
+            elif llm_count > 0:
+                st.info(f"{llm_count} 个文件 LLM 成功，{fb_count} 个规则降级。")
+            elif fb_count > 0:
+                st.warning("本次没有获得可解析的大模型总结，当前展示的是规则降级摘要。")
             st.markdown("**重点文件复核结论**")
             st.dataframe(build_review_display_table(file_results), use_container_width=True, hide_index=True)
 

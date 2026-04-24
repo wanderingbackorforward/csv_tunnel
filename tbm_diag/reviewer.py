@@ -30,13 +30,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ReviewConfig:
     top_n: int = 5
-    """默认只 review Top N 高风险文件。"""
     use_agent: bool = False
-    """True 时调用 agent 模式；False 时调用 detect + LLM summary。"""
     overwrite: bool = False
-    """True 时强制重新 review 已有结果。"""
     min_severity: str = ""
-    """最低严重度过滤（高风险/中风险/低风险/观察），空字符串不过滤。"""
+    require_llm: bool = False
 
 
 # ── ReviewRecord ───────────────────────────────────────────────────────────────
@@ -58,7 +55,11 @@ class ReviewRecord:
     review_json_path: str = ""
     review_md_path: str = ""
     semantic_type_counts: dict = field(default_factory=dict)
-    """各 semantic_event_type 的统计：{sem_type: {"count": N, "total_seconds": X}}"""
+    summary_source: str = "none"
+    llm_status: str = "not_requested"
+    llm_error_message: str = ""
+    llm_model: str = ""
+    llm_provider: str = ""
 
 
 # ── 读取 scan_index ────────────────────────────────────────────────────────────
@@ -178,7 +179,8 @@ def _run_detect_and_summarize(
             llm_result = summarize(si, cfg.llm)
 
     fallback = None
-    if not llm_result and explanations:
+    llm_ok = llm_result and llm_result.llm_status == "success"
+    if not llm_ok and explanations:
         top = explanations[0]
         fallback = f"共 {len(events)} 个事件，最高 {top.severity_label}。{top.summary}"
 
@@ -205,11 +207,28 @@ def _review_one_llm(row: dict, output_dir: Path, shared_cfg: Any) -> ReviewRecor
         rec.semantic_type_counts = sem_stats
         rec.status = "ok"
         if llm_result:
-            rec.ai_summary        = llm_result.overall_summary
-            rec.top_risks         = llm_result.top_risks
-            rec.suggested_actions = llm_result.suggested_actions
+            rec.llm_status = llm_result.llm_status
+            rec.llm_model = llm_result.model_used
+            rec.llm_provider = llm_result.llm_provider
+            rec.llm_error_message = llm_result.llm_error_message
+            if llm_result.llm_status == "success":
+                rec.summary_source    = "llm"
+                rec.ai_summary        = llm_result.overall_summary
+                rec.top_risks         = llm_result.top_risks
+                rec.suggested_actions = llm_result.suggested_actions
+            else:
+                if fallback:
+                    rec.summary_source = "fallback"
+                    rec.ai_summary = fallback
+                else:
+                    rec.summary_source = "none"
         elif fallback:
+            rec.summary_source = "fallback"
+            rec.llm_status = "no_events" if rec.event_count == 0 else "not_requested"
             rec.ai_summary = fallback
+        else:
+            rec.summary_source = "none"
+            rec.llm_status = "no_events"
     except Exception as exc:
         rec.error_message = str(exc)
         logger.exception("review_one_llm failed for %s", file_path)
@@ -353,6 +372,8 @@ def _write_review_summary(
             {"file_name": r.file_name, "risk_rank_score": r.risk_rank_score,
              "event_count": r.event_count, "max_severity_label": r.max_severity_label,
              "status": r.status, "ai_summary": r.ai_summary,
+             "summary_source": r.summary_source, "llm_status": r.llm_status,
+             "llm_error_message": r.llm_error_message, "llm_model": r.llm_model,
              "top_risks": r.top_risks, "suggested_actions": r.suggested_actions,
              "semantic_type_counts": r.semantic_type_counts,
              "error_message": r.error_message,
@@ -382,6 +403,14 @@ def _write_review_summary(
         icon = _SEV_ICON.get(r.max_severity_label, "")
         lines += [f"### {i}. {r.file_name}  {icon}", "",
                   f"- 风险分：{r.risk_rank_score:.0f}  |  事件数：{r.event_count}  |  状态：{r.status}"]
+        _SRC_LABELS = {"llm": "LLM 成功", "fallback": "规则降级", "none": "未生成"}
+        src_label = _SRC_LABELS.get(r.summary_source, r.summary_source)
+        src_line = f"- 总结来源：{src_label}"
+        if r.summary_source == "llm" and r.llm_model:
+            src_line += f"  |  模型：{r.llm_model}"
+        if r.summary_source != "llm" and r.llm_error_message:
+            src_line += f"  |  原因：{r.llm_error_message}"
+        lines.append(src_line)
         # 语义事件分布（每文件）
         if r.semantic_type_counts:
             sem_parts = []
@@ -478,8 +507,13 @@ def run_review(
             rec = _review_one_llm(row, output_dir, shared_cfg)
         records.append(rec)
         if rec.status == "ok":
-            has_llm = bool(rec.ai_summary)
-            print(f" OK  {'(AI总结已生成)' if has_llm else '(规则降级)'}")
+            if rec.summary_source == "llm":
+                print(f" OK  (LLM成功)")
+            elif rec.summary_source == "fallback":
+                reason = rec.llm_error_message or rec.llm_status
+                print(f" OK  (规则降级: {reason})")
+            else:
+                print(f" OK  (无事件/未请求LLM)")
         else:
             print(f" FAIL  {rec.error_message[:60]}")
 
@@ -487,8 +521,14 @@ def run_review(
 
     ok_n  = sum(1 for r in records if r.status == "ok")
     err_n = sum(1 for r in records if r.status == "error")
-    print(f"\n[review] 完成  OK={ok_n}  失败={err_n}")
+    llm_ok = sum(1 for r in records if r.summary_source == "llm")
+    llm_fb = sum(1 for r in records if r.summary_source == "fallback")
+    print(f"\n[review] 完成  OK={ok_n}  失败={err_n}  LLM成功={llm_ok}  规则降级={llm_fb}")
     print(f"[review] 总结 JSON : {json_path}")
     print(f"[review] 总结 MD   : {md_path}")
+
+    if review_cfg.require_llm and llm_ok < ok_n:
+        print(f"\n⚠ --require-llm: {ok_n - llm_ok} 个文件 LLM 未成功", file=sys.stderr)
+
     return records
 

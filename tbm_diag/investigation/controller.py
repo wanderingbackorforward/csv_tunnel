@@ -78,6 +78,7 @@ def _update_state(
     fp = arguments.get("file_path", state.current_file)
 
     if action == "inspect_file_overview" and result.get("status") == "ok":
+        state.current_file = fp
         from tbm_diag.investigation.state import FileOverview
         state.file_overviews[fp] = FileOverview(
             file_path=fp,
@@ -125,8 +126,14 @@ def _compute_confidence(state: InvestigationState) -> float:
         return 0.0
 
     classified = len(state.case_classifications)
-    ratio = classified / min(total_cases, 5)
-    return min(round(ratio * 0.8 + 0.1, 2), 0.95)
+    top_n = min(total_cases, 5)
+    classified_top = min(classified, top_n)
+    ratio = classified_top / top_n
+
+    files_done = sum(1 for f in state.input_files if f in state.stoppage_cases)
+    file_ratio = files_done / len(state.input_files) if state.input_files else 0
+
+    return min(round(ratio * 0.5 + file_ratio * 0.3 + 0.05, 2), 0.85)
 
 
 def _make_observation_summary(action: str, result: dict[str, Any]) -> str:

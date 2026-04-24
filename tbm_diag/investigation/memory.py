@@ -44,6 +44,10 @@ def save_case_memory(state: InvestigationState, output_dir: str | Path) -> Path:
                 record["case_type"] = cls.case_type
                 record["confidence"] = cls.confidence
                 record["reasons"] = cls.reasons
+            else:
+                record["case_type"] = "unclassified"
+                record["confidence"] = 0.0
+                record["reasons"] = []
 
             if ta:
                 record["pre_has_ser"] = ta.pre_has_ser

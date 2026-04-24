@@ -11,7 +11,7 @@ import logging
 import os
 from typing import Any, Optional
 
-from tbm_diag.investigation.state import InvestigationState
+from tbm_diag.investigation.state import InvestigationState, FileOverview
 
 logger = logging.getLogger(__name__)
 
@@ -105,26 +105,43 @@ def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
             "arguments": {"case_id": c.case_id},
         }
 
-    if len(state.input_files) > 1 and not state.cross_file_patterns:
-        processed = [
-            f for f in state.input_files if f in state.stoppage_cases
-        ]
-        unprocessed = [
-            f for f in state.input_files if f not in state.file_overviews
-        ]
-        if unprocessed:
-            next_file = unprocessed[0]
+    if len(state.input_files) > 1:
+        not_overviewed = [f for f in state.input_files if f not in state.file_overviews]
+        if not_overviewed:
             return {
-                "rationale": f"切换到下一个文件 {next_file}",
+                "rationale": f"切换到下一个文件",
                 "action": "inspect_file_overview",
-                "arguments": {"file_path": next_file},
+                "arguments": {"file_path": not_overviewed[0]},
             }
-        if len(processed) > 1:
+
+        not_evented = [f for f in state.input_files if f not in state.event_summaries]
+        if not_evented:
             return {
-                "rationale": "所有文件已处理，进行跨文件比较",
-                "action": "compare_cases_across_files",
-                "arguments": {"files": processed},
+                "rationale": f"加载事件摘要",
+                "action": "load_event_summary",
+                "arguments": {"file_path": not_evented[0]},
             }
+
+        need_merge = [
+            f for f in state.input_files
+            if f not in state.stoppage_cases
+            and state.file_overviews.get(f, FileOverview()).semantic_event_distribution.get("stoppage_segment", 0) > 0
+        ]
+        if need_merge:
+            return {
+                "rationale": f"合并停机事件",
+                "action": "merge_stoppage_cases",
+                "arguments": {"file_path": need_merge[0]},
+            }
+
+        if not state.cross_file_patterns:
+            processed = [f for f in state.input_files if f in state.stoppage_cases]
+            if len(processed) > 1:
+                return {
+                    "rationale": "所有文件已处理，进行跨文件比较",
+                    "action": "compare_cases_across_files",
+                    "arguments": {"files": processed},
+                }
 
     return {
         "rationale": "证据收集完成，生成报告",

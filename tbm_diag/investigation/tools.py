@@ -407,11 +407,12 @@ def classify_stoppage_case(
 
     reasons: list[str] = []
     score = 0.0
+    evidence_count = 0
 
     dur = target_case.duration_seconds
     if dur > 3600:
-        reasons.append(f"长停机 ({dur/60:.0f}min)，可能为计划停机")
-        score += 0.2
+        reasons.append(f"长停机 ({dur/60:.0f}min)")
+        score += 0.15
     elif dur < 600:
         reasons.append(f"短暂停 ({dur/60:.0f}min)")
         score -= 0.1
@@ -419,32 +420,39 @@ def classify_stoppage_case(
     if ta:
         if ta.pre_has_ser:
             reasons.append("停机前存在掘进阻力异常 (SER)")
-            score += 0.3
+            score += 0.25
+            evidence_count += 1
         if ta.pre_has_hyd:
             reasons.append("停机前存在液压不稳定 (HYD)")
-            score += 0.25
+            score += 0.2
+            evidence_count += 1
         if ta.pre_has_heavy_load:
             reasons.append("停机前处于重载推进状态")
             score += 0.15
+            evidence_count += 1
         if ta.post_has_anomaly:
             reasons.append("恢复后仍有异常事件")
             score += 0.1
+            evidence_count += 1
         if not ta.pre_events and not ta.post_events:
-            reasons.append("前后窗口无异常事件，疑似计划停机")
-            score -= 0.2
+            reasons.append("前后窗口无异常事件，更像计划停机")
+            score -= 0.25
 
     if score >= 0.3:
         case_type = "abnormal_like_stoppage"
-        confidence = min(0.5 + score, 0.95)
+        confidence = min(0.4 + evidence_count * 0.12 + score * 0.3, 0.85)
+        reasons.append("（疑似，需结合施工日志确认）")
     elif score <= -0.1:
         case_type = "planned_like_stoppage"
-        confidence = min(0.5 + abs(score), 0.9)
+        confidence = min(0.45 + abs(score) * 0.5, 0.8)
+        reasons.append("（疑似，需结合施工日志确认）")
     elif dur < 600:
         case_type = "short_operational_pause"
-        confidence = 0.6
+        confidence = 0.55
     else:
         case_type = "uncertain_stoppage"
-        confidence = 0.4
+        confidence = 0.35
+        reasons.append("（证据不足，建议人工核查）")
 
     classification = CaseClassification(
         case_id=case_id,

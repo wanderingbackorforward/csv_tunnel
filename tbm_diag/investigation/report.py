@@ -42,6 +42,27 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
     ]
 
     lines.append("## 核心结论\n")
+
+    if total_original == 0:
+        has_events = any(s.event_count > 0 for s in state.event_summaries.values())
+        if has_events:
+            lines.append("该文件存在异常事件，但未检测到停机片段（stoppage_segment），")
+            lines.append("更偏向推进过程中的异常，不属于停机追查范畴。\n")
+        else:
+            lines.append("该文件未检测到异常事件，数据整体正常，无需停机追查。\n")
+        lines.append(f"- 调查轮次: {state.iteration_count}")
+        lines.append("")
+        report_text = "\n".join(lines)
+        return {
+            "status": "ok",
+            "report_text": report_text,
+            "total_original_events": 0,
+            "total_merged_cases": 0,
+            "abnormal_count": 0,
+            "planned_count": 0,
+            "uncertain_count": 0,
+        }
+
     lines.append(f"- 原始停机事件数: {total_original}")
     lines.append(f"- 合并后停机案例数: {total_merged}")
     lines.append(f"- 异常停机（疑似）: {len(abnormal_cases)} 个")

@@ -15,7 +15,7 @@ Output: Auto-detected anomaly events with severity ranking, evidence, and engine
 - Python 3.11+
 - pandas, numpy, dataclasses, argparse
 - openai SDK (optional, for LLM planner / agent)
-- CLI only — no web UI
+- CLI 优先，并提供本地 Streamlit 演示入口
 
 ## Commands
 
@@ -110,6 +110,15 @@ python -m tbm_diag.cli investigate --input sample2.xls --output-dir investigatio
 ```
 
 3. Clean up test output directories after testing (they are in .gitignore).
+
+## GUI Rules
+
+1. GUI 面向中文演示时，所有用户可见文案必须使用简体中文。
+2. 不要默认写英文按钮、英文 Tab、英文说明。
+3. 技术字段可以内部保留英文，但展示给用户时应转成中文。
+4. 新增 GUI 后必须检查中文化，包括标题、按钮、提示语、表格列名。
+5. GUI 只能调用已有 CLI / 内部能力，不复制核心诊断算法。
+6. 不要提交临时上传和输出目录，例如 `tmp_demo_uploads/`、`tmp_demo_outputs/`、`scan_demo_out/`、`review_demo_out/`、`investigation_demo_out/`。
 
 ## README Sync Rules
 

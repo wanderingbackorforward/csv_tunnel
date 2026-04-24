@@ -60,6 +60,8 @@ def _execute_action(
         arguments["state"] = state
     elif action == "generate_investigation_report":
         arguments["state"] = state
+    elif action == "analyze_stoppage_cases":
+        arguments["state"] = state
 
     try:
         return fn(**arguments)
@@ -161,6 +163,14 @@ def _make_observation_summary(action: str, result: dict[str, Any]) -> str:
         return f"files={result.get('files_compared')}, patterns={result.get('patterns')}"
     elif action == "generate_investigation_report":
         return f"report generated, {result.get('total_merged_cases')} cases"
+    elif action == "analyze_stoppage_cases":
+        return result.get("summary", f"cases={result.get('merged_cases')}")
+    elif action == "analyze_resistance_pattern":
+        return result.get("summary", f"ser={result.get('ser_count')}")
+    elif action == "analyze_hydraulic_pattern":
+        return result.get("summary", f"hyd={result.get('hyd_count')}")
+    elif action == "analyze_event_fragmentation":
+        return result.get("summary", f"events={result.get('event_count')}")
     return json.dumps({k: v for k, v in result.items() if not k.startswith("_")}, ensure_ascii=False)[:200]
 
 
@@ -225,6 +235,16 @@ def run_investigation(
 
         obs_summary = _make_observation_summary(action, result)
         print(f"[investigate] observe: {obs_summary}")
+
+        state.observations.append(Observation(
+            round_num=iteration,
+            action=action,
+            result_summary=obs_summary,
+            data={k: v for k, v in result.items() if not k.startswith("_")},
+        ))
+
+        # 回填 observation_summary 到 action record
+        state.actions_taken[-1].observation_summary = obs_summary
 
         state.observations.append(Observation(
             round_num=iteration,

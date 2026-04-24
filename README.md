@@ -14,9 +14,9 @@
 | `detect` | 异常点检测、事件分段、证据提取、模板解释、三种格式导出 |
 | `watch` | 轮询目录，自动处理新 CSV，每文件产出三种结果 |
 | `scan` | 批量扫描目录，生成 scan_index.csv 风险排序 |
-| `review` | 对 scan_index 中高风险文件批量执行 AI 复核 |
+| `review` | 对 scan_index 中高风险文件批量执行 AI 复核（分诊与证据摘要） |
 | `agent` | OpenAI-compatible tool-using agent，单文件工具编排和报告生成 |
-| `investigate` | ReAct-style 停机案例追查 agent，合并碎片停机事件为 case，检查前后窗口，分类输出追查报告 |
+| `investigate` | ReAct-style 动态工具调用调查 agent，根据文件特征选择停机追查、阻力分析、液压分析或碎片化检查 |
 | `llm-check` | 测试当前 OpenAI-compatible API 连通性 |
 
 - **配置文件**：通过 `.yaml` / `.json` 调整清洗参数、检测阈值、分段规则、输出行为
@@ -183,35 +183,63 @@ streamlit run app_demo.py
 - 项目说明：介绍项目定位、演示路线和整体处理链路
 - 单文件诊断：对单个 CSV/XLS/XLSX 文件运行 `detect`，查看异常摘要与报告
 - 批量扫描：对目录运行 `scan`，快速筛出高风险文件并预览报告
-- 智能复核：对 `scan_index.csv` 中的重点文件运行 `review`
-- 停机追查：对高风险文件运行 `investigate`，查看停机案例摘要
+- 智能复核：对 `scan_index.csv` 中的重点文件运行 `review`（分诊与证据摘要）
+- ReAct 调查：对高风险文件运行 `investigate`，查看动态工具调用轨迹和调查报告
 
 ---
 
-## agent 与 investigate 的区别
+## review 与 investigate 的区别
 
-| | `agent` | `investigate` |
+| | `review` | `investigate` |
 |---|---------|---------------|
-| 定位 | 工具编排型 agent | 调查追因型 ReAct agent |
-| 流程 | 固定 inspect → detect → summarize → export | 根据观察结果动态决策下一步 |
-| 输出 | 单文件诊断报告 | case-level 停机追查报告 |
-| 核心问题 | "这个文件有什么异常？" | "这些碎片停机背后到底是几次真正的停机？哪些像异常停机？" |
-| LLM 依赖 | 必须有 OpenAI-compatible API | 可选，无 key 时使用 rule-based fallback planner |
+| 定位 | 分诊与证据摘要 | 真正 ReAct 动态工具调用调查 |
+| 流程 | 固定证据链（E1-E6）+ AI 总结 | 根据观察结果动态选择下一步工具 |
+| 输出 | 证据链、AI 摘要、建议进一步调查的问题 | 调查报告 + ReAct 调查轨迹表 |
+| 核心问题 | "这个文件有什么问题？下一步该查什么？" | "根据数据特征，逐步接近真相" |
+| LLM 依赖 | 可选，无 key 时使用规则降级 | 可选，无 key 时使用 rule-based fallback planner |
+
+review 不是 ReAct。review 是分诊，告诉你下一步该用什么工具查。investigate 才是真正的动态工具调用调查。
 
 ### investigate 的 ReAct 工作流
 
 ```
 inspect file overview
 → load event summary
-→ 判断是否存在大量停机片段 (stoppage_segment)
-→ merge stoppage segments into cases
-→ inspect transition window (停机前后窗口)
-→ classify stoppage cases (planned / abnormal / uncertain)
-→ 多文件时：跨文件比较
+→ 根据观察结果动态选择路径：
+  - 停机占比高 → analyze_stoppage_cases
+  - SER 事件多 → analyze_resistance_pattern
+  - HYD 事件频繁 → analyze_hydraulic_pattern
+  - 事件碎片化 → analyze_event_fragmentation
+→ 根据分析结果决定是否补充调查
 → generate investigation report
 ```
 
-每一轮 planner 根据已有观察决定下一步 action，不是固定顺序。
+不同文件会产生不同的 action 序列。normal 文件会较早结束，不会无意义调用所有工具。
+
+### investigate 可用工具
+
+| 工具 | 用途 |
+|------|------|
+| `inspect_file_overview` | 获取文件概览 |
+| `load_event_summary` | 获取事件摘要 |
+| `analyze_stoppage_cases` | 综合停机分析（合并+窗口+分类） |
+| `analyze_resistance_pattern` | 掘进阻力异常模式分析 |
+| `analyze_hydraulic_pattern` | 液压不稳定模式分析 |
+| `analyze_event_fragmentation` | 事件碎片化分析 |
+| `merge_stoppage_cases` | 合并停机事件为案例 |
+| `inspect_transition_window` | 检查停机前后窗口 |
+| `classify_stoppage_case` | 分类停机案例 |
+| `compare_cases_across_files` | 跨文件比较 |
+| `generate_investigation_report` | 生成调查报告 |
+
+### investigate 输出中的 ReAct 调查轨迹
+
+investigation_report.md 包含 ReAct 调查轨迹表：
+
+| 轮次 | 决策理由 | 调用工具 | 观察结果 |
+|------|----------|----------|----------|
+
+investigation_state.json 中 actions_taken 每条记录包含 round_num、action、arguments、rationale、observation_summary。
 
 ---
 

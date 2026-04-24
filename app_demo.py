@@ -247,8 +247,8 @@ def render_project_intro_tab() -> None:
     st.markdown(
         "1. 单文件诊断：先看一个文件有没有异常\n"
         "2. 批量扫描：再从大量文件中筛出高风险文件\n"
-        "3. 智能复核：对重点文件调用大模型进行总结\n"
-        "4. 停机追查：把大量碎片事件合并成少数停机案例"
+        "3. 智能复核：对重点文件进行分诊和证据摘要\n"
+        "4. ReAct 调查：对高风险文件进行真正的动态工具调用调查"
     )
 
     st.subheader("处理链路")
@@ -256,8 +256,8 @@ def render_project_intro_tab() -> None:
         "CSV/XLS 文件\n"
         "→ 单文件诊断\n"
         "→ 批量扫描\n"
-        "→ 智能复核\n"
-        "→ ReAct 停机追查\n"
+        "→ 智能复核（分诊）\n"
+        "→ ReAct 调查（动态工具调用）\n"
         "→ 工程师可读报告"
     )
 
@@ -579,6 +579,16 @@ def render_review_tab() -> None:
                     })
                 st.dataframe(pd.DataFrame(ev_rows), use_container_width=True, hide_index=True)
 
+            # 建议进一步调查
+            suggestions = fr.get("investigation_suggestions", [])
+            if suggestions:
+                st.markdown("**建议进一步调查的问题**")
+                for s in suggestions:
+                    st.markdown(f"- {s.get('text', '')}")
+                    st.code(s.get("command", ""), language="bash")
+
+    st.caption("AI 复核是分诊，不是真正 ReAct 调查。如需深入追查，请使用「ReAct 调查」页面。")
+
     # 跨文件分析
     cross = summary_doc.get("cross_file_analysis", {})
     if cross.get("composite_judgment"):
@@ -593,8 +603,8 @@ def render_review_tab() -> None:
 
 
 def render_investigation_tab() -> None:
-    st.subheader("停机追查")
-    st.markdown("这一部分用于进一步追查高风险文件。系统会把碎片化停机事件合并成停机案例，并检查停机前后是否存在掘进阻力、液压波动或重载推进等异常迹象。")
+    st.subheader("ReAct 调查")
+    st.markdown("这一部分用于对高风险文件进行真正的 ReAct 工具调用调查。系统根据文件特征动态选择调查路径：停机追查、掘进阻力分析、液压异常分析或碎片化检查。")
 
     latest_scan_df = st.session_state.get("latest_scan_df")
     select_options: list[str] = []
@@ -610,7 +620,7 @@ def render_investigation_tab() -> None:
     output_dir_text = st.text_input("输入输出目录", value=str(INVESTIGATION_DEMO_DIR))
     max_iterations = st.number_input("输入最大轮数", min_value=1, max_value=50, value=12, step=1)
 
-    if st.button("运行停机追查", type="primary", use_container_width=True):
+    if st.button("运行 ReAct 调查", type="primary", use_container_width=True):
         input_path = normalize_path(selected_file or input_path_text)
         output_dir = normalize_path(output_dir_text)
         if not input_path or not input_path.exists():
@@ -631,7 +641,7 @@ def render_investigation_tab() -> None:
                 "--max-iterations",
                 str(int(max_iterations)),
             ],
-            "正在运行停机追查，请稍候",
+            "正在运行 ReAct 调查，请稍候",
         )
         render_cli_output(result)
 
@@ -640,21 +650,40 @@ def render_investigation_tab() -> None:
             return
 
         st.session_state["latest_investigation_dir"] = str(output_dir)
-        st.success(f"运行状态：成功。已生成停机追查结果：{output_dir}")
+        st.success(f"运行状态：成功。已生成调查结果：{output_dir}")
 
     investigation_dir = normalize_path(st.session_state.get("latest_investigation_dir")) or INVESTIGATION_DEMO_DIR
     report_path = investigation_dir / "investigation_report.md"
+    state_path = investigation_dir / "investigation_state.json"
     case_memory_path = investigation_dir / "case_memory.json"
 
+    # ReAct 调查轨迹
+    if state_path.exists():
+        try:
+            state_doc = read_json(state_path)
+            actions = state_doc.get("actions_taken", [])
+            if actions:
+                st.markdown("**ReAct 调查轨迹**")
+                trace_rows = []
+                for a in actions:
+                    trace_rows.append({
+                        "轮次": a.get("round_num", ""),
+                        "决策理由": (a.get("rationale", "") or "")[:60],
+                        "调用工具": a.get("action", ""),
+                        "观察结果": (a.get("observation_summary", "") or "")[:80],
+                    })
+                st.dataframe(pd.DataFrame(trace_rows), use_container_width=True, hide_index=True)
+        except Exception:
+            pass
+
     if report_path.exists():
-        st.markdown("**停机追查报告预览**")
+        st.markdown("**调查报告预览**")
         st.markdown(read_markdown_text(report_path))
-        render_download(report_path, "下载停机追查 Markdown 报告", "text/markdown")
+        render_download(report_path, "下载调查 Markdown 报告", "text/markdown")
     else:
-        st.info("当前还没有可预览的停机追查报告。")
+        st.info("当前还没有可预览的调查报告。")
 
     if not case_memory_path.exists():
-        st.info("未发现明显停机追查目标。")
         return
 
     try:
@@ -664,7 +693,6 @@ def render_investigation_tab() -> None:
         return
 
     if not cases:
-        st.info("未发现明显停机追查目标。")
         return
 
     st.markdown("**停机案例摘要**")
@@ -678,7 +706,7 @@ def main() -> None:
     st.title("盾构/TBM CSV 智能诊断 Agent 演示系统")
     st.markdown("本系统面向现场系统只能导出 CSV/XLS 文件的情况，通过规则诊断、批量扫描、AI 复核和 ReAct 停机追查，把大量原始数据转换为可人工核查的工程事件和停机案例。")
 
-    tabs = st.tabs(["项目说明", "单文件诊断", "批量扫描", "智能复核", "停机追查"])
+    tabs = st.tabs(["项目说明", "单文件诊断", "批量扫描", "智能复核", "ReAct 调查"])
     with tabs[0]:
         render_project_intro_tab()
     with tabs[1]:

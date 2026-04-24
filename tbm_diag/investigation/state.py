@@ -64,6 +64,7 @@ class ActionRecord:
     action: str = ""
     arguments: dict[str, Any] = field(default_factory=dict)
     rationale: str = ""
+    observation_summary: str = ""
 
 
 @dataclass

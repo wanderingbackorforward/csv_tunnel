@@ -15,10 +15,34 @@ _CASE_TYPE_LABELS = {
 }
 
 
+def _build_react_trace_table(state: InvestigationState) -> list[str]:
+    """构建 ReAct 调查轨迹表。"""
+    lines = ["## ReAct 调查轨迹", ""]
+    lines.append("| 轮次 | 决策理由 | 调用工具 | 观察结果 |")
+    lines.append("|------|----------|----------|----------|")
+    for action_rec in state.actions_taken:
+        obs = None
+        for o in state.observations:
+            if o.round_num == action_rec.round_num:
+                obs = o
+                break
+        obs_text = (obs.result_summary[:80] if obs else "无") .replace("|", "/")
+        rationale = (action_rec.rationale or "").replace("|", "/")[:60]
+        lines.append(
+            f"| {action_rec.round_num} | {rationale} "
+            f"| {action_rec.action} | {obs_text} |"
+        )
+    lines.append("")
+    return lines
+
+
 def build_report(state: InvestigationState) -> dict[str, Any]:
     """根据 InvestigationState 生成 Markdown 报告内容。"""
     lines: list[str] = []
-    lines.append("# 停机案例追查报告\n")
+    lines.append("# 调查报告\n")
+
+    # ── ReAct 调查轨迹（始终输出）──
+    lines.extend(_build_react_trace_table(state))
 
     # ── 核心结论 ──
     total_original = 0
@@ -43,13 +67,18 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
 
     lines.append("## 核心结论\n")
 
-    if total_original == 0:
+    # 收集非停机分析结果
+    resistance_obs = [o for o in state.observations if o.action == "analyze_resistance_pattern"]
+    hydraulic_obs = [o for o in state.observations if o.action == "analyze_hydraulic_pattern"]
+    fragmentation_obs = [o for o in state.observations if o.action == "analyze_event_fragmentation"]
+
+    if total_original == 0 and not resistance_obs and not hydraulic_obs and not fragmentation_obs:
         has_events = any(s.event_count > 0 for s in state.event_summaries.values())
         if has_events:
-            lines.append("该文件存在异常事件，但未检测到停机片段（stoppage_segment），")
-            lines.append("更偏向推进过程中的异常，不属于停机追查范畴。\n")
+            lines.append("该文件存在异常事件，但未检测到需要深入追查的模式，")
+            lines.append("可能偏向推进过程中的轻微异常。\n")
         else:
-            lines.append("该文件未检测到异常事件，数据整体正常，无需停机追查。\n")
+            lines.append("该文件未检测到异常事件，数据整体正常，无需追查。\n")
         lines.append(f"- 调查轮次: {state.iteration_count}")
         lines.append("")
         report_text = "\n".join(lines)
@@ -63,14 +92,54 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
             "uncertain_count": 0,
         }
 
-    lines.append(f"- 原始停机事件数: {total_original}")
-    lines.append(f"- 合并后停机案例数: {total_merged}")
-    lines.append(f"- 异常停机（疑似）: {len(abnormal_cases)} 个")
-    lines.append(f"- 计划停机（疑似）: {len(planned_cases)} 个")
-    lines.append(f"- 待确认: {len(uncertain_cases)} 个")
     lines.append(f"- 调查轮次: {state.iteration_count}")
     lines.append(f"- 置信度: {state.confidence:.2f}")
+
+    if total_merged > 0:
+        lines.append(f"- 原始停机事件数: {total_original}")
+        lines.append(f"- 合并后停机案例数: {total_merged}")
+        lines.append(f"- 异常停机（疑似）: {len(abnormal_cases)} 个")
+        lines.append(f"- 计划停机（疑似）: {len(planned_cases)} 个")
+        lines.append(f"- 待确认: {len(uncertain_cases)} 个")
     lines.append("")
+
+    # ── 掘进阻力分析结果 ──
+    if resistance_obs:
+        lines.append("## 掘进阻力异常分析\n")
+        for obs in resistance_obs:
+            data = obs.data or {}
+            lines.append(f"- SER 事件数: {data.get('ser_count', 0)}")
+            lines.append(f"- SER 总时长: {data.get('ser_total_duration_h', 0)}h")
+            lines.append(f"- 推进中占比: {data.get('in_advancing_ratio', 0):.0%}")
+            lines.append(f"- 时间集中: {'是' if data.get('concentrated_in_time') else '否'}")
+            lines.append(f"- 靠近停机: {'是' if data.get('near_stoppage') else '否'}")
+            lines.append(f"- 摘要: {data.get('summary', '')}")
+            lines.append("")
+
+    # ── 液压分析结果 ──
+    if hydraulic_obs:
+        lines.append("## 液压不稳定分析\n")
+        for obs in hydraulic_obs:
+            data = obs.data or {}
+            lines.append(f"- HYD 事件数: {data.get('hyd_count', 0)}")
+            lines.append(f"- HYD 总时长: {data.get('hyd_total_duration_h', 0)}h")
+            lines.append(f"- 与 SER 同步: {'是' if data.get('sync_with_ser') else '否'}")
+            lines.append(f"- 靠近停机边界: {'是' if data.get('near_stoppage_boundary') else '否'}")
+            lines.append(f"- 孤立短时波动: {'是' if data.get('isolated_short_fluctuation') else '否'}")
+            lines.append(f"- 摘要: {data.get('summary', '')}")
+            lines.append("")
+
+    # ── 碎片化分析结果 ──
+    if fragmentation_obs:
+        lines.append("## 事件碎片化分析\n")
+        for obs in fragmentation_obs:
+            data = obs.data or {}
+            lines.append(f"- 事件总数: {data.get('event_count', 0)}")
+            lines.append(f"- 平均时长: {data.get('avg_duration_s', 0)}s")
+            lines.append(f"- 短事件占比: {data.get('short_event_ratio', 0):.0%}")
+            lines.append(f"- 碎片化风险: {'是' if data.get('fragmentation_risk') else '否'}")
+            lines.append(f"- 摘要: {data.get('summary', '')}")
+            lines.append("")
 
     # ── Top 停机案例 ──
     all_cases = []

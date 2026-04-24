@@ -24,6 +24,10 @@ AVAILABLE_ACTIONS = [
     "compare_cases_across_files",
     "retrieve_operation_context",
     "generate_investigation_report",
+    "analyze_stoppage_cases",
+    "analyze_resistance_pattern",
+    "analyze_hydraulic_pattern",
+    "analyze_event_fragmentation",
 ]
 
 
@@ -51,9 +55,11 @@ def _compress_state(state: InvestigationState) -> dict[str, Any]:
 # ── Rule-based fallback planner ───────────────────────────────────────────────
 
 def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
-    """无 LLM 时的规则决策。"""
+    """无 LLM 时的动态规则决策。根据观察结果选择不同调查路径。"""
     fp = state.current_file
+    actions_done = {a.action for a in state.actions_taken}
 
+    # Step 1: 先获取文件概览
     if fp and fp not in state.file_overviews:
         return {
             "rationale": "尚未检查当前文件概览",
@@ -61,6 +67,7 @@ def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
             "arguments": {"file_path": fp},
         }
 
+    # Step 2: 加载事件摘要
     if fp and fp not in state.event_summaries:
         return {
             "rationale": "尚未加载事件摘要",
@@ -68,48 +75,84 @@ def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
             "arguments": {"file_path": fp},
         }
 
+    # Step 3: 根据观察结果动态选择路径
     overview = state.file_overviews.get(fp)
+    event_summary = state.event_summaries.get(fp)
     sem_dist = overview.semantic_event_distribution if overview else {}
-    has_stoppage = sem_dist.get("stoppage_segment", 0) > 0
+    state_dist = overview.state_distribution if overview else {}
 
-    if fp and has_stoppage and fp not in state.stoppage_cases:
+    stoppage_count = sem_dist.get("stoppage_segment", 0)
+    ser_count = (sem_dist.get("suspected_excavation_resistance", 0)
+                 + sem_dist.get("excavation_resistance_under_load", 0))
+    hyd_count = sem_dist.get("hydraulic_instability", 0)
+    total_events = overview.event_count if overview else 0
+    stopped_pct = state_dist.get("stopped", 0)
+
+    # 记录已对当前文件执行过的分析工具
+    file_analyses_done = set()
+    for a in state.actions_taken:
+        args = a.arguments or {}
+        if args.get("file_path", "") == fp or (not args.get("file_path") and a.action in (
+            "analyze_stoppage_cases", "analyze_resistance_pattern",
+            "analyze_hydraulic_pattern", "analyze_event_fragmentation",
+        )):
+            file_analyses_done.add(a.action)
+
+    # 路径 A: 停机主导 — stopped 占比高或 stoppage_segment 多
+    if (stoppage_count >= 3 or stopped_pct >= 30) and "analyze_stoppage_cases" not in file_analyses_done:
         return {
-            "rationale": f"stoppage_segment 事件 {sem_dist.get('stoppage_segment', 0)} 个，需合并",
-            "action": "merge_stoppage_cases",
+            "rationale": f"stoppage_segment={stoppage_count}, stopped={stopped_pct:.0f}%，优先停机追查",
+            "action": "analyze_stoppage_cases",
             "arguments": {"file_path": fp},
         }
 
-    cases = state.stoppage_cases.get(fp, [])
-    top_cases = cases[:3]
-    uninspected = [
-        c for c in top_cases if c.case_id not in state.transition_analyses
-    ]
-    if uninspected:
-        c = uninspected[0]
+    # 路径 B: 掘进阻力主导 — SER 事件多
+    if ser_count >= 3 and "analyze_resistance_pattern" not in file_analyses_done:
         return {
-            "rationale": f"检查 {c.case_id} 前后窗口",
-            "action": "inspect_transition_window",
-            "arguments": {"file_path": fp, "case_id": c.case_id},
+            "rationale": f"SER 事件 {ser_count} 个，进入掘进阻力模式分析",
+            "action": "analyze_resistance_pattern",
+            "arguments": {"file_path": fp},
         }
 
-    unclassified = [
-        c for c in top_cases
-        if c.case_id in state.transition_analyses
-        and c.case_id not in state.case_classifications
-    ]
-    if unclassified:
-        c = unclassified[0]
+    # 路径 C: 液压问题 — HYD 事件频繁
+    if hyd_count >= 3 and "analyze_hydraulic_pattern" not in file_analyses_done:
         return {
-            "rationale": f"分类 {c.case_id}",
-            "action": "classify_stoppage_case",
-            "arguments": {"case_id": c.case_id},
+            "rationale": f"HYD 事件 {hyd_count} 个，分析液压异常模式",
+            "action": "analyze_hydraulic_pattern",
+            "arguments": {"file_path": fp},
         }
 
+    # 路径 D: 碎片化 — 事件多但可能都很短
+    if total_events >= 8 and "analyze_event_fragmentation" not in file_analyses_done:
+        top_events = event_summary.top_events if event_summary else []
+        avg_dur = 0
+        if top_events:
+            durs = [e.get("duration_s", 0) for e in top_events]
+            avg_dur = sum(durs) / len(durs) if durs else 0
+        if avg_dur < 120 or total_events >= 15:
+            return {
+                "rationale": f"事件 {total_events} 个，平均时长 {avg_dur:.0f}s，检查碎片化",
+                "action": "analyze_event_fragmentation",
+                "arguments": {"file_path": fp},
+            }
+
+    # 补充分析：如果停机分析后发现 SER 靠近停机，补充 resistance 分析
+    last_obs = state.observations[-1] if state.observations else None
+    if (last_obs and last_obs.action == "analyze_stoppage_cases"
+            and ser_count >= 2 and "analyze_resistance_pattern" not in file_analyses_done):
+        return {
+            "rationale": "停机分析完成，SER 事件存在，补充阻力分析",
+            "action": "analyze_resistance_pattern",
+            "arguments": {"file_path": fp},
+        }
+
+    # 多文件处理
     if len(state.input_files) > 1:
         not_overviewed = [f for f in state.input_files if f not in state.file_overviews]
         if not_overviewed:
+            state.current_file = not_overviewed[0]
             return {
-                "rationale": f"切换到下一个文件",
+                "rationale": "切换到下一个文件",
                 "action": "inspect_file_overview",
                 "arguments": {"file_path": not_overviewed[0]},
             }
@@ -117,21 +160,9 @@ def _fallback_plan(state: InvestigationState) -> dict[str, Any]:
         not_evented = [f for f in state.input_files if f not in state.event_summaries]
         if not_evented:
             return {
-                "rationale": f"加载事件摘要",
+                "rationale": "加载事件摘要",
                 "action": "load_event_summary",
                 "arguments": {"file_path": not_evented[0]},
-            }
-
-        need_merge = [
-            f for f in state.input_files
-            if f not in state.stoppage_cases
-            and state.file_overviews.get(f, FileOverview()).semantic_event_distribution.get("stoppage_segment", 0) > 0
-        ]
-        if need_merge:
-            return {
-                "rationale": f"合并停机事件",
-                "action": "merge_stoppage_cases",
-                "arguments": {"file_path": need_merge[0]},
             }
 
         if not state.cross_file_patterns:

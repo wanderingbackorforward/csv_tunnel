@@ -68,12 +68,12 @@ CSV/XLS File
 ```
 tbm_diag/investigation/
   state.py             # InvestigationState and related dataclasses
-  tools.py             # 8 investigation tools
-  planner.py           # LLM planner + rule-based fallback
+  tools.py             # 12 investigation tools (including dynamic analysis tools)
+  planner.py           # LLM planner + dynamic rule-based fallback
   controller.py        # Reason-Act-Observe loop
   memory.py            # Case-level structured memory
   context_retriever.py # Keyword-based context retrieval
-  report.py            # Markdown report generator
+  report.py            # Markdown report generator with ReAct trace table
 ```
 
 ## Key Design Rules
@@ -190,6 +190,21 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 - 不允许把时间窗口推测（E6 停机时间模式）写成确定结论，必须标注"需施工日志确认"。
 - 跨文件核心问题判断必须同时看事件数和持续时长，不能只按事件数占比判断。
 - 演示页面必须展示"工具调用与证据链"，不能只显示"运行状态：成功"。
+- review 是分诊，不是 ReAct。review 不得伪装成 ReAct 调查。
+- review 必须输出"建议进一步调查的问题"和推荐命令。
+- 禁止在 review 中做粗糙 H1-H6 假设评分。
+
+## ReAct Investigation Rules
+
+- ReAct 必须体现动态工具选择，不同文件应产生不同 action 序列。
+- 如果只是固定调用工具，应称为 pipeline，不得称为 ReAct。
+- 禁止把 ReAct 简化成固定证据 + 粗糙打分表。
+- investigate 报告必须包含 ReAct 调查轨迹表（轮次/决策理由/调用工具/观察结果）。
+- investigation_state.json 的 actions_taken 必须包含 observation_summary。
+- normal 文件应较早结束调查，不应无意义调用所有工具。
+- 停机主导文件应优先走 analyze_stoppage_cases。
+- SER 主导文件应优先走 analyze_resistance_pattern。
+- 碎片化文件应走 analyze_event_fragmentation。
 
 ## Change Output Format
 

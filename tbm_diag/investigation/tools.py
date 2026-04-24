@@ -559,6 +559,255 @@ def generate_investigation_report(state: Any) -> dict[str, Any]:
     return build_report(state)
 
 
+# ── Tool 9: analyze_stoppage_cases ───────────────────────────────────────────
+
+def analyze_stoppage_cases(file_path: str, state: Any = None) -> dict[str, Any]:
+    """综合停机分析：合并 → 检查前后窗口 → 分类 Top cases。"""
+    merge_result = merge_stoppage_cases(file_path)
+    if merge_result.get("status") != "ok" or merge_result.get("merged_cases", 0) == 0:
+        return {
+            "status": "ok",
+            "stoppage_count": 0,
+            "merged_cases": 0,
+            "summary": "无停机案例",
+            "cases": [],
+        }
+
+    case_objects = merge_result.get("_case_objects", [])
+    if state is not None:
+        state.stoppage_cases[file_path] = case_objects
+
+    top_cases = case_objects[:3]
+    case_summaries = []
+    for c in top_cases:
+        if state is not None:
+            tw_result = inspect_transition_window(
+                file_path, c.case_id, state=state)
+            if tw_result.get("status") == "ok":
+                analysis = tw_result.get("_analysis_object")
+                if analysis:
+                    state.transition_analyses[c.case_id] = analysis
+            cls_result = classify_stoppage_case(c.case_id, state=state)
+            if cls_result.get("status") == "ok":
+                cls_obj = cls_result.get("_classification_object")
+                if cls_obj:
+                    state.case_classifications[c.case_id] = cls_obj
+
+        cls = state.case_classifications.get(c.case_id) if state else None
+        case_summaries.append({
+            "case_id": c.case_id,
+            "start_time": c.start_time,
+            "end_time": c.end_time,
+            "duration_min": round(c.duration_seconds / 60, 1),
+            "case_type": cls.case_type if cls else "unclassified",
+            "confidence": cls.confidence if cls else 0,
+            "reasons": cls.reasons if cls else [],
+        })
+
+    total_dur = sum(c.duration_seconds for c in case_objects)
+    return {
+        "status": "ok",
+        "stoppage_count": merge_result.get("original_stoppage_events", 0),
+        "merged_cases": len(case_objects),
+        "total_duration_h": round(total_dur / 3600, 1),
+        "top_cases": case_summaries,
+        "summary": f"{len(case_objects)} 个停机案例，共 {total_dur/3600:.1f}h",
+    }
+
+
+# ── Tool 10: analyze_resistance_pattern ──────────────────────────────────────
+
+def analyze_resistance_pattern(file_path: str) -> dict[str, Any]:
+    """分析掘进阻力异常 (SER) 模式。"""
+    try:
+        cached = _run_pipeline(file_path)
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+    events = cached["events"]
+    evidences = cached["evidences"]
+    enriched = cached["enriched"]
+    event_states = cached["event_states"]
+
+    sem_map = {ev.event_id: ev.semantic_event_type or ev.event_type for ev in evidences}
+    ser_types = {"suspected_excavation_resistance", "excavation_resistance_under_load"}
+    ser_events = [e for e in events if sem_map.get(e.event_id) in ser_types]
+
+    if not ser_events:
+        return {
+            "status": "ok",
+            "ser_count": 0,
+            "summary": "无掘进阻力异常事件",
+        }
+
+    total_dur = sum(e.duration_seconds or 0 for e in ser_events)
+
+    from tbm_diag.state_engine import STATE_LABELS
+    state_counts: dict[str, int] = {}
+    for e in ser_events:
+        es = event_states.get(e.event_id)
+        if es:
+            ds = es.dominant_state
+            state_counts[STATE_LABELS.get(ds, ds)] = state_counts.get(STATE_LABELS.get(ds, ds), 0) + 1
+
+    timestamps = [e.start_time for e in ser_events if e.start_time is not None]
+    concentrated = False
+    if len(timestamps) >= 3:
+        sorted_ts = sorted(timestamps)
+        span = (sorted_ts[-1] - sorted_ts[0]).total_seconds()
+        concentrated = span < total_dur * 3
+
+    stoppage_events = [e for e in events if sem_map.get(e.event_id) == "stoppage_segment"]
+    near_stoppage = False
+    if stoppage_events and ser_events:
+        for se in ser_events[:3]:
+            if se.end_time is None:
+                continue
+            for st_ev in stoppage_events:
+                if st_ev.start_time is None:
+                    continue
+                gap = abs((st_ev.start_time - se.end_time).total_seconds())
+                if gap < 600:
+                    near_stoppage = True
+                    break
+
+    in_advancing = sum(1 for e in ser_events
+                       if event_states.get(e.event_id) and
+                       event_states[e.event_id].dominant_state in
+                       ("normal_excavation", "heavy_load_excavation"))
+
+    return {
+        "status": "ok",
+        "ser_count": len(ser_events),
+        "ser_total_duration_h": round(total_dur / 3600, 1),
+        "dominant_states": state_counts,
+        "concentrated_in_time": concentrated,
+        "near_stoppage": near_stoppage,
+        "in_advancing_count": in_advancing,
+        "in_advancing_ratio": round(in_advancing / len(ser_events), 2) if ser_events else 0,
+        "summary": (
+            f"SER 事件 {len(ser_events)} 个，共 {total_dur/3600:.1f}h，"
+            f"推进中占比 {in_advancing/len(ser_events)*100:.0f}%"
+            + ("，时间集中" if concentrated else "")
+            + ("，靠近停机" if near_stoppage else "")
+        ),
+    }
+
+
+# ── Tool 11: analyze_hydraulic_pattern ───────────────────────────────────────
+
+def analyze_hydraulic_pattern(file_path: str) -> dict[str, Any]:
+    """分析液压不稳定 (HYD) 事件模式。"""
+    try:
+        cached = _run_pipeline(file_path)
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+    events = cached["events"]
+    evidences = cached["evidences"]
+    event_states = cached["event_states"]
+
+    sem_map = {ev.event_id: ev.semantic_event_type or ev.event_type for ev in evidences}
+    hyd_events = [e for e in events if sem_map.get(e.event_id) == "hydraulic_instability"]
+
+    if not hyd_events:
+        return {"status": "ok", "hyd_count": 0, "summary": "无液压不稳定事件"}
+
+    total_dur = sum(e.duration_seconds or 0 for e in hyd_events)
+
+    ser_types = {"suspected_excavation_resistance", "excavation_resistance_under_load"}
+    ser_events = [e for e in events if sem_map.get(e.event_id) in ser_types]
+    sync_with_ser = False
+    if ser_events and hyd_events:
+        for he in hyd_events[:5]:
+            if he.start_time is None:
+                continue
+            for se in ser_events:
+                if se.start_time is None:
+                    continue
+                gap = abs((he.start_time - se.start_time).total_seconds())
+                if gap < 300:
+                    sync_with_ser = True
+                    break
+
+    stoppage_events = [e for e in events if sem_map.get(e.event_id) == "stoppage_segment"]
+    near_stoppage_boundary = False
+    if stoppage_events and hyd_events:
+        for he in hyd_events[:5]:
+            if he.start_time is None:
+                continue
+            for st_ev in stoppage_events:
+                if st_ev.start_time and abs((he.start_time - st_ev.start_time).total_seconds()) < 600:
+                    near_stoppage_boundary = True
+                    break
+                if st_ev.end_time and abs((he.start_time - st_ev.end_time).total_seconds()) < 600:
+                    near_stoppage_boundary = True
+                    break
+
+    short_count = sum(1 for e in hyd_events if (e.duration_seconds or 0) < 60)
+    isolated_short = short_count > len(hyd_events) * 0.7
+
+    return {
+        "status": "ok",
+        "hyd_count": len(hyd_events),
+        "hyd_total_duration_h": round(total_dur / 3600, 1),
+        "near_stoppage_boundary": near_stoppage_boundary,
+        "sync_with_ser": sync_with_ser,
+        "isolated_short_fluctuation": isolated_short,
+        "short_event_ratio": round(short_count / len(hyd_events), 2) if hyd_events else 0,
+        "summary": (
+            f"HYD 事件 {len(hyd_events)} 个，共 {total_dur/3600:.1f}h"
+            + ("，与 SER 同步" if sync_with_ser else "")
+            + ("，靠近停机边界" if near_stoppage_boundary else "")
+            + ("，多为孤立短时波动" if isolated_short else "")
+        ),
+    }
+
+
+# ── Tool 12: analyze_event_fragmentation ─────────────────────────────────────
+
+def analyze_event_fragmentation(file_path: str) -> dict[str, Any]:
+    """分析事件碎片化程度。"""
+    try:
+        cached = _run_pipeline(file_path)
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+    events = cached["events"]
+    if not events:
+        return {"status": "ok", "event_count": 0, "summary": "无事件"}
+
+    durations = [e.duration_seconds or 0 for e in events]
+    total_dur = sum(durations)
+    avg_dur = total_dur / len(events)
+    short_threshold = 60
+    short_count = sum(1 for d in durations if d < short_threshold)
+    short_ratio = short_count / len(events)
+
+    evidences = cached["evidences"]
+    sem_map = {ev.event_id: ev.semantic_event_type or ev.event_type for ev in evidences}
+    low_eff_events = [e for e in events if sem_map.get(e.event_id) == "low_efficiency_excavation"]
+    low_eff_dur = sum(e.duration_seconds or 0 for e in low_eff_events)
+
+    fragmentation_risk = short_ratio > 0.5 and avg_dur < 120
+
+    return {
+        "status": "ok",
+        "event_count": len(events),
+        "avg_duration_s": round(avg_dur, 1),
+        "short_event_count": short_count,
+        "short_event_ratio": round(short_ratio, 2),
+        "low_efficiency_count": len(low_eff_events),
+        "low_efficiency_total_h": round(low_eff_dur / 3600, 1),
+        "fragmentation_risk": fragmentation_risk,
+        "summary": (
+            f"事件 {len(events)} 个，平均 {avg_dur:.0f}s，"
+            f"短事件占比 {short_ratio*100:.0f}%"
+            + ("，存在碎片化风险" if fragmentation_risk else "")
+        ),
+    }
+
+
 # ── 工具注册表 ────────────────────────────────────────────────────────────────
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {
@@ -601,6 +850,26 @@ TOOL_REGISTRY: dict[str, dict[str, Any]] = {
         "fn": generate_investigation_report,
         "description": "生成最终调查报告",
         "params": [],
+    },
+    "analyze_stoppage_cases": {
+        "fn": analyze_stoppage_cases,
+        "description": "综合停机分析：合并、检查前后窗口、分类 Top cases",
+        "params": ["file_path"],
+    },
+    "analyze_resistance_pattern": {
+        "fn": analyze_resistance_pattern,
+        "description": "分析掘进阻力异常 (SER) 模式：事件数、时长、工况、是否集中",
+        "params": ["file_path"],
+    },
+    "analyze_hydraulic_pattern": {
+        "fn": analyze_hydraulic_pattern,
+        "description": "分析液压不稳定 (HYD) 模式：是否与 SER 同步、是否靠近停机",
+        "params": ["file_path"],
+    },
+    "analyze_event_fragmentation": {
+        "fn": analyze_event_fragmentation,
+        "description": "分析事件碎片化：短事件占比、平均时长、碎片化风险",
+        "params": ["file_path"],
     },
 }
 

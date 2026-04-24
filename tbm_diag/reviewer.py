@@ -674,6 +674,67 @@ def _build_cross_analysis(records: list[ReviewRecord]) -> dict:
     }
 
 
+# ── 建议进一步调查 ────────────────────────────────────────────────────────────
+
+def _build_investigation_suggestions(rec: ReviewRecord) -> list[dict]:
+    """根据 review 证据生成下一步调查建议和推荐命令。"""
+    suggestions = []
+    sem = rec.semantic_type_counts or {}
+    pat = rec.stoppage_pattern
+    fp = rec.file_path
+
+    stoppage_dur = sem.get("stoppage_segment", {}).get("total_seconds", 0)
+    ser_dur = (
+        sem.get("suspected_excavation_resistance", {}).get("total_seconds", 0)
+        + sem.get("excavation_resistance_under_load", {}).get("total_seconds", 0)
+    )
+    hyd_count = sem.get("hydraulic_instability", {}).get("count", 0)
+    hyd_dur = sem.get("hydraulic_instability", {}).get("total_seconds", 0)
+
+    total_events = sum(v.get("count", 0) for v in sem.values())
+    total_dur = sum(v.get("total_seconds", 0) for v in sem.values())
+    avg_dur = total_dur / total_events if total_events > 0 else 0
+
+    if stoppage_dur >= 3600 or (pat and pat.stoppage_count >= 3):
+        dur_h = stoppage_dur / 3600
+        suggestions.append({
+            "text": f"停机片段累计 {dur_h:.1f}h，建议进入停机案例追查。",
+            "command": f"python -m tbm_diag.cli investigate --input {fp} --output-dir investigation_out --max-iterations 12",
+            "tool": "analyze_stoppage_cases",
+        })
+
+    if ser_dur >= 1800:
+        dur_h = ser_dur / 3600
+        suggestions.append({
+            "text": f"疑似掘进阻力异常累计 {dur_h:.1f}h，建议进入掘进阻力模式追查。",
+            "command": f"python -m tbm_diag.cli investigate --input {fp} --output-dir investigation_out --max-iterations 12",
+            "tool": "analyze_resistance_pattern",
+        })
+
+    if hyd_count >= 5 or hyd_dur >= 1800:
+        suggestions.append({
+            "text": f"液压不稳定事件 {hyd_count} 个/{_fmt_hours(hyd_dur)}，建议检查液压异常模式。",
+            "command": f"python -m tbm_diag.cli investigate --input {fp} --output-dir investigation_out --max-iterations 12",
+            "tool": "analyze_hydraulic_pattern",
+        })
+
+    if total_events >= 10 and avg_dur < 120:
+        suggestions.append({
+            "text": f"事件数 {total_events} 但平均时长仅 {avg_dur:.0f}s，建议检查是否存在事件碎片化。",
+            "command": f"python -m tbm_diag.cli investigate --input {fp} --output-dir investigation_out --max-iterations 12",
+            "tool": "analyze_event_fragmentation",
+        })
+
+    if not suggestions and total_events > 0:
+        suggestions.append({
+            "text": "未发现突出问题模式，建议人工查看详细报告。",
+            "command": f"python -m tbm_diag.cli detect --input {fp} --verbose",
+            "tool": "manual_review",
+        })
+
+    return suggestions
+
+
 # ── 写汇总报告 ─────────────────────────────────────────────────────────────────
 
 def _serialize_evidence(ei: ReviewEvidenceItem) -> dict:
@@ -725,6 +786,7 @@ def _write_review_summary(
              "review_json_path": r.review_json_path, "review_md_path": r.review_md_path,
              "tool_traces": [_serialize_tool_trace(t) for t in r.tool_traces],
              "evidence_items": [_serialize_evidence(e) for e in r.evidence_items],
+             "investigation_suggestions": _build_investigation_suggestions(r),
              }
             for r in records
         ],
@@ -869,6 +931,23 @@ def _write_review_summary(
     lines += ["## 建议优先人工查看顺序", ""]
     for p in cross.get("priority_order", []):
         lines.append(f"{p['rank']}. {p['file']}  [{p['severity']}] score={p['score']:.0f}  events={p['events']}")
+
+    # ── 各文件建议进一步调查的问题 ────────────────────────────────────────────
+    lines += ["", "---", "", "## 建议进一步调查的问题", ""]
+    lines.append("> AI 复核是分诊，不是真正 ReAct 调查。以下建议用于指导下一步 investigate 命令。")
+    lines.append("")
+    for r in records:
+        if r.status != "ok":
+            continue
+        suggestions = _build_investigation_suggestions(r)
+        if not suggestions:
+            continue
+        lines.append(f"### {r.file_name}")
+        lines.append("")
+        for s in suggestions:
+            lines.append(f"- {s['text']}")
+            lines.append(f"  推荐命令：`{s['command']}`")
+            lines.append("")
 
     md_path = output_dir / "review_summary.md"
     md_path.write_text("\n".join(lines), encoding="utf-8")

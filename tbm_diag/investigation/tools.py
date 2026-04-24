@@ -676,6 +676,9 @@ def analyze_resistance_pattern(file_path: str) -> dict[str, Any]:
                        event_states[e.event_id].dominant_state in
                        ("normal_excavation", "heavy_load_excavation"))
 
+    top_ser = sorted(ser_events, key=lambda e: -(e.duration_seconds or 0))[:3]
+    top_ser_event_ids = [e.event_id for e in top_ser]
+
     return {
         "status": "ok",
         "ser_count": len(ser_events),
@@ -685,6 +688,7 @@ def analyze_resistance_pattern(file_path: str) -> dict[str, Any]:
         "near_stoppage": near_stoppage,
         "in_advancing_count": in_advancing,
         "in_advancing_ratio": round(in_advancing / len(ser_events), 2) if ser_events else 0,
+        "top_ser_event_ids": top_ser_event_ids,
         "summary": (
             f"SER 事件 {len(ser_events)} 个，共 {total_dur/3600:.1f}h，"
             f"推进中占比 {in_advancing/len(ser_events)*100:.0f}%"
@@ -747,6 +751,9 @@ def analyze_hydraulic_pattern(file_path: str) -> dict[str, Any]:
     short_count = sum(1 for e in hyd_events if (e.duration_seconds or 0) < 60)
     isolated_short = short_count > len(hyd_events) * 0.7
 
+    top_hyd = sorted(hyd_events, key=lambda e: -(e.duration_seconds or 0))[:3]
+    top_hyd_event_ids = [e.event_id for e in top_hyd]
+
     return {
         "status": "ok",
         "hyd_count": len(hyd_events),
@@ -755,6 +762,7 @@ def analyze_hydraulic_pattern(file_path: str) -> dict[str, Any]:
         "sync_with_ser": sync_with_ser,
         "isolated_short_fluctuation": isolated_short,
         "short_event_ratio": round(short_count / len(hyd_events), 2) if hyd_events else 0,
+        "top_hyd_event_ids": top_hyd_event_ids,
         "summary": (
             f"HYD 事件 {len(hyd_events)} 个，共 {total_dur/3600:.1f}h"
             + ("，与 SER 同步" if sync_with_ser else "")

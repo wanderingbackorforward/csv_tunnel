@@ -55,13 +55,24 @@ def _compress_state(state: InvestigationState) -> dict[str, Any]:
 
 # ── Rule-based fallback planner ───────────────────────────────────────────────
 
-def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, Any]:
-    """无 LLM 时的动态规则决策。根据观察结果选择不同调查路径。"""
-    fp = state.current_file
-    candidates = []  # (action, reason, selected)
-    rejected = []    # (action, reason)
+def _get_last_obs_data(state: InvestigationState, action_name: str) -> dict:
+    """获取最近一次指定 action 的 observation data。"""
+    for obs in reversed(state.observations):
+        if obs.action == action_name:
+            return obs.data or {}
+    return {}
 
-    def _select(action: str, reason: str, arguments: dict) -> dict[str, Any]:
+
+def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, Any]:
+    """动态规则决策。根据 focus + observation 选择路径。"""
+    fp = state.current_file
+    candidates = []
+    rejected = []
+    triggered_by = ""
+    obs_used = ""
+
+    def _select(action: str, reason: str, arguments: dict,
+                trigger: str = "", obs_ref: str = "") -> dict[str, Any]:
         candidates.append((action, reason))
         result = {
             "rationale": reason,
@@ -72,21 +83,21 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
             result["_audit"] = {
                 "candidates": [(a, r) for a, r in candidates],
                 "rejected": rejected[:],
+                "triggered_by": trigger,
+                "observation_used": obs_ref,
             }
         return result
 
     def _reject(action: str, reason: str) -> None:
         rejected.append((action, reason))
 
-    # Step 1: 先获取文件概览
+    # Step 1/2: overview + events (mandatory)
     if fp and fp not in state.file_overviews:
         return _select("inspect_file_overview", "尚未检查当前文件概览", {"file_path": fp})
-
-    # Step 2: 加载事件摘要
     if fp and fp not in state.event_summaries:
         return _select("load_event_summary", "尚未加载事件摘要", {"file_path": fp})
 
-    # Step 3: 根据观察结果动态选择路径
+    # ── 读取文件特征 ──
     focus = state.focus or "auto"
     overview = state.file_overviews.get(fp)
     event_summary = state.event_summaries.get(fp)
@@ -100,7 +111,6 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
     total_events = overview.event_count if overview else 0
     stopped_pct = state_dist_map.get("stopped", 0)
 
-    # 记录已对当前文件执行过的分析工具和 drilldown 目标
     file_analyses_done = set()
     drilldown_targets_done = set()
     for a in state.actions_taken:
@@ -116,26 +126,42 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
             if tid:
                 drilldown_targets_done.add(tid)
 
-    # ── focus 控制：非 auto 时只走指定分支 ──
     run_stoppage = focus in ("auto", "stoppage")
     run_resistance = focus in ("auto", "resistance")
     run_hydraulic = focus in ("auto", "hydraulic")
     run_fragmentation = focus in ("auto", "fragmentation")
 
-    # 路径 A: 停机主导
+    # ── 读取已有 observation 数据 ──
+    res_obs = _get_last_obs_data(state, "analyze_resistance_pattern")
+    hyd_obs = _get_last_obs_data(state, "analyze_hydraulic_pattern")
+    frag_obs = _get_last_obs_data(state, "analyze_event_fragmentation")
+    stoppage_obs = _get_last_obs_data(state, "analyze_stoppage_cases")
+
+    # 收集所有 drilldown observations 的 interpretation_hint
+    drilldown_hints = []
+    for obs in state.observations:
+        if obs.action == "drilldown_time_window":
+            d = obs.data or {}
+            drilldown_hints.append({
+                "target": d.get("target_id", ""),
+                "hint": d.get("interpretation_hint", ""),
+                "pre_ser": (d.get("pre_summary") or {}).get("ser_ratio", 0),
+                "pre_hyd": (d.get("pre_summary") or {}).get("hyd_ratio", 0),
+            })
+
+    # ════════════════════════════════════════════════════════════════════
+    # 路径 A: 停机
+    # ════════════════════════════════════════════════════════════════════
     if run_stoppage and (stoppage_count >= 3 or stopped_pct >= 30 or focus == "stoppage"):
         if "analyze_stoppage_cases" not in file_analyses_done:
-            candidates.append(("analyze_stoppage_cases", f"stoppage={stoppage_count}, stopped={stopped_pct:.0f}%"))
+            return _select("analyze_stoppage_cases",
+                           f"stoppage_segment={stoppage_count}, stopped={stopped_pct:.0f}%，优先停机追查",
+                           {"file_path": fp})
         else:
             _reject("analyze_stoppage_cases", "已执行")
     else:
-        reason = f"focus={focus}" if not run_stoppage else f"stoppage={stoppage_count}<3, stopped={stopped_pct:.0f}%<30"
-        _reject("analyze_stoppage_cases", reason)
-
-    if candidates and candidates[-1][0] == "analyze_stoppage_cases":
-        return _select("analyze_stoppage_cases",
-                       f"stoppage_segment={stoppage_count}, stopped={stopped_pct:.0f}%，优先停机追查",
-                       {"file_path": fp})
+        _reject("analyze_stoppage_cases",
+                f"focus={focus}" if not run_stoppage else f"stoppage={stoppage_count}<3, stopped={stopped_pct:.0f}%<30")
 
     # 停机 drilldown
     if run_stoppage and "analyze_stoppage_cases" in file_analyses_done:
@@ -148,7 +174,29 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         if cases:
             _reject("drilldown_time_window(stoppage)", f"top {min(3,len(cases))} cases 已钻取")
 
-    # 路径 B: 掘进阻力主导
+    # ★ 停机 observation-reactive: drilldown 发现停机前有 SER/HYD → 追加分析
+    if (run_stoppage and "analyze_stoppage_cases" in file_analyses_done
+            and drilldown_hints):
+        pre_ser_any = any(h["pre_ser"] > 0.05 for h in drilldown_hints)
+        pre_hyd_any = any(h["pre_hyd"] > 0.05 for h in drilldown_hints)
+        hint_anomaly = any("异常迹象" in h["hint"] for h in drilldown_hints)
+
+        if (pre_ser_any or hint_anomaly) and "analyze_resistance_pattern" not in file_analyses_done:
+            return _select("analyze_resistance_pattern",
+                           "drilldown 发现停机前存在 SER 异常迹象，追加阻力分析",
+                           {"file_path": fp},
+                           trigger="drilldown.pre_ser_ratio>0.05",
+                           obs_ref="drilldown_time_window.interpretation_hint")
+        if pre_hyd_any and "analyze_hydraulic_pattern" not in file_analyses_done:
+            return _select("analyze_hydraulic_pattern",
+                           "drilldown 发现停机前存在 HYD 异常迹象，追加液压分析",
+                           {"file_path": fp},
+                           trigger="drilldown.pre_hyd_ratio>0.05",
+                           obs_ref="drilldown_time_window.pre_summary.hyd_ratio")
+
+    # ════════════════════════════════════════════════════════════════════
+    # 路径 B: 掘进阻力
+    # ════════════════════════════════════════════════════════════════════
     if run_resistance and (ser_count >= 3 or focus == "resistance"):
         if "analyze_resistance_pattern" not in file_analyses_done:
             return _select("analyze_resistance_pattern",
@@ -157,30 +205,34 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         else:
             _reject("analyze_resistance_pattern", "已执行")
     else:
-        reason = f"focus={focus}" if not run_resistance else f"SER={ser_count}<3"
-        _reject("analyze_resistance_pattern", reason)
+        _reject("analyze_resistance_pattern",
+                f"focus={focus}" if not run_resistance else f"SER={ser_count}<3")
 
-    # SER drilldown
-    if run_resistance and "analyze_resistance_pattern" in file_analyses_done and ser_count >= 1:
-        top_events = event_summary.top_events if event_summary else []
-        ser_types = {"suspected_excavation_resistance", "excavation_resistance_under_load"}
-        ser_targets = [
-            e for e in top_events
-            if e.get("event_type") in ser_types or
-            any(st in (e.get("semantic_type", "") or e.get("event_type", "")) for st in ser_types)
-        ]
-        if not ser_targets:
-            ser_targets = [e for e in top_events if "resistance" in (e.get("event_type", "") or "").lower()]
-        for e in ser_targets[:2]:
-            eid = e.get("event_id", "")
+    # SER drilldown — 使用 analyze_resistance_pattern 返回的 top_ser_event_ids
+    if run_resistance and "analyze_resistance_pattern" in file_analyses_done:
+        ser_targets = res_obs.get("top_ser_event_ids", [])
+        for eid in ser_targets[:2]:
             if eid and eid not in drilldown_targets_done:
                 return _select("drilldown_time_window",
-                               f"对 SER 事件 {eid} 做窗口钻取，判断是否发生在推进中",
-                               {"file_path": fp, "target_id": eid})
+                               f"对 SER 事件 {eid} 做窗口钻取（来自 resistance 分析 top 目标）",
+                               {"file_path": fp, "target_id": eid},
+                               trigger="resistance.top_ser_event_ids",
+                               obs_ref="analyze_resistance_pattern.top_ser_event_ids")
         if ser_targets:
             _reject("drilldown_time_window(SER)", "top SER 已钻取")
 
-    # 路径 C: 液压问题
+    # ★ resistance observation-reactive
+    if run_resistance and "analyze_resistance_pattern" in file_analyses_done and res_obs:
+        if res_obs.get("near_stoppage") and "analyze_stoppage_cases" not in file_analyses_done:
+            return _select("analyze_stoppage_cases",
+                           "SER 靠近停机，追加停机分析以判断是否为停机前兆",
+                           {"file_path": fp},
+                           trigger="resistance.near_stoppage=True",
+                           obs_ref="analyze_resistance_pattern.near_stoppage")
+
+    # ════════════════════════════════════════════════════════════════════
+    # 路径 C: 液压
+    # ════════════════════════════════════════════════════════════════════
     if run_hydraulic and (hyd_count >= 3 or focus == "hydraulic"):
         if "analyze_hydraulic_pattern" not in file_analyses_done:
             return _select("analyze_hydraulic_pattern",
@@ -189,23 +241,44 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         else:
             _reject("analyze_hydraulic_pattern", "已执行")
     else:
-        reason = f"focus={focus}" if not run_hydraulic else f"HYD={hyd_count}<3"
-        _reject("analyze_hydraulic_pattern", reason)
+        _reject("analyze_hydraulic_pattern",
+                f"focus={focus}" if not run_hydraulic else f"HYD={hyd_count}<3")
 
-    # HYD drilldown
-    if run_hydraulic and "analyze_hydraulic_pattern" in file_analyses_done and hyd_count >= 1:
-        top_events = event_summary.top_events if event_summary else []
-        hyd_targets = [e for e in top_events if e.get("event_type") == "hydraulic_instability"]
-        for e in hyd_targets[:2]:
-            eid = e.get("event_id", "")
-            if eid and eid not in drilldown_targets_done:
-                return _select("drilldown_time_window",
-                               f"对 HYD 事件 {eid} 做窗口钻取，判断是否在停机边界",
-                               {"file_path": fp, "target_id": eid})
-        if hyd_targets:
-            _reject("drilldown_time_window(HYD)", "top HYD 已钻取")
+    # HYD drilldown — 使用 analyze_hydraulic_pattern 返回的 top_hyd_event_ids
+    if run_hydraulic and "analyze_hydraulic_pattern" in file_analyses_done:
+        if hyd_obs.get("isolated_short_fluctuation") and hyd_obs.get("hyd_total_duration_h", 0) < 0.5:
+            _reject("drilldown_time_window(HYD)",
+                    "HYD 为孤立短时波动且总时长<0.5h，跳过钻取")
+        else:
+            hyd_targets = hyd_obs.get("top_hyd_event_ids", [])
+            for eid in hyd_targets[:2]:
+                if eid and eid not in drilldown_targets_done:
+                    return _select("drilldown_time_window",
+                                   f"对 HYD 事件 {eid} 做窗口钻取（来自 hydraulic 分析 top 目标）",
+                                   {"file_path": fp, "target_id": eid},
+                                   trigger="hydraulic.top_hyd_event_ids",
+                                   obs_ref="analyze_hydraulic_pattern.top_hyd_event_ids")
+            if hyd_targets:
+                _reject("drilldown_time_window(HYD)", "top HYD 已钻取")
 
+    # ★ hydraulic observation-reactive
+    if run_hydraulic and "analyze_hydraulic_pattern" in file_analyses_done and hyd_obs:
+        if hyd_obs.get("near_stoppage_boundary") and "analyze_stoppage_cases" not in file_analyses_done:
+            return _select("analyze_stoppage_cases",
+                           "HYD 靠近停机边界，追加停机分析以判断是否为启停波动",
+                           {"file_path": fp},
+                           trigger="hydraulic.near_stoppage_boundary=True",
+                           obs_ref="analyze_hydraulic_pattern.near_stoppage_boundary")
+        if hyd_obs.get("sync_with_ser") and "analyze_resistance_pattern" not in file_analyses_done:
+            return _select("analyze_resistance_pattern",
+                           "HYD 与 SER 同步，追加阻力分析以判断是否为伴随现象",
+                           {"file_path": fp},
+                           trigger="hydraulic.sync_with_ser=True",
+                           obs_ref="analyze_hydraulic_pattern.sync_with_ser")
+
+    # ════════════════════════════════════════════════════════════════════
     # 路径 D: 碎片化
+    # ════════════════════════════════════════════════════════════════════
     if run_fragmentation and (total_events >= 8 or focus == "fragmentation"):
         top_events = event_summary.top_events if event_summary else []
         avg_dur = 0
@@ -220,32 +293,34 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
             else:
                 _reject("analyze_event_fragmentation", "已执行")
         else:
-            _reject("analyze_event_fragmentation", f"events={total_events}, avg_dur={avg_dur:.0f}s 不满足碎片化条件")
+            _reject("analyze_event_fragmentation",
+                    f"events={total_events}, avg_dur={avg_dur:.0f}s 不满足碎片化条件")
     else:
-        reason = f"focus={focus}" if not run_fragmentation else f"events={total_events}<8"
-        _reject("analyze_event_fragmentation", reason)
+        _reject("analyze_event_fragmentation",
+                f"focus={focus}" if not run_fragmentation else f"events={total_events}<8")
 
-    # 补充分析
-    last_obs = state.observations[-1] if state.observations else None
-    if (last_obs and last_obs.action == "analyze_stoppage_cases"
-            and ser_count >= 2 and "analyze_resistance_pattern" not in file_analyses_done):
-        return _select("analyze_resistance_pattern",
-                        "停机分析完成，SER 事件存在，补充阻力分析",
-                        {"file_path": fp})
+    # ★ fragmentation observation-reactive
+    if run_fragmentation and "analyze_event_fragmentation" in file_analyses_done and frag_obs:
+        if not frag_obs.get("fragmentation_risk") and ser_count >= 3 and "analyze_resistance_pattern" not in file_analyses_done:
+            return _select("analyze_resistance_pattern",
+                           "碎片化风险低但 SER 明显，追加阻力分析",
+                           {"file_path": fp},
+                           trigger="fragmentation.risk=False+SER>=3",
+                           obs_ref="analyze_event_fragmentation.fragmentation_risk")
 
-    # 多文件处理
+    # ════════════════════════════════════════════════════════════════════
+    # 多文件 / 收尾
+    # ════════════════════════════════════════════════════════════════════
     if len(state.input_files) > 1:
         not_overviewed = [f for f in state.input_files if f not in state.file_overviews]
         if not_overviewed:
             state.current_file = not_overviewed[0]
             return _select("inspect_file_overview", "切换到下一个文件",
                            {"file_path": not_overviewed[0]})
-
         not_evented = [f for f in state.input_files if f not in state.event_summaries]
         if not_evented:
             return _select("load_event_summary", "加载事件摘要",
                            {"file_path": not_evented[0]})
-
         if not state.cross_file_patterns:
             processed = [f for f in state.input_files if f in state.stoppage_cases]
             if len(processed) > 1:

@@ -18,19 +18,24 @@ _CASE_TYPE_LABELS = {
 def _build_react_trace_table(state: InvestigationState) -> list[str]:
     """构建 ReAct 调查轨迹表。"""
     lines = ["## ReAct 调查轨迹", ""]
-    lines.append("| 轮次 | 决策理由 | 调用工具 | 观察结果 |")
-    lines.append("|------|----------|----------|----------|")
+    lines.append("| 轮次 | 决策理由 | 调用工具 | 观察结果 | 触发字段 |")
+    lines.append("|------|----------|----------|----------|----------|")
+
+    audit_map = {a.round_num: a for a in state.audit_log} if state.audit_log else {}
+
     for action_rec in state.actions_taken:
         obs = None
         for o in state.observations:
             if o.round_num == action_rec.round_num:
                 obs = o
                 break
-        obs_text = (obs.result_summary[:80] if obs else "无") .replace("|", "/")
+        obs_text = (obs.result_summary[:80] if obs else "无").replace("|", "/")
         rationale = (action_rec.rationale or "").replace("|", "/")[:60]
+        ar = audit_map.get(action_rec.round_num)
+        trigger = (ar.triggered_by_field if ar and ar.triggered_by_field else "—").replace("|", "/")
         lines.append(
             f"| {action_rec.round_num} | {rationale} "
-            f"| {action_rec.action} | {obs_text} |"
+            f"| {action_rec.action} | {obs_text} | {trigger} |"
         )
     lines.append("")
     return lines

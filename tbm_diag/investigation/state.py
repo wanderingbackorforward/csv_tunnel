@@ -96,6 +96,8 @@ class PlannerAuditRecord:
     selected_reason: str = ""
     is_rule_based: bool = True
     state_snapshot: dict[str, Any] = field(default_factory=dict)
+    triggered_by_field: str = ""
+    observation_used: str = ""
 
 
 @dataclass

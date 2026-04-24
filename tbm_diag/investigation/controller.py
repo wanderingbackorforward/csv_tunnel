@@ -258,10 +258,14 @@ def run_investigation(
                 selected_reason=rationale,
                 is_rule_based=not audit_data.get("is_llm", False),
                 state_snapshot=snapshot,
+                triggered_by_field=audit_data.get("triggered_by", ""),
+                observation_used=audit_data.get("observation_used", ""),
             )
             state.audit_log.append(audit_rec)
             print(f"[audit] candidates: {audit_rec.candidate_actions}")
             print(f"[audit] rejected: {[f'{a}({r})' for a, r in zip(audit_rec.rejected_actions, audit_rec.rejected_reasons)]}")
+            if audit_rec.triggered_by_field:
+                print(f"[audit] ★ triggered_by: {audit_rec.triggered_by_field}  obs: {audit_rec.observation_used}")
 
         state.actions_taken.append(ActionRecord(
             round_num=iteration,

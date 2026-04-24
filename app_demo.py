@@ -242,6 +242,109 @@ def build_case_display_table(cases: list[dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _parse_mode_from_command(command: str) -> str:
+    """从 investigate 命令中解析 --mode 值。"""
+    parts = command.split()
+    for i, part in enumerate(parts):
+        if part == "--mode" and i + 1 < len(parts):
+            return parts[i + 1]
+    return "auto"
+
+
+def _parse_input_from_command(command: str) -> str:
+    """从 investigate 命令中解析 --input 值。"""
+    parts = command.split()
+    for i, part in enumerate(parts):
+        if part in ("--input", "-i") and i + 1 < len(parts):
+            return parts[i + 1]
+    return ""
+
+
+_MODE_LABELS = {
+    "stoppage": "停机追查",
+    "resistance": "掘进阻力追查",
+    "hydraulic": "液压异常追查",
+    "fragmentation": "碎片化检查",
+    "auto": "自动",
+}
+
+
+def render_investigation_audit(output_dir: Path) -> None:
+    """通用展示函数：读取 investigation 输出并展示 ReAct 调查轨迹。"""
+    state_path = output_dir / "investigation_state.json"
+    report_path = output_dir / "investigation_report.md"
+    case_memory_path = output_dir / "case_memory.json"
+
+    if not state_path.exists():
+        st.info("该目录下暂无调查结果。")
+        return
+
+    try:
+        state_doc = read_json(state_path)
+    except Exception as exc:
+        st.error(f"读取 investigation_state.json 失败：{exc}")
+        return
+
+    # ReAct 调查摘要
+    st.markdown("#### ReAct 调查摘要")
+    focus = state_doc.get("focus", "auto")
+    focus_label = _MODE_LABELS.get(focus, focus)
+    action_names = [a.get("action", "") for a in state_doc.get("actions_taken", [])]
+    action_seq = " → ".join(action_names) if action_names else "未记录"
+    stop_reason = state_doc.get("stop_reason", "未记录")
+    rounds = state_doc.get("iteration_count", 0)
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("调查模式", focus_label)
+    col2.metric("轮次", rounds)
+    col3.metric("停止原因", stop_reason)
+    col4.metric("工具调用数", len(action_names))
+
+    st.markdown(f"**action_sequence:** `{action_seq}`")
+
+    # ReAct 调查轨迹表
+    actions = state_doc.get("actions_taken", [])
+    audit_log = state_doc.get("audit_log", [])
+    audit_map = {a.get("round_num"): a for a in audit_log}
+
+    if actions:
+        st.markdown("#### ReAct 调查轨迹")
+        trace_rows = []
+        for a in actions:
+            rnum = a.get("round_num", "")
+            audit = audit_map.get(rnum, {})
+            trace_rows.append({
+                "轮次": rnum,
+                "模式": _MODE_LABELS.get(focus, focus),
+                "观察": (audit.get("current_observation_summary", "") or a.get("observation_summary", "") or "未记录")[:80],
+                "决策理由": (audit.get("selected_reason", "") or a.get("rationale", "") or "未记录")[:60],
+                "调用工具": a.get("action", "未记录"),
+                "工具输出": (a.get("observation_summary", "") or "未记录")[:80],
+                "触发字段": audit.get("triggered_by_field", "") or "未记录",
+                "下一步决策": audit.get("selected_reason", "")[:40] if audit else "未记录",
+            })
+        st.dataframe(pd.DataFrame(trace_rows), use_container_width=True, hide_index=True)
+
+    # 报告预览
+    if report_path.exists():
+        st.markdown("#### 报告预览")
+        with st.expander("展开查看调查报告"):
+            st.markdown(read_markdown_text(report_path))
+        render_download(report_path, "下载调查报告", "text/markdown")
+
+    # 案例记忆
+    if case_memory_path.exists():
+        try:
+            cases = read_json(case_memory_path)
+            if cases:
+                st.markdown("#### 停机案例摘要")
+                st.dataframe(build_case_display_table(cases), use_container_width=True, hide_index=True)
+        except Exception:
+            pass
+
+    st.caption(f"输出目录：`{output_dir}`")
+
+
 def render_project_intro_tab() -> None:
     st.subheader("演示路线")
     st.markdown(
@@ -587,7 +690,39 @@ def render_review_tab() -> None:
                     st.markdown(f"- {s.get('text', '')}")
                     st.code(s.get("command", ""), language="bash")
 
-    st.caption("AI 复核是分诊，不是真正 ReAct 调查。如需深入追查，请使用「ReAct 调查」页面。")
+                st.markdown("**一键运行 ReAct 调查**")
+                btn_cols = st.columns(len(suggestions))
+                for idx_s, s in enumerate(suggestions):
+                    mode = _parse_mode_from_command(s.get("command", ""))
+                    input_file = _parse_input_from_command(s.get("command", ""))
+                    if not input_file or mode == "auto":
+                        continue
+                    btn_label = f"运行{_MODE_LABELS.get(mode, mode)}"
+                    safe_stem = Path(input_file).stem.replace(" ", "_")
+                    inv_out = INVESTIGATION_DEMO_DIR / f"{safe_stem}_{mode}"
+                    btn_key = f"inv_{fname}_{mode}"
+                    with btn_cols[idx_s]:
+                        if st.button(btn_label, key=btn_key, use_container_width=True):
+                            inv_out.mkdir(parents=True, exist_ok=True)
+                            inv_result = run_cli(
+                                [
+                                    "investigate",
+                                    "--input", input_file,
+                                    "--mode", mode,
+                                    "--output-dir", str(inv_out),
+                                    "--max-iterations", "12",
+                                    "--planner-audit",
+                                ],
+                                f"正在运行{_MODE_LABELS.get(mode, mode)}，请稍候",
+                            )
+                            render_cli_output(inv_result)
+                            if inv_result["returncode"] == 0:
+                                st.success(f"{_MODE_LABELS.get(mode, mode)}完成")
+                                render_investigation_audit(inv_out)
+                            else:
+                                st.error("调查运行失败，请展开查看命令行输出。")
+
+    st.caption("以上是分诊推荐。点击上方对应按钮或手动运行命令后，才能看到真正 ReAct 调查轨迹。")
 
     # 跨文件分析
     cross = summary_doc.get("cross_file_analysis", {})
@@ -660,87 +795,15 @@ def render_investigation_tab() -> None:
         st.success(f"运行状态：成功。已生成调查结果：{output_dir}")
 
     investigation_dir = normalize_path(st.session_state.get("latest_investigation_dir")) or INVESTIGATION_DEMO_DIR
-    report_path = investigation_dir / "investigation_report.md"
-    state_path = investigation_dir / "investigation_state.json"
-    case_memory_path = investigation_dir / "case_memory.json"
 
-    # ReAct 调查轨迹
-    if state_path.exists():
-        try:
-            state_doc = read_json(state_path)
-            actions = state_doc.get("actions_taken", [])
-            if actions:
-                st.markdown("**ReAct 调查轨迹**")
-                trace_rows = []
-                for a in actions:
-                    trace_rows.append({
-                        "轮次": a.get("round_num", ""),
-                        "决策理由": (a.get("rationale", "") or "")[:60],
-                        "调用工具": a.get("action", ""),
-                        "观察结果": (a.get("observation_summary", "") or "")[:80],
-                    })
-                st.dataframe(pd.DataFrame(trace_rows), use_container_width=True, hide_index=True)
-
-            # 时间窗口钻取结果
-            observations = state_doc.get("observations", [])
-            drilldown_obs = [o for o in observations if o.get("action") == "drilldown_time_window"]
-            if drilldown_obs:
-                st.markdown("**时间窗口钻取结果**")
-                dd_rows = []
-                for obs in drilldown_obs:
-                    data = obs.get("data", {})
-                    dd_rows.append({
-                        "目标": data.get("target_id", ""),
-                        "前窗口": (data.get("compact_pre", "") or "")[:50],
-                        "事件期间": (data.get("compact_during", "") or "")[:50],
-                        "后窗口": (data.get("compact_post", "") or "")[:50],
-                        "初步解释": data.get("interpretation_hint", ""),
-                    })
-                st.dataframe(pd.DataFrame(dd_rows), use_container_width=True, hide_index=True)
-
-                for obs in drilldown_obs:
-                    data = obs.get("data", {})
-                    tid = data.get("target_id", "?")
-                    with st.expander(f"钻取详情：{tid}"):
-                        st.markdown(f"- 初步解释：{data.get('interpretation_hint', '')}")
-                        tf = data.get("transition_findings", [])
-                        if tf:
-                            st.markdown(f"- 转变发现：{'，'.join(tf)}")
-                        for label, key in [("前窗口", "pre_summary"), ("事件期间", "during_summary"), ("后窗口", "post_summary")]:
-                            s = data.get(key, {})
-                            if isinstance(s, dict) and not s.get("empty", True):
-                                st.markdown(
-                                    f"- {label}：{s.get('rows', 0)}行，"
-                                    f"速度={s.get('avg_advance_speed', 0)}，"
-                                    f"转矩={s.get('avg_cutter_torque', 0)}，"
-                                    f"SER={s.get('ser_hits', 0)}，"
-                                    f"HYD={s.get('hyd_hits', 0)}"
-                                )
-        except Exception:
-            pass
-
-    if report_path.exists():
+    if (investigation_dir / "investigation_state.json").exists():
+        render_investigation_audit(investigation_dir)
+    elif (investigation_dir / "investigation_report.md").exists():
         st.markdown("**调查报告预览**")
-        st.markdown(read_markdown_text(report_path))
-        render_download(report_path, "下载调查 Markdown 报告", "text/markdown")
+        st.markdown(read_markdown_text(investigation_dir / "investigation_report.md"))
+        render_download(investigation_dir / "investigation_report.md", "下载调查 Markdown 报告", "text/markdown")
     else:
         st.info("当前还没有可预览的调查报告。")
-
-    if not case_memory_path.exists():
-        return
-
-    try:
-        cases = read_json(case_memory_path)
-    except Exception as exc:
-        st.error(f"读取 case_memory.json 失败：{exc}")
-        return
-
-    if not cases:
-        return
-
-    st.markdown("**停机案例摘要**")
-    st.dataframe(build_case_display_table(cases), use_container_width=True, hide_index=True)
-    render_download(case_memory_path, "下载停机案例 JSON", "application/json")
 
 
 def main() -> None:

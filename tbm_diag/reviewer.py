@@ -934,7 +934,7 @@ def _write_review_summary(
 
     # ── 各文件建议进一步调查的问题 ────────────────────────────────────────────
     lines += ["", "---", "", "## 建议进一步调查的问题", ""]
-    lines.append("> AI 复核是分诊，不是真正 ReAct 调查。下面按问题类型推荐不同 investigate mode；真正的工具调用轨迹会在 investigate 报告中展示。")
+    lines.append("> AI 复核是分诊，不是真正 ReAct 调查。下面是分诊推荐。点击 GUI 中对应按钮或手动运行命令后，才能看到真正 ReAct 调查轨迹。")
     lines.append("")
     for r in records:
         if r.status != "ok":

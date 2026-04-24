@@ -241,6 +241,36 @@ investigation_report.md 包含 ReAct 调查轨迹表：
 
 investigation_state.json 中 actions_taken 每条记录包含 round_num、action、arguments、rationale、observation_summary。
 
+### 从 review 推荐到 investigate 执行
+
+review 分诊后，每个文件的"建议进一步调查的问题"会推荐具体的 investigate mode：
+
+- `--mode stoppage`：停机案例追查
+- `--mode resistance`：掘进阻力异常追查
+- `--mode hydraulic`：液压异常追查
+- `--mode fragmentation`：碎片化检查
+
+在 GUI 的"智能复核"页面中，可以直接点击对应按钮运行 investigate 并查看 ReAct 调查轨迹。
+手动运行时使用推荐的命令即可。
+
+### investigate-modes（模式对比 / 演示）
+
+一键运行四种 mode 并生成对比表，验证不同 mode 调用不同工具链：
+
+```bash
+python -m tbm_diag.cli investigate-modes \
+  --input sample2.xls \
+  --output-dir investigation_modes_demo \
+  --max-iterations 12
+```
+
+输出 `mode_comparison.md` 包含：
+
+| mode | action_sequence | rounds | 关键触发字段 | 结论摘要 | 输出目录 |
+|------|----------------|-------:|------------|---------|---------|
+
+每个 mode 的完整 ReAct 调查轨迹见对应输出目录下的 `investigation_state.json`。
+
 ---
 
 ## investigate 输出文件

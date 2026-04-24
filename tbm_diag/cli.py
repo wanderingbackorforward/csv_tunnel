@@ -886,6 +886,113 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_investigate_modes(args: argparse.Namespace) -> int:
+    """investigate-modes 子命令：依次运行四种 mode，输出 mode_comparison.md。"""
+    _setup_logging(args.verbose)
+    from tbm_diag.investigation.controller import run_investigation
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"✗ 文件不存在: {input_path}", file=sys.stderr)
+        return 2
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    modes = ["stoppage", "resistance", "hydraulic", "fragmentation"]
+    mode_labels = {
+        "stoppage": "停机追查",
+        "resistance": "掘进阻力追查",
+        "hydraulic": "液压异常追查",
+        "fragmentation": "碎片化检查",
+    }
+    results: list[dict] = []
+
+    for mode in modes:
+        mode_dir = output_dir / mode
+        mode_dir.mkdir(parents=True, exist_ok=True)
+        print(f"\n{'='*60}")
+        print(f"[investigate-modes] 运行 mode={mode} ({mode_labels[mode]})")
+        print(f"{'='*60}")
+
+        result = run_investigation(
+            input_files=[str(input_path)],
+            mode="single_file",
+            output_dir=str(mode_dir),
+            use_llm=False,
+            max_iterations=args.max_iterations,
+            planner_audit=True,
+            focus=mode,
+        )
+
+        import json as _json
+        state_path = mode_dir / "investigation_state.json"
+        action_seq = ""
+        rounds = 0
+        triggered_fields: list[str] = []
+        conclusion = ""
+        if state_path.exists():
+            state_doc = _json.loads(state_path.read_text(encoding="utf-8"))
+            action_names = [a.get("action", "") for a in state_doc.get("actions_taken", [])]
+            action_seq = " → ".join(action_names)
+            rounds = state_doc.get("iteration_count", 0)
+            for audit in state_doc.get("audit_log", []):
+                tf = audit.get("triggered_by_field", "")
+                if tf and tf not in triggered_fields:
+                    triggered_fields.append(tf)
+            conclusion = state_doc.get("stop_reason", "")
+
+        results.append({
+            "mode": mode,
+            "label": mode_labels[mode],
+            "action_sequence": action_seq,
+            "rounds": rounds,
+            "triggered_fields": "、".join(triggered_fields) if triggered_fields else "—",
+            "conclusion": conclusion,
+            "output_dir": str(mode_dir),
+        })
+
+    # 生成 mode_comparison.md
+    import json as _json
+    from datetime import datetime
+    lines = [
+        "# investigate 模式对比",
+        "",
+        f"- 输入文件：`{input_path}`",
+        f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"- 最大轮数：{args.max_iterations}",
+        "",
+        "## 对比表",
+        "",
+        "| mode | action_sequence | rounds | 关键触发字段 | 结论摘要 | 输出目录 |",
+        "|------|----------------|-------:|------------|---------|---------|",
+    ]
+    for r in results:
+        lines.append(
+            f"| {r['mode']} | `{r['action_sequence']}` | {r['rounds']} | {r['triggered_fields']} | {r['conclusion']} | `{r['output_dir']}` |"
+        )
+
+    lines += [
+        "",
+        "## 说明",
+        "",
+        "不同 mode 会调用不同的工具链，产生不同的 action_sequence。",
+        "这说明 investigate 是真正的 ReAct 动态调查，而非固定 pipeline。",
+        "",
+        "每个 mode 的完整 ReAct 调查轨迹见对应输出目录下的 `investigation_state.json`。",
+    ]
+
+    comp_path = output_dir / "mode_comparison.md"
+    comp_path.write_text("\n".join(lines), encoding="utf-8")
+
+    print(f"\n{'='*60}")
+    print(f"[investigate-modes] 对比报告已生成: {comp_path}")
+    for r in results:
+        print(f"  {r['mode']:15s} rounds={r['rounds']:2d}  {r['action_sequence']}")
+    print(f"{'='*60}")
+    return 0
+
+
 def _cmd_scan(args: argparse.Namespace) -> int:
     """scan 子命令：批量扫描目录，生成 scan_index.csv。"""
     _setup_logging(args.verbose)
@@ -1115,6 +1222,28 @@ def main(argv: list[str] | None = None) -> int:
     p_inv.add_argument("--planner-audit", action="store_true",
                        help="启用 planner 审计模式，记录每轮候选/拒绝 action")
 
+    # ── investigate-modes 子命令 ────────────────────────────────────────────────
+    p_inv_modes = subparsers.add_parser(
+        "investigate-modes",
+        help="依次运行四种 investigate mode 并生成对比表（演示/审计工具）",
+        description=(
+            "依次对同一文件运行 stoppage / resistance / hydraulic / fragmentation 四种 mode，\n"
+            "每种 mode 都带 --planner-audit，生成 mode_comparison.md 对比表。\n\n"
+            "目的：演示不同 mode 调用不同工具链，验证 ReAct 动态选择。\n\n"
+            "示例：\n"
+            "  python -m tbm_diag.cli investigate-modes --input sample2.xls --output-dir investigation_modes_demo --max-iterations 12"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_inv_modes.add_argument("--input", "-i", required=True, metavar="FILE",
+                             help="输入文件路径")
+    p_inv_modes.add_argument("--output-dir", "-O", default="investigation_modes_demo", metavar="DIR",
+                             help="输出目录（默认 investigation_modes_demo）")
+    p_inv_modes.add_argument("--max-iterations", type=int, default=12, metavar="N",
+                             help="每种 mode 的最大轮数（默认 12）")
+    p_inv_modes.add_argument("--verbose", "-v", action="store_true",
+                             help="显示 DEBUG 日志")
+
     # ── llm-check 子命令 ──────────────────────────────────────────────────────
     p_llm = subparsers.add_parser(
         "llm-check",
@@ -1148,6 +1277,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_review(args)
     elif args.command == "investigate":
         return _cmd_investigate(args)
+    elif args.command == "investigate-modes":
+        return _cmd_investigate_modes(args)
     elif args.command == "llm-check":
         return _cmd_llm_check(args)
     else:

@@ -41,6 +41,9 @@ python -m tbm_diag.cli agent --input data.csv
 # Stoppage investigation (ReAct agent)
 python -m tbm_diag.cli investigate --input data.xls --output-dir investigation_out
 python -m tbm_diag.cli investigate --scan-index scan_out/scan_index.csv --top-n 3 --output-dir investigation_out
+
+# Mode comparison (demo/audit)
+python -m tbm_diag.cli investigate-modes --input sample2.xls --output-dir investigation_modes_demo --max-iterations 12
 ```
 
 ## Architecture
@@ -205,6 +208,15 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 - 停机主导文件应优先走 analyze_stoppage_cases。
 - SER 主导文件应优先走 analyze_resistance_pattern。
 - 碎片化文件应走 analyze_event_fragmentation。
+
+## ReAct 验收与展示规则
+
+- 如果用户说"看不到 ReAct"，优先检查 GUI 是否展示 investigation_state.json，而不是继续改 review_summary。
+- review 只做分诊，不要求动态工具顺序。
+- ReAct 的验收对象是 investigation_report.md / investigation_state.json / GUI 的 ReAct 调查轨迹。
+- 演示时必须展示 action_sequence，而不是只展示 AI 自然语言总结。
+- GUI 中"智能复核"页面可直接运行推荐的 investigate mode 并展示 ReAct 轨迹。
+- `investigate-modes` 命令可用于演示不同 mode 的工具调用路径。
 
 ## Change Output Format
 

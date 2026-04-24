@@ -390,7 +390,7 @@ def classify_stoppage_case(
     case_id: str,
     state: Any = None,
 ) -> dict[str, Any]:
-    """基于 case + transition analysis 分类停机案例。"""
+    """基于 drilldown（最高优先级）+ transition analysis 分类停机案例。"""
     if state is None:
         return {"status": "error", "error": "需要传入 state"}
 
@@ -405,9 +405,16 @@ def classify_stoppage_case(
     if target_case is None:
         return {"status": "error", "error": f"case {case_id} not found in state"}
 
+    # drilldown 证据优先：从 observations 中找到对应 case 的 drilldown 结果
+    drilldown_data = None
+    for obs in state.observations:
+        if obs.action == "drilldown_time_window":
+            if obs.data.get("target_id") == case_id:
+                drilldown_data = obs.data
+                break
+
     reasons: list[str] = []
     score = 0.0
-    evidence_count = 0
 
     dur = target_case.duration_seconds
     if dur > 3600:
@@ -417,30 +424,63 @@ def classify_stoppage_case(
         reasons.append(f"短暂停 ({dur/60:.0f}min)")
         score -= 0.1
 
-    if ta:
-        if ta.pre_has_ser:
-            reasons.append("停机前存在掘进阻力异常 (SER)")
+    if drilldown_data:
+        # drilldown 提供了最精确的窗口证据，以它为准
+        pre = drilldown_data.get("pre_summary", {})
+        post = drilldown_data.get("post_summary", {})
+        pre_ser_ratio = pre.get("ser_ratio", 0) if isinstance(pre, dict) else 0
+        pre_hyd_count = pre.get("hyd_hits", 0) if isinstance(pre, dict) else 0
+        post_ser_ratio = post.get("ser_ratio", 0) if isinstance(post, dict) else 0
+        post_hyd_count = post.get("hyd_hits", 0) if isinstance(post, dict) else 0
+        pre_empty = pre.get("empty", True) if isinstance(pre, dict) else True
+        post_empty = post.get("empty", True) if isinstance(post, dict) else True
+
+        if pre_ser_ratio > 0.05:
+            reasons.append(f"停机前窗口存在 SER（占比 {pre_ser_ratio:.1%}，drilldown 证据）")
             score += 0.25
-            evidence_count += 1
-        if ta.pre_has_hyd:
-            reasons.append("停机前存在液压不稳定 (HYD)")
+        if pre_hyd_count > 0:
+            reasons.append(f"停机前窗口存在 HYD（{pre_hyd_count} 次，drilldown 证据）")
             score += 0.2
-            evidence_count += 1
+        if not post_empty and (post_ser_ratio > 0.05 or post_hyd_count > 0):
+            reasons.append("恢复后窗口仍有异常（drilldown 证据）")
+            score += 0.1
+
+        hint = drilldown_data.get("interpretation_hint", "")
+        if "停机前未见明显异常" in hint and "停机后恢复正常" in hint:
+            reasons.append("停机前后窗口未见明显异常（drilldown 证据），疑似计划性/管理性停机")
+            score -= 0.25
+        elif "停机前未见明显异常" in hint:
+            reasons.append("停机前窗口未见异常（drilldown 证据）")
+            score -= 0.15
+        elif "停机前存在异常迹象" in hint:
+            score += 0.1
+
+        if not pre_empty and pre_ser_ratio == 0 and pre_hyd_count == 0:
+            pre_heavy = pre.get("state_distribution", {}).get("heavy_load_excavation", 0)
+            if pre_heavy > 20:
+                reasons.append("停机前处于重载推进状态")
+                score += 0.15
+    elif ta:
+        # 无 drilldown 时回退到 TransitionAnalysis（事件级检查）
+        if ta.pre_has_ser:
+            reasons.append("停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）")
+            score += 0.15
+        if ta.pre_has_hyd:
+            reasons.append("停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）")
+            score += 0.1
         if ta.pre_has_heavy_load:
             reasons.append("停机前处于重载推进状态")
             score += 0.15
-            evidence_count += 1
         if ta.post_has_anomaly:
-            reasons.append("恢复后仍有异常事件")
-            score += 0.1
-            evidence_count += 1
+            reasons.append("恢复后仍有异常事件（事件级证据，未经 drilldown 验证）")
+            score += 0.05
         if not ta.pre_events and not ta.post_events:
             reasons.append("前后窗口无异常事件，更像计划停机")
             score -= 0.25
 
     if score >= 0.3:
         case_type = "abnormal_like_stoppage"
-        confidence = min(0.4 + evidence_count * 0.12 + score * 0.3, 0.85)
+        confidence = min(0.4 + score * 0.3, 0.85)
         reasons.append("（疑似，需结合施工日志确认）")
     elif score <= -0.1:
         case_type = "planned_like_stoppage"
@@ -676,8 +716,30 @@ def analyze_resistance_pattern(file_path: str) -> dict[str, Any]:
                        event_states[e.event_id].dominant_state in
                        ("normal_excavation", "heavy_load_excavation"))
 
-    top_ser = sorted(ser_events, key=lambda e: -(e.duration_seconds or 0))[:3]
+    # 过滤 top SER 目标：排除主要在停机期的事件
+    valid_ser = []
+    invalid_ser = []
+    for e in sorted(ser_events, key=lambda e: -(e.duration_seconds or 0)):
+        es = event_states.get(e.event_id)
+        if es and es.dominant_state == "stopped":
+            invalid_ser.append(e.event_id)
+        else:
+            valid_ser.append(e)
+    top_ser = valid_ser[:3]
     top_ser_event_ids = [e.event_id for e in top_ser]
+
+    all_stopped_overlap = len(valid_ser) == 0 and len(invalid_ser) > 0
+
+    summary_parts = [
+        f"SER 事件 {len(ser_events)} 个，共 {total_dur/3600:.1f}h，"
+        f"推进中占比 {in_advancing/len(ser_events)*100:.0f}%"
+    ]
+    if concentrated:
+        summary_parts.append("时间集中")
+    if near_stoppage:
+        summary_parts.append("靠近停机")
+    if all_stopped_overlap:
+        summary_parts.append("所有 SER 均与停机重叠")
 
     return {
         "status": "ok",
@@ -689,12 +751,9 @@ def analyze_resistance_pattern(file_path: str) -> dict[str, Any]:
         "in_advancing_count": in_advancing,
         "in_advancing_ratio": round(in_advancing / len(ser_events), 2) if ser_events else 0,
         "top_ser_event_ids": top_ser_event_ids,
-        "summary": (
-            f"SER 事件 {len(ser_events)} 个，共 {total_dur/3600:.1f}h，"
-            f"推进中占比 {in_advancing/len(ser_events)*100:.0f}%"
-            + ("，时间集中" if concentrated else "")
-            + ("，靠近停机" if near_stoppage else "")
-        ),
+        "invalid_ser_count": len(invalid_ser),
+        "all_stopped_overlap": all_stopped_overlap,
+        "summary": "，".join(summary_parts),
     }
 
 

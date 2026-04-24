@@ -41,10 +41,109 @@ def _build_react_trace_table(state: InvestigationState) -> list[str]:
     return lines
 
 
+def _run_consistency_check(state: InvestigationState) -> tuple[list[str], list[str]]:
+    """检查 drilldown 证据与分类结论的一致性，返回 (corrections, warnings)。"""
+    corrections: list[str] = []
+    warnings: list[str] = []
+
+    drilldown_map: dict[str, dict] = {}
+    for obs in state.observations:
+        if obs.action == "drilldown_time_window":
+            tid = obs.data.get("target_id", "")
+            if tid:
+                drilldown_map[tid] = obs.data
+
+    for case_id, cls in list(state.case_classifications.items()):
+        dd = drilldown_map.get(case_id)
+        if dd is None:
+            continue
+
+        pre = dd.get("pre_summary", {})
+        post = dd.get("post_summary", {})
+        hint = dd.get("interpretation_hint", "")
+
+        pre_ser_ratio = pre.get("ser_ratio", 0) if isinstance(pre, dict) else 0
+        pre_hyd_count = pre.get("hyd_hits", 0) if isinstance(pre, dict) else 0
+        post_empty = post.get("empty", True) if isinstance(post, dict) else True
+        post_ser_ratio = post.get("ser_ratio", 0) if isinstance(post, dict) else 0
+        post_hyd_count = post.get("hyd_hits", 0) if isinstance(post, dict) else 0
+
+        drilldown_clean_pre = pre_ser_ratio <= 0.05 and pre_hyd_count == 0
+        drilldown_clean_post = post_empty or (post_ser_ratio <= 0.05 and post_hyd_count == 0)
+
+        filtered_reasons = []
+        for r in cls.reasons:
+            if "停机前存在" in r and "SER" in r and drilldown_clean_pre:
+                corrections.append(
+                    f"{case_id}: 分类依据「{r}」已按 drilldown 修正——"
+                    f"停机前 SER 未被窗口证据支持（pre SER ratio={pre_ser_ratio:.3f}）"
+                )
+                continue
+            if "停机前存在" in r and "HYD" in r and drilldown_clean_pre:
+                corrections.append(
+                    f"{case_id}: 分类依据「{r}」已按 drilldown 修正——"
+                    f"停机前 HYD 未被窗口证据支持（pre HYD hits={pre_hyd_count}）"
+                )
+                continue
+            if "恢复后仍有异常" in r and drilldown_clean_post:
+                corrections.append(
+                    f"{case_id}: 分类依据「{r}」已按 drilldown 修正——"
+                    f"恢复后窗口未检测到异常"
+                )
+                continue
+            filtered_reasons.append(r)
+
+        if cls.case_type == "abnormal_like_stoppage" and drilldown_clean_pre and drilldown_clean_post:
+            if "停机前未见明显异常" in hint:
+                old_type = cls.case_type
+                cls.case_type = "planned_like_stoppage"
+                cls.confidence = min(cls.confidence, 0.55)
+                corrections.append(
+                    f"{case_id}: 分类从 {old_type} 降级为 {cls.case_type}——"
+                    f"drilldown 显示「{hint}」，与异常停机判定矛盾"
+                )
+                filtered_reasons = [
+                    r for r in filtered_reasons
+                    if r != "（疑似，需结合施工日志确认）"
+                ]
+                filtered_reasons.append("停机前后窗口未见明显异常，疑似计划性/管理性停机，需施工日志确认")
+
+        cls.reasons = filtered_reasons
+        state.case_classifications[case_id] = cls
+
+    # 检查 SER 目标有效性
+    for obs in state.observations:
+        if obs.action == "analyze_resistance_pattern":
+            if obs.data.get("all_stopped_overlap"):
+                warnings.append(
+                    "当前 SER 事件多与停机片段重叠，暂不能证明推进中的掘进阻力异常，"
+                    "需要重新区分停机期伪异常与推进期 SER"
+                )
+
+    for obs in state.observations:
+        if obs.action == "drilldown_time_window":
+            tid = obs.data.get("target_id", "")
+            if tid.startswith("SER_"):
+                during = obs.data.get("during_summary", {})
+                if isinstance(during, dict):
+                    stopped_pct = during.get("state_distribution", {}).get("stopped", 0)
+                    avg_speed = during.get("avg_advance_speed", 0)
+                    if stopped_pct > 80 and avg_speed < 1:
+                        warnings.append(
+                            f"{tid}: 事件期间 stopped={stopped_pct:.0f}%、"
+                            f"速度={avg_speed}，实为停机窗口，不代表推进中 SER"
+                        )
+
+    return corrections, warnings
+
+
 def build_report(state: InvestigationState) -> dict[str, Any]:
     """根据 InvestigationState 生成 Markdown 报告内容。"""
     lines: list[str] = []
     lines.append("# 调查报告\n")
+
+    # ── 证据一致性检查（在生成报告内容前修正分类）──
+    corrections, consistency_warnings = _run_consistency_check(state)
 
     # ── ReAct 调查轨迹（始终输出）──
     lines.extend(_build_react_trace_table(state))
@@ -118,6 +217,11 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
             lines.append(f"- 推进中占比: {data.get('in_advancing_ratio', 0):.0%}")
             lines.append(f"- 时间集中: {'是' if data.get('concentrated_in_time') else '否'}")
             lines.append(f"- 靠近停机: {'是' if data.get('near_stoppage') else '否'}")
+            if data.get("invalid_ser_count", 0) > 0:
+                lines.append(f"- 停机期 SER 事件（已排除）: {data.get('invalid_ser_count', 0)} 个")
+            if data.get("all_stopped_overlap"):
+                lines.append("- **注意**: 当前 SER 事件多与停机片段重叠，暂不能证明推进中的掘进阻力异常，"
+                             "需要重新区分停机期伪异常与推进期 SER")
             lines.append(f"- 摘要: {data.get('summary', '')}")
             lines.append("")
 
@@ -264,6 +368,24 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
         for start, end, cid in check_periods:
             lines.append(f"- {start} ~ {end} (案例 {cid})")
         lines.append("")
+
+    # ── 证据一致性检查 ──
+    if corrections or consistency_warnings:
+        lines.append("## 证据一致性检查\n")
+        if corrections:
+            lines.append("### 分类修正\n")
+            lines.append("以下分类依据经 drilldown 窗口证据核实后被修正：\n")
+            for c in corrections:
+                lines.append(f"- {c}")
+            lines.append("")
+        if consistency_warnings:
+            lines.append("### 需人工确认\n")
+            for w in consistency_warnings:
+                lines.append(f"- {w}")
+            lines.append("")
+    else:
+        lines.append("## 证据一致性检查\n")
+        lines.append("未发现 drilldown 窗口证据与分类结论之间的冲突。\n")
 
     # ── 跨文件模式 ──
     if state.cross_file_patterns:

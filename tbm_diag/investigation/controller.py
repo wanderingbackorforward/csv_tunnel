@@ -187,6 +187,7 @@ def run_investigation(
     max_tool_calls: int = 20,
     max_runtime_seconds: int = 300,
     planner_audit: bool = False,
+    focus: str = "auto",
 ) -> InvestigationResult:
     """运行停机案例追查 ReAct 循环。"""
     output_dir = Path(output_dir)
@@ -197,13 +198,14 @@ def run_investigation(
         mode=mode,
         input_files=input_files,
         current_file=input_files[0] if input_files else "",
+        focus=focus,
     )
 
     start_time = time.time()
     tool_call_count = 0
     report_text = ""
 
-    print(f"[investigate] task={state.task_id} mode={mode} files={len(input_files)}")
+    print(f"[investigate] task={state.task_id} mode={mode} focus={focus} files={len(input_files)}")
     print(f"[investigate] planner={'LLM' if use_llm else 'rule-based'}")
 
     for iteration in range(1, max_iterations + 1):

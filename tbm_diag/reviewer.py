@@ -699,7 +699,7 @@ def _build_investigation_suggestions(rec: ReviewRecord) -> list[dict]:
         dur_h = stoppage_dur / 3600
         suggestions.append({
             "text": f"停机片段累计 {dur_h:.1f}h，建议进入停机案例追查。",
-            "command": f"python -m tbm_diag.cli investigate --input {fp} --output-dir investigation_out --max-iterations 12",
+            "command": f"python -m tbm_diag.cli investigate --input {fp} --mode stoppage --output-dir investigation_out --max-iterations 12 --planner-audit",
             "tool": "analyze_stoppage_cases",
         })
 
@@ -707,21 +707,21 @@ def _build_investigation_suggestions(rec: ReviewRecord) -> list[dict]:
         dur_h = ser_dur / 3600
         suggestions.append({
             "text": f"疑似掘进阻力异常累计 {dur_h:.1f}h，建议进入掘进阻力模式追查。",
-            "command": f"python -m tbm_diag.cli investigate --input {fp} --output-dir investigation_out --max-iterations 12",
+            "command": f"python -m tbm_diag.cli investigate --input {fp} --mode resistance --output-dir investigation_out --max-iterations 12 --planner-audit",
             "tool": "analyze_resistance_pattern",
         })
 
     if hyd_count >= 5 or hyd_dur >= 1800:
         suggestions.append({
             "text": f"液压不稳定事件 {hyd_count} 个/{_fmt_hours(hyd_dur)}，建议检查液压异常模式。",
-            "command": f"python -m tbm_diag.cli investigate --input {fp} --output-dir investigation_out --max-iterations 12",
+            "command": f"python -m tbm_diag.cli investigate --input {fp} --mode hydraulic --output-dir investigation_out --max-iterations 12 --planner-audit",
             "tool": "analyze_hydraulic_pattern",
         })
 
     if total_events >= 10 and avg_dur < 120:
         suggestions.append({
             "text": f"事件数 {total_events} 但平均时长仅 {avg_dur:.0f}s，建议检查是否存在事件碎片化。",
-            "command": f"python -m tbm_diag.cli investigate --input {fp} --output-dir investigation_out --max-iterations 12",
+            "command": f"python -m tbm_diag.cli investigate --input {fp} --mode fragmentation --output-dir investigation_out --max-iterations 12 --planner-audit",
             "tool": "analyze_event_fragmentation",
         })
 
@@ -934,7 +934,7 @@ def _write_review_summary(
 
     # ── 各文件建议进一步调查的问题 ────────────────────────────────────────────
     lines += ["", "---", "", "## 建议进一步调查的问题", ""]
-    lines.append("> AI 复核是分诊，不是真正 ReAct 调查。以下建议用于指导下一步 investigate 命令。")
+    lines.append("> AI 复核是分诊，不是真正 ReAct 调查。下面按问题类型推荐不同 investigate mode；真正的工具调用轨迹会在 investigate 报告中展示。")
     lines.append("")
     for r in records:
         if r.status != "ok":

@@ -87,6 +87,7 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         return _select("load_event_summary", "尚未加载事件摘要", {"file_path": fp})
 
     # Step 3: 根据观察结果动态选择路径
+    focus = state.focus or "auto"
     overview = state.file_overviews.get(fp)
     event_summary = state.event_summaries.get(fp)
     sem_dist = overview.semantic_event_distribution if overview else {}
@@ -115,14 +116,21 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
             if tid:
                 drilldown_targets_done.add(tid)
 
+    # ── focus 控制：非 auto 时只走指定分支 ──
+    run_stoppage = focus in ("auto", "stoppage")
+    run_resistance = focus in ("auto", "resistance")
+    run_hydraulic = focus in ("auto", "hydraulic")
+    run_fragmentation = focus in ("auto", "fragmentation")
+
     # 路径 A: 停机主导
-    if stoppage_count >= 3 or stopped_pct >= 30:
+    if run_stoppage and (stoppage_count >= 3 or stopped_pct >= 30 or focus == "stoppage"):
         if "analyze_stoppage_cases" not in file_analyses_done:
             candidates.append(("analyze_stoppage_cases", f"stoppage={stoppage_count}, stopped={stopped_pct:.0f}%"))
         else:
             _reject("analyze_stoppage_cases", "已执行")
     else:
-        _reject("analyze_stoppage_cases", f"stoppage={stoppage_count}<3, stopped={stopped_pct:.0f}%<30")
+        reason = f"focus={focus}" if not run_stoppage else f"stoppage={stoppage_count}<3, stopped={stopped_pct:.0f}%<30"
+        _reject("analyze_stoppage_cases", reason)
 
     if candidates and candidates[-1][0] == "analyze_stoppage_cases":
         return _select("analyze_stoppage_cases",
@@ -130,7 +138,7 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
                        {"file_path": fp})
 
     # 停机 drilldown
-    if "analyze_stoppage_cases" in file_analyses_done:
+    if run_stoppage and "analyze_stoppage_cases" in file_analyses_done:
         cases = state.stoppage_cases.get(fp, [])
         for c in cases[:3]:
             if c.case_id not in drilldown_targets_done:
@@ -141,7 +149,7 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
             _reject("drilldown_time_window(stoppage)", f"top {min(3,len(cases))} cases 已钻取")
 
     # 路径 B: 掘进阻力主导
-    if ser_count >= 3:
+    if run_resistance and (ser_count >= 3 or focus == "resistance"):
         if "analyze_resistance_pattern" not in file_analyses_done:
             return _select("analyze_resistance_pattern",
                            f"SER 事件 {ser_count} 个，进入掘进阻力模式分析",
@@ -149,10 +157,11 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         else:
             _reject("analyze_resistance_pattern", "已执行")
     else:
-        _reject("analyze_resistance_pattern", f"SER={ser_count}<3")
+        reason = f"focus={focus}" if not run_resistance else f"SER={ser_count}<3"
+        _reject("analyze_resistance_pattern", reason)
 
     # SER drilldown
-    if "analyze_resistance_pattern" in file_analyses_done and ser_count >= 2:
+    if run_resistance and "analyze_resistance_pattern" in file_analyses_done and ser_count >= 1:
         top_events = event_summary.top_events if event_summary else []
         ser_types = {"suspected_excavation_resistance", "excavation_resistance_under_load"}
         ser_targets = [
@@ -172,7 +181,7 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
             _reject("drilldown_time_window(SER)", "top SER 已钻取")
 
     # 路径 C: 液压问题
-    if hyd_count >= 3:
+    if run_hydraulic and (hyd_count >= 3 or focus == "hydraulic"):
         if "analyze_hydraulic_pattern" not in file_analyses_done:
             return _select("analyze_hydraulic_pattern",
                            f"HYD 事件 {hyd_count} 个，分析液压异常模式",
@@ -180,10 +189,11 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         else:
             _reject("analyze_hydraulic_pattern", "已执行")
     else:
-        _reject("analyze_hydraulic_pattern", f"HYD={hyd_count}<3")
+        reason = f"focus={focus}" if not run_hydraulic else f"HYD={hyd_count}<3"
+        _reject("analyze_hydraulic_pattern", reason)
 
     # HYD drilldown
-    if "analyze_hydraulic_pattern" in file_analyses_done and hyd_count >= 2:
+    if run_hydraulic and "analyze_hydraulic_pattern" in file_analyses_done and hyd_count >= 1:
         top_events = event_summary.top_events if event_summary else []
         hyd_targets = [e for e in top_events if e.get("event_type") == "hydraulic_instability"]
         for e in hyd_targets[:2]:
@@ -196,13 +206,13 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
             _reject("drilldown_time_window(HYD)", "top HYD 已钻取")
 
     # 路径 D: 碎片化
-    if total_events >= 8:
+    if run_fragmentation and (total_events >= 8 or focus == "fragmentation"):
         top_events = event_summary.top_events if event_summary else []
         avg_dur = 0
         if top_events:
             durs = [e.get("duration_s", 0) for e in top_events]
             avg_dur = sum(durs) / len(durs) if durs else 0
-        if avg_dur < 120 or total_events >= 15:
+        if avg_dur < 120 or total_events >= 15 or focus == "fragmentation":
             if "analyze_event_fragmentation" not in file_analyses_done:
                 return _select("analyze_event_fragmentation",
                                f"事件 {total_events} 个，平均时长 {avg_dur:.0f}s，检查碎片化",
@@ -212,7 +222,8 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         else:
             _reject("analyze_event_fragmentation", f"events={total_events}, avg_dur={avg_dur:.0f}s 不满足碎片化条件")
     else:
-        _reject("analyze_event_fragmentation", f"events={total_events}<8")
+        reason = f"focus={focus}" if not run_fragmentation else f"events={total_events}<8"
+        _reject("analyze_event_fragmentation", reason)
 
     # 补充分析
     last_obs = state.observations[-1] if state.observations else None

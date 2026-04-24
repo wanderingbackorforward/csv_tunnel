@@ -117,3 +117,4 @@ class InvestigationState:
     iteration_count: int = 0
     stop_reason: str = ""
     audit_log: list[PlannerAuditRecord] = field(default_factory=list)
+    focus: str = "auto"  # auto / stoppage / resistance / hydraulic / fragmentation

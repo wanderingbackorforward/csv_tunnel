@@ -618,7 +618,12 @@ def render_investigation_tab() -> None:
         value=selected_file or str(default_path if default_path.exists() else ""),
     )
     output_dir_text = st.text_input("输入输出目录", value=str(INVESTIGATION_DEMO_DIR))
-    max_iterations = st.number_input("输入最大轮数", min_value=1, max_value=50, value=12, step=1)
+    col_mode, col_iter = st.columns(2)
+    with col_mode:
+        focus_mode = st.selectbox("调查聚焦模式", ["auto", "stoppage", "resistance", "hydraulic", "fragmentation"])
+    with col_iter:
+        max_iterations = st.number_input("最大轮数", min_value=1, max_value=50, value=12, step=1)
+    planner_audit = st.checkbox("启用 planner 审计日志", value=False)
 
     if st.button("运行 ReAct 调查", type="primary", use_container_width=True):
         input_path = normalize_path(selected_file or input_path_text)
@@ -631,18 +636,20 @@ def render_investigation_tab() -> None:
             return
 
         output_dir.mkdir(parents=True, exist_ok=True)
-        result = run_cli(
-            [
-                "investigate",
-                "--input",
-                str(input_path),
-                "--output-dir",
-                str(output_dir),
-                "--max-iterations",
-                str(int(max_iterations)),
-            ],
-            "正在运行 ReAct 调查，请稍候",
-        )
+        cli_parts = [
+            "investigate",
+            "--input",
+            str(input_path),
+            "--output-dir",
+            str(output_dir),
+            "--mode",
+            focus_mode,
+            "--max-iterations",
+            str(int(max_iterations)),
+        ]
+        if planner_audit:
+            cli_parts.append("--planner-audit")
+        result = run_cli(cli_parts, "正在运行 ReAct 调查，请稍候")
         render_cli_output(result)
 
         if result["returncode"] != 0:

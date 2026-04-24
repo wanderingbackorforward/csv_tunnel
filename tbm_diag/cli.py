@@ -869,6 +869,7 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         use_llm=args.use_llm_planner,
         max_iterations=args.max_iterations,
         planner_audit=getattr(args, "planner_audit", False),
+        focus=getattr(args, "mode", "auto"),
     )
 
     if result.report_text:
@@ -1100,6 +1101,9 @@ def main(argv: list[str] | None = None) -> int:
                        help="从 scan_index 取 Top N 文件（默认 3）")
     p_inv.add_argument("--output-dir", "-O", default="investigation_out", metavar="DIR",
                        help="输出目录（默认 investigation_out）")
+    p_inv.add_argument("--mode", default="auto",
+                       choices=["auto", "stoppage", "resistance", "hydraulic", "fragmentation"],
+                       help="调查聚焦模式（默认 auto）")
     p_inv.add_argument("--use-llm-planner", action="store_true",
                        help="使用 LLM planner（需设置 OPENAI_API_KEY）")
     p_inv.add_argument("--max-iterations", type=int, default=15, metavar="N",

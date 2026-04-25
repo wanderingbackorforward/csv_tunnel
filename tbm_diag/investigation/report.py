@@ -91,6 +91,8 @@ def _build_planner_audit_section(state: InvestigationState) -> list[str]:
     if actual_calls:
         lines.append("### LLM 调用明细")
         lines.append("")
+        lines.append("> 以下为 LLM planner 原始决策摘要，仅用于审计；最终业务结论以 validator 校验后的最终调查结论为准。")
+        lines.append("")
         lines.append("| 轮次 | 状态 | 选择 | 耗时 | 摘要 |")
         lines.append("|------|------|------|------|------|")
         for c in actual_calls:
@@ -168,8 +170,10 @@ def _run_consistency_check(state: InvestigationState) -> tuple[list[str], list[s
                 filtered_reasons = [
                     r for r in filtered_reasons
                     if r != "（疑似，需结合施工日志确认）"
+                    and "未经 drilldown" not in r
+                    and "未经drilldown" not in r
                 ]
-                filtered_reasons.append("停机前后窗口未见明显异常，疑似计划性/管理性停机，需施工日志确认")
+                filtered_reasons.append("经 drilldown 验证：停机前后窗口未见明显 SER/HYD 行级异常，疑似计划性/管理性停机，需施工日志确认")
 
         cls.reasons = filtered_reasons
         state.case_classifications[case_id] = cls
@@ -246,11 +250,36 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
                 lines.append(f"- {w}")
             lines.append("")
 
+        # 补充 validator 区域的综合限制因素（未被 warnings 覆盖的）
+        if fc.validator_applied:
+            supplementary: list[str] = []
+            total_cases_v = sum(len(v) for v in state.stoppage_cases.values())
+            dd_count = sum(1 for o in state.observations
+                          if o.action == "drilldown_time_window"
+                          and (o.data.get("target_id", "").startswith("SC_")))
+            unclassified_v = total_cases_v - len(state.case_classifications)
+            fallback_count = state.llm_fallback_count
+
+            if total_cases_v > 0 and dd_count < total_cases_v:
+                txt = f"drilldown 覆盖不足：{dd_count}/{total_cases_v}"
+                if not any(txt[:20] in w for w in fc.validation_warnings):
+                    supplementary.append(txt)
+            if unclassified_v > 0:
+                supplementary.append(f"未分类停机案例较多：{unclassified_v} 个")
+            if fallback_count > 0:
+                supplementary.append(f"LLM planner 存在 fallback：{fallback_count} 次")
+
+            if supplementary:
+                lines.append("**其他限制因素：**")
+                for s in supplementary:
+                    lines.append(f"- {s}")
+                lines.append("")
+
         lines.append("**主要判断：**")
         lines.append(f"{fc.primary_conclusion_zh}")
         lines.append("")
         if fc.ruled_out_zh:
-            lines.append("**已排除：**")
+            lines.append("**当前未支持/已排除：**")
             for r in fc.ruled_out_zh:
                 lines.append(f"- {r}")
             lines.append("")
@@ -319,8 +348,12 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
 
     lines.append(f"- 调查轮次: {state.iteration_count}")
 
-    # 置信度：基于证据一致性而非固定 0.00
-    if corrections:
+    # 置信度：以 final_conclusion.confidence_label（经 validator 校验）为准
+    if fc:
+        _CL = {"high": "高", "medium": "中", "low": "低"}
+        cl_zh = _CL.get(fc.confidence_label, fc.confidence_label)
+        lines.append(f"- 整体结论置信度：{cl_zh}（{fc.confidence_reason_zh}）")
+    elif corrections:
         lines.append("- 整体结论置信度：低（存在证据口径冲突已修正）")
     elif consistency_warnings:
         lines.append("- 整体结论置信度：低（存在需人工确认的问题）")

@@ -1485,6 +1485,20 @@ def validate_final_conclusion(state: Any) -> None:
             warnings.append("planned_count=0 不等于排除计划性停机，已修正")
             downgrades.append("ruled_out 修正：计划停机排除→待施工日志确认")
 
+    # ── 7. drilldown 覆盖不足时不能完全排除 SER 主导假设 ──
+    if total_cases > 0 and len(stoppage_case_drilldowns) < total_cases:
+        for i, item in enumerate(fc.ruled_out_zh):
+            if "SER" in item and ("排除" in item or "已排除" in item or "主导" in item):
+                fc.ruled_out_zh[i] = (
+                    f"当前未支持：SER 主导停机假设。"
+                    f"drilldown 仅覆盖 {len(stoppage_case_drilldowns)}/{total_cases} 个停机案例，"
+                    f"不能完全排除，需继续核查未分类停机案例。"
+                )
+                warnings.append(
+                    f"drilldown 覆盖不足（{len(stoppage_case_drilldowns)}/{total_cases}），"
+                    f"SER 主导假设不能完全排除"
+                )
+
     fc.validator_applied = True
     fc.validation_warnings = warnings
     fc.downgraded_fields = downgrades

@@ -224,11 +224,25 @@ python -m tbm_diag.cli investigate --input data.xls --planner llm --planner-audi
 python -m tbm_diag.cli investigate --input data.xls --planner hybrid --planner-audit
 ```
 
+#### 调查深度
+
+`--max-iterations` 控制调查深度（默认 20）：
+
+| 深度 | 轮数 | 适用场景 |
+|------|------|---------|
+| 快速演示 | 12 | 演示/初筛，可能跳过 HYD/碎片化 |
+| 标准调查 | 20 | 日常分析，完成所有计划项 |
+| 深度调查 | 40 | 多文件/多 drilldown 场景 |
+
+系统会根据文件特征自动计算推荐轮数，如果实际轮数不足会在报告中标注。
+批量钻取工具（`drilldown_time_windows_batch`）可一轮内验证多个停机案例，减少轮数消耗。
+
 ### investigate 的 ReAct 工作流
 
 ```
 inspect file overview
 → load event summary
+→ 生成调查计划（P1~P4）和调查问题（Q1~Q5）
 → 根据观察结果动态选择路径：
   - 停机占比高 → analyze_stoppage_cases
   - SER 事件多 → analyze_resistance_pattern

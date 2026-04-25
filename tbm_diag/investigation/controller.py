@@ -24,6 +24,8 @@ from tbm_diag.investigation.state import (
     Observation,
     EvidenceGateOverride,
     OpenQuestion,
+    PlanItem,
+    InvestigationPlan,
 )
 from tbm_diag.investigation.tools import TOOL_REGISTRY
 from tbm_diag.investigation.planner import plan_next_action
@@ -66,6 +68,8 @@ def _execute_action(
     elif action == "analyze_stoppage_cases":
         arguments["state"] = state
     elif action == "drilldown_time_window":
+        arguments["state"] = state
+    elif action == "drilldown_time_windows_batch":
         arguments["state"] = state
 
     allowed_params.add("state")
@@ -181,6 +185,9 @@ def _make_observation_summary(action: str, result: dict[str, Any]) -> str:
         return result.get("summary", f"events={result.get('event_count')}")
     elif action == "drilldown_time_window":
         return result.get("summary", f"target={result.get('target_id')}")
+    elif action == "drilldown_time_windows_batch":
+        bs = result.get("batch_summary", {})
+        return result.get("summary", f"batch {bs.get('successful', 0)}/{bs.get('total_targets', 0)}")
     return json.dumps({k: v for k, v in result.items() if not k.startswith("_")}, ensure_ascii=False)[:200]
 
 
@@ -291,6 +298,147 @@ def _generate_investigation_questions(state: InvestigationState) -> None:
     state.investigation_questions = questions
 
 
+    state.investigation_questions = questions
+
+
+def _generate_investigation_plan(state: InvestigationState, max_iterations: int) -> None:
+    """根据文件特征生成调查计划。"""
+    if state.investigation_plan:
+        return
+
+    overview = state.file_overviews.get(state.current_file)
+    if not overview:
+        return
+
+    sem = overview.semantic_event_distribution
+    sd = overview.state_distribution
+    stoppage_count = sem.get("stoppage_segment", 0)
+    stopped_pct = sd.get("stopped", 0)
+    ser_count = (sem.get("suspected_excavation_resistance", 0)
+                 + sem.get("excavation_resistance_under_load", 0))
+    hyd_count = sem.get("hydraulic_instability", 0)
+    event_count = overview.event_count
+
+    items: list[PlanItem] = []
+    estimated = 2  # overview + event_summary
+
+    # P1: 停机验证
+    if stoppage_count >= 3 or stopped_pct >= 30:
+        # 收集 drilldown targets
+        sc_targets = []
+        for cases in state.stoppage_cases.values():
+            for c in sorted(cases, key=lambda x: -x.duration_seconds)[:2]:
+                sc_targets.append(c.case_id)
+        # 也包含 unverified cases
+        for cid, cls in state.case_classifications.items():
+            if cls.case_type == "event_level_abnormal_unverified" and cid not in sc_targets:
+                sc_targets.append(cid)
+        sc_targets = sc_targets[:3]
+
+        p1_tools = ["analyze_stoppage_cases"]
+        p1_rounds = 1
+        if sc_targets:
+            if len(sc_targets) >= 2:
+                p1_tools.append("drilldown_time_windows_batch")
+                p1_rounds += 1
+            else:
+                p1_tools.append("drilldown_time_window")
+                p1_rounds += 1
+
+        items.append(PlanItem(
+            plan_id="P1",
+            question="停机验证：是否存在异常停机前兆？",
+            priority="high",
+            required_tools=p1_tools,
+            target_ids=sc_targets,
+            estimated_rounds=p1_rounds,
+        ))
+        estimated += p1_rounds
+
+    # P2: SER 验证
+    if ser_count >= 3:
+        items.append(PlanItem(
+            plan_id="P2",
+            question="SER 验证：是否为推进中真实阻力异常？",
+            priority="high",
+            required_tools=["analyze_resistance_pattern", "drilldown_time_window"],
+            estimated_rounds=2,
+        ))
+        estimated += 2
+
+    # P3: HYD 验证
+    if hyd_count >= 3:
+        items.append(PlanItem(
+            plan_id="P3",
+            question="HYD 验证：是否为系统性液压异常？",
+            priority="medium",
+            required_tools=["analyze_hydraulic_pattern"],
+            estimated_rounds=1,
+        ))
+        estimated += 1
+
+    # P4: 碎片化
+    if event_count >= 8:
+        items.append(PlanItem(
+            plan_id="P4",
+            question="碎片化验证：事件是否存在规则放大？",
+            priority="medium",
+            required_tools=["analyze_event_fragmentation"],
+            estimated_rounds=1,
+        ))
+        estimated += 1
+
+    estimated += 1  # generate_report
+
+    # 计算推荐轮数
+    recommended = max(estimated + 2, 12)  # buffer
+    budget_warning = ""
+    if max_iterations < estimated:
+        budget_warning = (
+            f"当前 max_iterations={max_iterations} 不足以完成完整调查"
+            f"（需约 {estimated} 轮），结果仅供初筛。"
+        )
+
+    state.investigation_plan = InvestigationPlan(
+        plan_items=items,
+        estimated_required_rounds=estimated,
+        recommended_max_iterations=recommended,
+        budget_warning=budget_warning,
+    )
+
+
+def _update_plan_status(state: InvestigationState, action: str, result: dict) -> None:
+    """根据工具调用结果更新计划项状态。"""
+    plan = state.investigation_plan
+    if not plan:
+        return
+
+    is_error = result.get("status") == "error"
+
+    for item in plan.plan_items:
+        if action in item.required_tools:
+            if is_error:
+                continue
+            if item.status == "pending":
+                item.status = "in_progress"
+            remaining = [t for t in item.required_tools
+                         if t not in {a.action for a in state.actions_taken}]
+            if not remaining:
+                item.status = "completed"
+
+    # batch drilldown counts as drilldown_time_window for plan purposes
+    if action == "drilldown_time_windows_batch" and not is_error:
+        for item in plan.plan_items:
+            if "drilldown_time_window" in item.required_tools:
+                if item.status == "pending":
+                    item.status = "in_progress"
+                remaining = [t for t in item.required_tools
+                             if t not in {a.action for a in state.actions_taken}
+                             and t != "drilldown_time_window"]
+                if not remaining:
+                    item.status = "completed"
+
+
 def _update_question_status(
     state: InvestigationState,
     action: str,
@@ -334,6 +482,28 @@ def _update_question_status(
             if action not in q.tools_called:
                 q.tools_called.append(action)
             if not is_error:
+                q.findings.append(finding)
+                if q.status in ("unanswered", "partially_answered"):
+                    q.status = "partially_answered"
+
+    elif action == "drilldown_time_windows_batch":
+        for pt in result.get("per_target", []):
+            if pt.get("status") == "error":
+                continue
+            tid = pt.get("target_id", "")
+            hint = pt.get("interpretation_hint", "")
+            finding = f"{tid}: {hint}" if hint else f"{tid}: drilldown 完成"
+            if tid.startswith("SC_") and "Q1" in q_map:
+                q = q_map["Q1"]
+                if "drilldown_time_windows_batch" not in q.tools_called:
+                    q.tools_called.append("drilldown_time_windows_batch")
+                q.findings.append(finding)
+                if q.status in ("unanswered", "partially_answered"):
+                    q.status = "partially_answered"
+            elif tid.startswith("SER_") and "Q2" in q_map:
+                q = q_map["Q2"]
+                if "drilldown_time_windows_batch" not in q.tools_called:
+                    q.tools_called.append("drilldown_time_windows_batch")
                 q.findings.append(finding)
                 if q.status in ("unanswered", "partially_answered"):
                     q.status = "partially_answered"
@@ -390,7 +560,7 @@ def _finalize_question_status(state: InvestigationState) -> None:
         # Q1: 停机类 — 需要 analyze + drilldown 才算 answered
         if q.qid == "Q1" and q.priority == "high":
             has_analyze = "analyze_stoppage_cases" in q.tools_called
-            has_dd = "drilldown_time_window" in q.tools_called
+            has_dd = "drilldown_time_window" in q.tools_called or "drilldown_time_windows_batch" in q.tools_called
             if has_analyze and has_dd:
                 q.status = "answered"
             elif has_analyze and not has_dd:
@@ -402,7 +572,7 @@ def _finalize_question_status(state: InvestigationState) -> None:
         # Q2: SER 类
         if q.qid == "Q2" and q.priority == "high":
             has_analyze = "analyze_resistance_pattern" in q.tools_called
-            has_dd = "drilldown_time_window" in q.tools_called
+            has_dd = "drilldown_time_window" in q.tools_called or "drilldown_time_windows_batch" in q.tools_called
             if has_analyze and has_dd:
                 q.status = "answered"
             elif has_analyze:
@@ -479,22 +649,50 @@ def _check_evidence_gate(
     total_cases = sum(len(v) for v in state.stoppage_cases.values())
     drilldown_count = sum(
         1 for o in state.observations
-        if o.action == "drilldown_time_window"
-        and (o.data.get("target_id", "").startswith("SC_"))
+        if o.action in ("drilldown_time_window", "drilldown_time_windows_batch")
+        and (o.data.get("target_id", "").startswith("SC_")
+             or any(pt.get("target_id", "").startswith("SC_")
+                     for pt in (o.data.get("per_target") or [])))
     )
 
     # 如果 max_iterations 即将耗尽（只剩 1 轮），允许生成报告
     if remaining <= 1:
         return False, "", {}, ""
 
-    # 规则 1: 存在停机案例但 drilldown_count == 0
+    # 规则 1: 存在停机案例但 drilldown_count == 0 — 优先 batch
     if total_cases > 0 and drilldown_count == 0:
-        target_id, reason = _select_drilldown_target(state)
-        if target_id:
+        # 收集需要 drilldown 的目标
+        targets_needed = []
+        for cid, cls in state.case_classifications.items():
+            if cls.case_type == "event_level_abnormal_unverified":
+                targets_needed.append(cid)
+        all_cases = []
+        for cases in state.stoppage_cases.values():
+            all_cases.extend(cases)
+        all_cases.sort(key=lambda c: -c.duration_seconds)
+        drilldown_done = set()
+        for a in state.actions_taken:
+            if a.action in ("drilldown_time_window", "drilldown_time_windows_batch"):
+                tid = (a.arguments or {}).get("target_id", "")
+                if tid:
+                    drilldown_done.add(tid)
+                for t in (a.arguments or {}).get("target_ids", []):
+                    drilldown_done.add(t)
+        for c in all_cases:
+            if c.case_id not in drilldown_done and c.case_id not in targets_needed:
+                targets_needed.append(c.case_id)
+        targets_needed = [t for t in targets_needed if t not in drilldown_done][:3]
+
+        if len(targets_needed) >= 2 and remaining > 2:
+            return True, "drilldown_time_windows_batch", {
+                "file_path": state.current_file,
+                "target_ids": targets_needed,
+            }, f"存在 {len(targets_needed)} 个待验证停机案例，批量钻取"
+        elif targets_needed:
             return True, "drilldown_time_window", {
                 "file_path": state.current_file,
-                "target_id": target_id,
-            }, reason
+                "target_id": targets_needed[0],
+            }, f"停机案例 {targets_needed[0]} 尚未 drilldown"
 
     # 规则 2: 存在事件级异常线索但未 drilldown
     unverified = [
@@ -682,9 +880,11 @@ def run_investigation(
 
         _update_state(state, action, arguments, result)
         _update_question_status(state, action, result)
+        _update_plan_status(state, action, result)
 
         if action == "inspect_file_overview" and state.mode == "single_file":
             _generate_investigation_questions(state)
+            _generate_investigation_plan(state, max_iterations)
 
         if action == "generate_investigation_report":
             report_text = result.get("report_text", "")
@@ -704,6 +904,12 @@ def run_investigation(
 
     if not state.stop_reason:
         state.stop_reason = f"max_iterations ({max_iterations})"
+
+    # ── 计划项最终状态 ──
+    if state.investigation_plan:
+        for item in state.investigation_plan.plan_items:
+            if item.status in ("pending", "in_progress"):
+                item.status = "skipped_due_to_budget"
 
     # ── 问题状态最终确认 ──
     _finalize_question_status(state)

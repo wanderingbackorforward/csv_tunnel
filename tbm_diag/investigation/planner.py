@@ -24,6 +24,7 @@ LLM_TOOL_WHITELIST = [
     "load_event_summary",
     "analyze_stoppage_cases",
     "drilldown_time_window",
+    "drilldown_time_windows_batch",
     "analyze_resistance_pattern",
     "analyze_hydraulic_pattern",
     "analyze_event_fragmentation",

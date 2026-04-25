@@ -1507,6 +1507,90 @@ def validate_final_conclusion(state: Any) -> None:
         fc.confidence_reason_zh = (fc.confidence_reason_zh or "") + "；validator 已修正过度自信结论"
 
 
+def drilldown_time_windows_batch(
+    file_path: str,
+    target_ids: Optional[list[str]] = None,
+    pre_minutes: float = 10,
+    post_minutes: float = 10,
+    state: Any = None,
+) -> dict[str, Any]:
+    """批量 drilldown：一次对多个 target 做前后窗口钻取。"""
+    if not target_ids:
+        return {"status": "error", "error": "need target_ids list"}
+
+    target_ids = target_ids[:5]
+    results = []
+    abnormal_before = 0
+    normal_before = 0
+    recovered_after = 0
+    unsupported = 0
+
+    for tid in target_ids:
+        r = drilldown_time_window(
+            file_path=file_path,
+            target_id=tid,
+            pre_minutes=pre_minutes,
+            post_minutes=post_minutes,
+            state=state,
+        )
+        results.append(r)
+        if r.get("status") == "error":
+            unsupported += 1
+            continue
+        hint = r.get("interpretation_hint", "")
+        if "异常迹象" in hint:
+            abnormal_before += 1
+        elif "停机前未见明显异常" in hint:
+            normal_before += 1
+        if "恢复正常" in hint:
+            recovered_after += 1
+
+    successful = [r for r in results if r.get("status") != "error"]
+
+    batch_summary = {
+        "total_targets": len(target_ids),
+        "successful": len(successful),
+        "abnormal_before_count": abnormal_before,
+        "normal_before_count": normal_before,
+        "recovered_after_count": recovered_after,
+        "unsupported_targets": unsupported,
+    }
+
+    per_target = []
+    for r in results:
+        tid = r.get("target_id", "?")
+        per_target.append({
+            "target_id": tid,
+            "status": r.get("status", "error"),
+            "interpretation_hint": r.get("interpretation_hint", ""),
+            "compact_pre": r.get("compact_pre", ""),
+            "compact_during": r.get("compact_during", ""),
+            "compact_post": r.get("compact_post", ""),
+            "pre_summary": r.get("pre_summary", {}),
+            "during_summary": r.get("during_summary", {}),
+            "post_summary": r.get("post_summary", {}),
+            "divergence_notes": r.get("divergence_notes", []),
+            "target_event_info": r.get("target_event_info", {}),
+            "semantic_overlap": r.get("semantic_overlap", {}),
+            "transition_findings": r.get("transition_findings", []),
+        })
+
+    hints = [r.get("interpretation_hint", "") for r in successful if r.get("interpretation_hint")]
+    summary = f"批量钻取 {len(successful)}/{len(target_ids)} 个目标完成"
+    if normal_before:
+        summary += f"，{normal_before} 个停机前无异常"
+    if abnormal_before:
+        summary += f"，{abnormal_before} 个停机前有异常迹象"
+
+    return {
+        "status": "ok",
+        "batch_summary": batch_summary,
+        "per_target": per_target,
+        "summary": summary,
+        "target_ids": target_ids,
+    }
+
+
 # ── 工具注册表 ────────────────────────────────────────────────────────────────
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {
@@ -1574,6 +1658,11 @@ TOOL_REGISTRY: dict[str, dict[str, Any]] = {
         "fn": drilldown_time_window,
         "description": "对指定事件/case 做前后窗口钻取：推进参数、异常命中、工况转变",
         "params": ["file_path", "target_id", "start_time", "end_time", "pre_minutes", "post_minutes"],
+    },
+    "drilldown_time_windows_batch": {
+        "fn": drilldown_time_windows_batch,
+        "description": "批量钻取：一次对 2~5 个 target 做前后窗口分析",
+        "params": ["file_path", "target_ids", "pre_minutes", "post_minutes"],
     },
 }
 

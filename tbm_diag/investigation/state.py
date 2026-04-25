@@ -81,6 +81,25 @@ class OpenQuestion:
 
 
 @dataclass
+class PlanItem:
+    plan_id: str = ""
+    question: str = ""
+    priority: str = "high"  # high / medium / low
+    required_tools: list[str] = field(default_factory=list)
+    target_ids: list[str] = field(default_factory=list)
+    status: str = "pending"  # pending / in_progress / completed / skipped_due_to_budget
+    estimated_rounds: int = 1
+
+
+@dataclass
+class InvestigationPlan:
+    plan_items: list[PlanItem] = field(default_factory=list)
+    estimated_required_rounds: int = 0
+    recommended_max_iterations: int = 20
+    budget_warning: str = ""
+
+
+@dataclass
 class ActionRecord:
     round_num: int = 0
     action: str = ""
@@ -195,3 +214,4 @@ class InvestigationState:
     final_conclusion: Optional[FinalConclusion] = None
     evidence_gate_overrides: list[EvidenceGateOverride] = field(default_factory=list)
     investigation_questions: list[OpenQuestion] = field(default_factory=list)
+    investigation_plan: Optional[InvestigationPlan] = None

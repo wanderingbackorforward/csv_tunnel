@@ -1217,8 +1217,8 @@ def main(argv: list[str] | None = None) -> int:
                        help="planner 模式：rule=纯规则 llm=每轮调LLM hybrid=混合（默认 rule）")
     p_inv.add_argument("--use-llm-planner", action="store_true",
                        help="（已废弃，请用 --planner llm）使用 LLM planner")
-    p_inv.add_argument("--max-iterations", type=int, default=15, metavar="N",
-                       help="最大迭代轮数（默认 15）")
+    p_inv.add_argument("--max-iterations", type=int, default=20, metavar="N",
+                       help="最大迭代轮数（默认 20）")
     p_inv.add_argument("--config", default=None, metavar="PATH",
                        help="配置文件路径")
     p_inv.add_argument("--verbose", "-v", action="store_true",

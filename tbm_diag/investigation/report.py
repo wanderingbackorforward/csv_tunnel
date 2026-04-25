@@ -648,6 +648,40 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
                 )
             lines.append("")
 
+    # ── 调查计划执行情况 ──
+    plan = state.investigation_plan
+    if plan and plan.plan_items:
+        _PS = {
+            "pending": "待执行",
+            "in_progress": "进行中",
+            "completed": "已完成",
+            "skipped_due_to_budget": "因轮数不足跳过",
+        }
+        lines.append("## 调查计划执行情况\n")
+        lines.append(f"- 预估所需轮数：{plan.estimated_required_rounds}")
+        lines.append(f"- 推荐 max_iterations：{plan.recommended_max_iterations}")
+        lines.append(f"- 实际 max_iterations：{state.iteration_count}"
+                     f"（停止原因：{state.stop_reason}）")
+        if plan.budget_warning:
+            lines.append(f"- **预算警告**：{plan.budget_warning}")
+        lines.append("")
+
+        lines.append("| 计划项 | 优先级 | 目标 | 所需工具 | 状态 |")
+        lines.append("|--------|--------|------|----------|------|")
+        for item in plan.plan_items:
+            targets = ", ".join(item.target_ids[:3]) if item.target_ids else "—"
+            tools = ", ".join(item.required_tools)
+            status_zh = _PS.get(item.status, item.status)
+            lines.append(
+                f"| {item.plan_id}: {item.question[:20]} | {item.priority} "
+                f"| {targets} | {tools} | {status_zh} |"
+            )
+        lines.append("")
+
+        skipped = [i for i in plan.plan_items if i.status == "skipped_due_to_budget"]
+        if skipped:
+            lines.append("当前轮数不足以完成完整调查，结果仅供初筛。\n")
+
     # ── 调查问题完成情况 ──
     if state.investigation_questions:
         _QS = {

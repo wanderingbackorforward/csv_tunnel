@@ -345,6 +345,29 @@ def render_investigation_audit(output_dir: Path) -> None:
                         f" — {eg.get('override_reason', '')}"
                     )
 
+    # 调查计划执行情况
+    inv_plan = state_doc.get("investigation_plan")
+    if inv_plan and isinstance(inv_plan, dict):
+        plan_items = inv_plan.get("plan_items", [])
+        if plan_items:
+            st.markdown("#### 调查计划执行情况")
+            _PS_ZH = {
+                "pending": "待执行", "in_progress": "进行中",
+                "completed": "已完成", "skipped_due_to_budget": "轮数不足跳过",
+            }
+            plan_rows = []
+            for item in plan_items:
+                plan_rows.append({
+                    "计划项": f"{item.get('plan_id', '')}: {item.get('question', '')[:18]}",
+                    "优先级": item.get("priority", ""),
+                    "状态": _PS_ZH.get(item.get("status", ""), item.get("status", "")),
+                    "所需工具": ", ".join(item.get("required_tools", [])),
+                })
+            st.dataframe(pd.DataFrame(plan_rows), use_container_width=True, hide_index=True)
+            budget_warning = inv_plan.get("budget_warning", "")
+            if budget_warning:
+                st.warning(budget_warning)
+
     # 最终调查结论（优先展示）
     fc = state_doc.get("final_conclusion")
     if fc and isinstance(fc, dict):
@@ -861,11 +884,17 @@ def render_investigation_tab() -> None:
         value=selected_file or str(default_path if default_path.exists() else ""),
     )
     output_dir_text = st.text_input("输入输出目录", value=str(INVESTIGATION_DEMO_DIR))
-    col_mode, col_iter = st.columns(2)
+    col_mode, col_depth = st.columns(2)
     with col_mode:
         focus_mode = st.selectbox("调查聚焦模式", ["auto", "stoppage", "resistance", "hydraulic", "fragmentation"])
-    with col_iter:
-        max_iterations = st.number_input("最大轮数", min_value=1, max_value=50, value=12, step=1)
+    with col_depth:
+        depth_options = {"快速演示（12轮）": 12, "标准调查（20轮）": 20, "深度调查（40轮）": 40}
+        depth_label = st.selectbox("调查深度", list(depth_options.keys()), index=1)
+        max_iterations = depth_options[depth_label]
+    custom_iter = st.number_input("自定义轮数（覆盖上方选择）", min_value=0, max_value=50, value=0, step=1,
+                                  help="设为 0 则使用上方调查深度")
+    if custom_iter > 0:
+        max_iterations = int(custom_iter)
     col_planner, col_audit = st.columns(2)
     with col_planner:
         planner_mode = st.selectbox("Planner 模式", ["rule", "llm", "hybrid"],

@@ -18,9 +18,15 @@ _CASE_TYPE_LABELS = {
 
 def _build_react_trace_table(state: InvestigationState) -> list[str]:
     """构建 ReAct 调查轨迹表。"""
+    has_overrides = any(a.evidence_gate_override for a in state.actions_taken)
+
     lines = ["## ReAct 调查轨迹", ""]
-    lines.append("| 轮次 | Planner | LLM | 决策理由 | 调用工具 | 观察结果 | 触发字段 | fallback |")
-    lines.append("|------|---------|-----|----------|----------|----------|----------|----------|")
+    if has_overrides:
+        lines.append("| 轮次 | Planner | LLM | 决策理由 | 调用工具 | 观察结果 | Evidence Gate |")
+        lines.append("|------|---------|-----|----------|----------|----------|--------------|")
+    else:
+        lines.append("| 轮次 | Planner | LLM | 决策理由 | 调用工具 | 观察结果 | 触发字段 | fallback |")
+        lines.append("|------|---------|-----|----------|----------|----------|----------|----------|")
 
     audit_map = {a.round_num: a for a in state.audit_log} if state.audit_log else {}
 
@@ -39,10 +45,20 @@ def _build_react_trace_table(state: InvestigationState) -> list[str]:
         pt = _PT.get(action_rec.planner_type, action_rec.planner_type)
         llm_col = action_rec.llm_status if action_rec.llm_called else "—"
         fb = "是" if action_rec.fallback_used else "—"
-        lines.append(
-            f"| {action_rec.round_num} | {pt} | {llm_col} "
-            f"| {rationale} | {action_rec.action} | {obs_text} | {trigger} | {fb} |"
-        )
+        if has_overrides:
+            if action_rec.evidence_gate_override:
+                eg_col = f"override: {action_rec.evidence_gate_original_action}→{action_rec.action}"
+            else:
+                eg_col = "—"
+            lines.append(
+                f"| {action_rec.round_num} | {pt} | {llm_col} "
+                f"| {rationale} | {action_rec.action} | {obs_text} | {eg_col} |"
+            )
+        else:
+            lines.append(
+                f"| {action_rec.round_num} | {pt} | {llm_col} "
+                f"| {rationale} | {action_rec.action} | {obs_text} | {trigger} | {fb} |"
+            )
     lines.append("")
     return lines
 
@@ -604,6 +620,33 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
 
     # ── Planner 与大模型调用审计 ──
     lines.extend(_build_planner_audit_section(state))
+
+    # ── Evidence Gate 审计 ──
+    eg_overrides = state.evidence_gate_overrides
+    total_cases_eg = sum(len(v) for v in state.stoppage_cases.values())
+    dd_sc_eg = sum(1 for o in state.observations
+                   if o.action == "drilldown_time_window"
+                   and (o.data.get("target_id", "").startswith("SC_")))
+    if eg_overrides or total_cases_eg > 0:
+        lines.append("## Evidence Gate 审计\n")
+        lines.append(f"- Evidence Gate 触发次数：{len(eg_overrides)}")
+        lines.append(f"- 停机案例 drilldown 覆盖率：{dd_sc_eg}/{total_cases_eg}")
+        unverified_eg = [
+            cid for cid, cls in state.case_classifications.items()
+            if cls.case_type == "event_level_abnormal_unverified"
+        ]
+        if unverified_eg:
+            lines.append(f"- 仍有未验证事件级异常线索：{', '.join(unverified_eg)}")
+        if "max_iterations" in state.stop_reason and dd_sc_eg < total_cases_eg:
+            lines.append(f"- 因最大轮数限制，未完成最低 drilldown 覆盖。")
+        lines.append("")
+        if eg_overrides:
+            for eg in eg_overrides:
+                lines.append(
+                    f"- 第 {eg.round_num} 轮：LLM 选择 `{eg.llm_selected_action}`，"
+                    f"但{eg.override_reason}，因此改为 `{eg.final_selected_action}({eg.target_id})`"
+                )
+            lines.append("")
 
     # ── 证据一致性检查 ──
     if corrections or consistency_warnings or unverified_cases:

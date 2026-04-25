@@ -22,6 +22,7 @@ from tbm_diag.investigation.state import (
     InvestigationState,
     ActionRecord,
     Observation,
+    EvidenceGateOverride,
 )
 from tbm_diag.investigation.tools import TOOL_REGISTRY
 from tbm_diag.investigation.planner import plan_next_action
@@ -182,6 +183,88 @@ def _make_observation_summary(action: str, result: dict[str, Any]) -> str:
     return json.dumps({k: v for k, v in result.items() if not k.startswith("_")}, ensure_ascii=False)[:200]
 
 
+def _select_drilldown_target(state: InvestigationState) -> tuple[str, str]:
+    """选择 evidence gate 要求的 drilldown 目标。返回 (target_id, reason)。"""
+    fp = state.current_file
+    drilldown_done = set()
+    for a in state.actions_taken:
+        if a.action == "drilldown_time_window":
+            tid = (a.arguments or {}).get("target_id", "")
+            if tid:
+                drilldown_done.add(tid)
+
+    # 优先级 1: 事件级异常线索，待验证
+    for cid, cls in state.case_classifications.items():
+        if cls.case_type == "event_level_abnormal_unverified" and cid not in drilldown_done:
+            return cid, f"存在未验证事件级异常线索 {cid}，必须先做 drilldown"
+
+    # 优先级 2: 最长未 drilldown 的停机案例
+    all_cases = []
+    for cases in state.stoppage_cases.values():
+        all_cases.extend(cases)
+    all_cases.sort(key=lambda c: -c.duration_seconds)
+    for c in all_cases:
+        if c.case_id not in drilldown_done:
+            return c.case_id, f"停机案例 {c.case_id} ({c.duration_seconds/60:.0f}min) 尚未 drilldown"
+
+    return "", ""
+
+
+def _check_evidence_gate(
+    action: str,
+    state: InvestigationState,
+    max_iterations: int,
+) -> tuple[bool, str, dict, str]:
+    """检查是否满足最低证据门槛。
+
+    返回 (should_override, new_action, new_arguments, reason)。
+    """
+    if action != "generate_investigation_report":
+        return False, "", {}, ""
+
+    remaining = max_iterations - state.iteration_count
+    total_cases = sum(len(v) for v in state.stoppage_cases.values())
+    drilldown_count = sum(
+        1 for o in state.observations
+        if o.action == "drilldown_time_window"
+        and (o.data.get("target_id", "").startswith("SC_"))
+    )
+
+    # 如果 max_iterations 即将耗尽（只剩 1 轮），允许生成报告
+    if remaining <= 1:
+        return False, "", {}, ""
+
+    # 规则 1: 存在停机案例但 drilldown_count == 0
+    if total_cases > 0 and drilldown_count == 0:
+        target_id, reason = _select_drilldown_target(state)
+        if target_id:
+            return True, "drilldown_time_window", {
+                "file_path": state.current_file,
+                "target_id": target_id,
+            }, reason
+
+    # 规则 2: 存在事件级异常线索但未 drilldown
+    unverified = [
+        cid for cid, cls in state.case_classifications.items()
+        if cls.case_type == "event_level_abnormal_unverified"
+    ]
+    drilldown_done = set()
+    for a in state.actions_taken:
+        if a.action == "drilldown_time_window":
+            tid = (a.arguments or {}).get("target_id", "")
+            if tid:
+                drilldown_done.add(tid)
+    unverified_not_drilled = [cid for cid in unverified if cid not in drilldown_done]
+    if unverified_not_drilled:
+        target_id = unverified_not_drilled[0]
+        return True, "drilldown_time_window", {
+            "file_path": state.current_file,
+            "target_id": target_id,
+        }, f"存在未验证事件级异常线索 {target_id}，必须先做 drilldown"
+
+    return False, "", {}, ""
+
+
 def run_investigation(
     input_files: list[str],
     mode: str = "single_file",
@@ -281,6 +364,29 @@ def run_investigation(
             if audit_rec.triggered_by_field:
                 print(f"[audit] ★ triggered_by: {audit_rec.triggered_by_field}  obs: {audit_rec.observation_used}")
 
+        # ── Evidence Gate: 检查最低证据门槛 ──
+        eg_override = False
+        eg_original_action = ""
+        eg_reason = ""
+        should_override, new_action, new_args, override_reason = _check_evidence_gate(
+            action, state, max_iterations,
+        )
+        if should_override:
+            eg_override = True
+            eg_original_action = action
+            eg_reason = override_reason
+            action = new_action
+            arguments = new_args
+            rationale = f"[Evidence Gate] {override_reason}"
+            state.evidence_gate_overrides.append(EvidenceGateOverride(
+                round_num=iteration,
+                llm_selected_action=eg_original_action,
+                final_selected_action=new_action,
+                override_reason=override_reason,
+                target_id=new_args.get("target_id", ""),
+            ))
+            print(f"[evidence_gate] OVERRIDE: {eg_original_action} → {action} (reason: {override_reason})")
+
         state.actions_taken.append(ActionRecord(
             round_num=iteration,
             action=action,
@@ -290,6 +396,9 @@ def run_investigation(
             llm_called=round_llm_status != "skipped",
             llm_status=round_llm_status,
             fallback_used=round_fallback,
+            evidence_gate_override=eg_override,
+            evidence_gate_original_action=eg_original_action,
+            evidence_gate_reason=eg_reason,
         ))
 
         result = _execute_action(action, arguments, state)

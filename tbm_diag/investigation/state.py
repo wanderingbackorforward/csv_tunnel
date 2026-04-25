@@ -59,6 +59,15 @@ class CaseClassification:
 
 
 @dataclass
+class EvidenceGateOverride:
+    round_num: int = 0
+    llm_selected_action: str = ""
+    final_selected_action: str = ""
+    override_reason: str = ""
+    target_id: str = ""
+
+
+@dataclass
 class ActionRecord:
     round_num: int = 0
     action: str = ""
@@ -69,6 +78,9 @@ class ActionRecord:
     llm_called: bool = False
     llm_status: str = ""  # success / no_key / api_error / timeout / parse_error / skipped
     fallback_used: bool = False
+    evidence_gate_override: bool = False
+    evidence_gate_original_action: str = ""
+    evidence_gate_reason: str = ""
 
 
 @dataclass
@@ -168,3 +180,4 @@ class InvestigationState:
     llm_model: str = ""
     llm_calls: list[LlmCallRecord] = field(default_factory=list)
     final_conclusion: Optional[FinalConclusion] = None
+    evidence_gate_overrides: list[EvidenceGateOverride] = field(default_factory=list)

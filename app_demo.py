@@ -316,6 +316,35 @@ def render_investigation_audit(output_dir: Path) -> None:
 
     st.markdown(f"**action_sequence:** `{action_seq}`")
 
+    # Evidence Gate 状态
+    eg_overrides = state_doc.get("evidence_gate_overrides", [])
+    stoppage_cases_all = state_doc.get("stoppage_cases", {})
+    total_sc = sum(len(v) for v in stoppage_cases_all.values()) if isinstance(stoppage_cases_all, dict) else 0
+    dd_sc = sum(
+        1 for a in state_doc.get("actions_taken", [])
+        if a.get("action") == "drilldown_time_window"
+        and (a.get("arguments") or {}).get("target_id", "").startswith("SC_")
+    )
+    if eg_overrides or total_sc > 0:
+        st.markdown("#### Evidence Gate")
+        col_eg1, col_eg2, col_eg3 = st.columns(3)
+        col_eg1.metric("Gate 触发次数", len(eg_overrides))
+        col_eg2.metric("drilldown 覆盖", f"{dd_sc}/{total_sc}")
+        unverified_eg = [
+            cid for cid, cls in (state_doc.get("case_classifications") or {}).items()
+            if isinstance(cls, dict) and cls.get("case_type") == "event_level_abnormal_unverified"
+        ]
+        col_eg3.metric("未验证异常线索", len(unverified_eg))
+        if eg_overrides:
+            st.warning("系统阻止了过早生成报告，先补充关键 drilldown。")
+            with st.expander(f"Evidence Gate 详情（{len(eg_overrides)} 次 override）"):
+                for eg in eg_overrides:
+                    st.markdown(
+                        f"- 第 {eg.get('round_num')} 轮：LLM 选择 `{eg.get('llm_selected_action')}`，"
+                        f"改为 `{eg.get('final_selected_action')}({eg.get('target_id', '')})`"
+                        f" — {eg.get('override_reason', '')}"
+                    )
+
     # 最终调查结论（优先展示）
     fc = state_doc.get("final_conclusion")
     if fc and isinstance(fc, dict):
@@ -346,7 +375,7 @@ def render_investigation_audit(output_dir: Path) -> None:
         unresolved = fc.get("unresolved_questions_zh", [])
         checks = fc.get("next_manual_checks", [])
         if ruled_out:
-            st.markdown("**已排除：**" + "；".join(ruled_out))
+            st.markdown("**当前未支持/已排除：**" + "；".join(ruled_out))
         if unresolved:
             st.markdown("**仍不确定：**" + "；".join(unresolved))
         if checks:

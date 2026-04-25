@@ -298,9 +298,6 @@ def _generate_investigation_questions(state: InvestigationState) -> None:
     state.investigation_questions = questions
 
 
-    state.investigation_questions = questions
-
-
 def _generate_investigation_plan(state: InvestigationState, max_iterations: int) -> None:
     """根据文件特征生成调查计划。"""
     if state.investigation_plan:
@@ -408,35 +405,166 @@ def _generate_investigation_plan(state: InvestigationState, max_iterations: int)
 
 
 def _update_plan_status(state: InvestigationState, action: str, result: dict) -> None:
-    """根据工具调用结果更新计划项状态。"""
+    """根据工具调用结果更新计划项状态（证据驱动）。"""
     plan = state.investigation_plan
     if not plan:
         return
 
     is_error = result.get("status") == "error"
+    actions_done = {a.action for a in state.actions_taken}
+
+    # 收集已完成的 SC drilldown 目标
+    sc_drilled = set()
+    ser_drilled = set()
+    for obs in state.observations:
+        if obs.action == "drilldown_time_window" and obs.data.get("status") != "error":
+            tid = obs.data.get("target_id", "")
+            if tid.startswith("SC_"):
+                sc_drilled.add(tid)
+            elif tid.startswith("SER_"):
+                ser_drilled.add(tid)
+        elif obs.action == "drilldown_time_windows_batch" and obs.data.get("status") != "error":
+            for pt in obs.data.get("per_target", []):
+                tid = pt.get("target_id", "")
+                if pt.get("status") != "error":
+                    if tid.startswith("SC_"):
+                        sc_drilled.add(tid)
+                    elif tid.startswith("SER_"):
+                        ser_drilled.add(tid)
+
+    total_cases = sum(len(v) for v in state.stoppage_cases.values())
 
     for item in plan.plan_items:
-        if action in item.required_tools:
-            if is_error:
-                continue
-            if item.status == "pending":
+        if item.plan_id == "P1":
+            has_analyze = "analyze_stoppage_cases" in actions_done
+            min_dd = min(1, total_cases) if total_cases > 0 else 0
+            has_enough_dd = len(sc_drilled) >= min_dd
+            unverified = [
+                cid for cid, cls in state.case_classifications.items()
+                if cls.case_type == "event_level_abnormal_unverified"
+            ]
+            unverified_drilled = all(cid in sc_drilled for cid in unverified) if unverified else True
+            if has_analyze and has_enough_dd and unverified_drilled:
+                item.status = "completed"
+            elif has_analyze:
                 item.status = "in_progress"
-            remaining = [t for t in item.required_tools
-                         if t not in {a.action for a in state.actions_taken}]
-            if not remaining:
+            # don't touch if still pending
+
+        elif item.plan_id == "P2":
+            has_analyze = "analyze_resistance_pattern" in actions_done
+            if has_analyze and ser_drilled:
+                item.status = "completed"
+            elif has_analyze:
+                item.status = "in_progress"
+
+        elif item.plan_id == "P3":
+            if "analyze_hydraulic_pattern" in actions_done and not is_error:
                 item.status = "completed"
 
-    # batch drilldown counts as drilldown_time_window for plan purposes
-    if action == "drilldown_time_windows_batch" and not is_error:
-        for item in plan.plan_items:
-            if "drilldown_time_window" in item.required_tools:
-                if item.status == "pending":
-                    item.status = "in_progress"
-                remaining = [t for t in item.required_tools
-                             if t not in {a.action for a in state.actions_taken}
-                             and t != "drilldown_time_window"]
-                if not remaining:
-                    item.status = "completed"
+        elif item.plan_id == "P4":
+            if "analyze_event_fragmentation" in actions_done and not is_error:
+                item.status = "completed"
+
+
+def _update_plan_targets_from_state(state: InvestigationState) -> None:
+    """在 analyze_stoppage_cases 完成后补全 P1 的 target_ids 和 required_tools。"""
+    plan = state.investigation_plan
+    if not plan:
+        return
+
+    p1 = next((item for item in plan.plan_items if item.plan_id == "P1"), None)
+    if not p1 or p1.target_ids:
+        return
+
+    sc_targets: list[str] = []
+    for cid, cls in state.case_classifications.items():
+        if cls.case_type == "event_level_abnormal_unverified" and cid not in sc_targets:
+            sc_targets.append(cid)
+    all_cases = []
+    for cases in state.stoppage_cases.values():
+        all_cases.extend(cases)
+    all_cases.sort(key=lambda c: -c.duration_seconds)
+    for c in all_cases:
+        if c.case_id not in sc_targets:
+            sc_targets.append(c.case_id)
+    sc_targets = sc_targets[:3]
+
+    if sc_targets:
+        p1.target_ids = sc_targets
+        if len(sc_targets) >= 2:
+            if "drilldown_time_windows_batch" not in p1.required_tools:
+                p1.required_tools.append("drilldown_time_windows_batch")
+                p1.estimated_rounds = max(p1.estimated_rounds, 2)
+        else:
+            if "drilldown_time_window" not in p1.required_tools:
+                p1.required_tools.append("drilldown_time_window")
+                p1.estimated_rounds = max(p1.estimated_rounds, 2)
+        if p1.status == "completed":
+            p1.status = "in_progress"
+        plan.estimated_required_rounds = sum(i.estimated_rounds for i in plan.plan_items) + 3
+
+
+def _resolve_tool_arguments(
+    action: str,
+    arguments: dict[str, Any],
+    state: InvestigationState,
+) -> tuple[dict[str, Any], str]:
+    """解析并修正 LLM 提供的工具参数。返回 (resolved_args, resolution_note)。"""
+    drilldown_done = set()
+    for a in state.actions_taken:
+        if a.action in ("drilldown_time_window", "drilldown_time_windows_batch"):
+            tid = (a.arguments or {}).get("target_id", "")
+            if tid:
+                drilldown_done.add(tid)
+            for t in (a.arguments or {}).get("target_ids", []):
+                drilldown_done.add(t)
+
+    if action == "drilldown_time_windows_batch":
+        target_ids = arguments.get("target_ids")
+        if not target_ids or not isinstance(target_ids, list) or not all(isinstance(t, str) and t.startswith(("SC_", "SER_")) for t in target_ids):
+            candidates: list[str] = []
+            for cid, cls in state.case_classifications.items():
+                if cls.case_type == "event_level_abnormal_unverified" and cid not in drilldown_done:
+                    candidates.append(cid)
+            all_cases = []
+            for cases in state.stoppage_cases.values():
+                all_cases.extend(cases)
+            all_cases.sort(key=lambda c: -c.duration_seconds)
+            for c in all_cases:
+                if c.case_id not in drilldown_done and c.case_id not in candidates:
+                    candidates.append(c.case_id)
+            candidates = candidates[:5]
+            if candidates:
+                resolved = dict(arguments)
+                resolved["target_ids"] = candidates
+                resolved["file_path"] = arguments.get("file_path", state.current_file)
+                note = f"controller 解析 target_ids={candidates}（LLM 原始参数无效）"
+                return resolved, note
+            return arguments, "无可用 drilldown 目标"
+
+    elif action == "drilldown_time_window":
+        target_id = arguments.get("target_id", "")
+        if not target_id or not target_id.startswith(("SC_", "SER_", "HYD_", "LEE_")):
+            candidates = []
+            for cid, cls in state.case_classifications.items():
+                if cls.case_type == "event_level_abnormal_unverified" and cid not in drilldown_done:
+                    candidates.append(cid)
+            all_cases = []
+            for cases in state.stoppage_cases.values():
+                all_cases.extend(cases)
+            all_cases.sort(key=lambda c: -c.duration_seconds)
+            for c in all_cases:
+                if c.case_id not in drilldown_done and c.case_id not in candidates:
+                    candidates.append(c.case_id)
+            if candidates:
+                resolved = dict(arguments)
+                resolved["target_id"] = candidates[0]
+                resolved["file_path"] = arguments.get("file_path", state.current_file)
+                note = f"controller 解析 target_id={candidates[0]}（LLM 原始参数无效）"
+                return resolved, note
+            return arguments, "无可用 drilldown 目标"
+
+    return arguments, ""
 
 
 def _update_question_status(
@@ -581,6 +709,14 @@ def _finalize_question_status(state: InvestigationState) -> None:
             elif q.status == "unanswered":
                 q.reason_if_unanswered = "未执行 SER 分析"
 
+        # Q3: HYD 类
+        if q.qid == "Q3" and q.priority in ("medium", "high") and q.status == "unanswered":
+            q.reason_if_unanswered = "未执行 HYD 分析（因轮数不足跳过）"
+
+        # Q4: 碎片化
+        if q.qid == "Q4" and q.priority in ("medium", "high") and q.status == "unanswered":
+            q.reason_if_unanswered = "未执行碎片化分析（因轮数不足跳过）"
+
         # Q5: 施工日志 — 有任何发现就 partially
         if q.qid == "Q5":
             answered_qs = [
@@ -713,12 +849,30 @@ def _check_evidence_gate(
             "target_id": target_id,
         }, f"存在未验证事件级异常线索 {target_id}，必须先做 drilldown"
 
-    # 规则 3: 高优先级问题未被尝试调查
+    # 规则 3: 高优先级 plan items 未完成
+    if state.investigation_plan and remaining > 2:
+        for item in state.investigation_plan.plan_items:
+            if item.priority == "high" and item.status in ("pending", "in_progress"):
+                if item.plan_id == "P1" and item.target_ids:
+                    not_drilled = [t for t in item.target_ids if t not in drilldown_done]
+                    if not_drilled:
+                        if len(not_drilled) >= 2:
+                            return True, "drilldown_time_windows_batch", {
+                                "file_path": state.current_file,
+                                "target_ids": not_drilled[:3],
+                            }, f"P1 停机验证未完成，需 drilldown {not_drilled[:3]}"
+                        else:
+                            return True, "drilldown_time_window", {
+                                "file_path": state.current_file,
+                                "target_id": not_drilled[0],
+                            }, f"P1 停机验证未完成，需 drilldown {not_drilled[0]}"
+
+    # 规则 4: 高优先级问题未被尝试调查
     actions_done = {a.action for a in state.actions_taken}
     for q in state.investigation_questions:
         if q.priority == "high" and q.status == "unanswered":
             for tool in q.relevant_tools:
-                if tool not in actions_done and tool != "drilldown_time_window":
+                if tool not in actions_done and tool not in ("drilldown_time_window", "drilldown_time_windows_batch"):
                     return True, tool, {
                         "file_path": state.current_file,
                     }, f"高优先级问题 {q.qid}（{q.text}）尚未被调查"
@@ -848,6 +1002,12 @@ def run_investigation(
             ))
             print(f"[evidence_gate] OVERRIDE: {eg_original_action} → {action} (reason: {override_reason})")
 
+        # ── Argument Resolver: 修正 LLM 错误参数 ──
+        resolved_args, resolution_note = _resolve_tool_arguments(action, arguments, state)
+        if resolution_note:
+            arguments = resolved_args
+            print(f"[arg_resolver] {resolution_note}")
+
         state.actions_taken.append(ActionRecord(
             round_num=iteration,
             action=action,
@@ -881,6 +1041,9 @@ def run_investigation(
         _update_state(state, action, arguments, result)
         _update_question_status(state, action, result)
         _update_plan_status(state, action, result)
+
+        if action == "analyze_stoppage_cases" and result.get("status") == "ok":
+            _update_plan_targets_from_state(state)
 
         if action == "inspect_file_overview" and state.mode == "single_file":
             _generate_investigation_questions(state)

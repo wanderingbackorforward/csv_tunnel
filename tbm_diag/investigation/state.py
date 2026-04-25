@@ -68,6 +68,19 @@ class EvidenceGateOverride:
 
 
 @dataclass
+class OpenQuestion:
+    qid: str = ""
+    text: str = ""
+    priority: str = "medium"  # high / medium / low
+    status: str = "unanswered"  # unanswered / partially_answered / answered / blocked_by_missing_data
+    relevant_tools: list[str] = field(default_factory=list)
+    tools_called: list[str] = field(default_factory=list)
+    findings: list[str] = field(default_factory=list)
+    needs_manual_check: bool = False
+    reason_if_unanswered: str = ""
+
+
+@dataclass
 class ActionRecord:
     round_num: int = 0
     action: str = ""
@@ -181,3 +194,4 @@ class InvestigationState:
     llm_calls: list[LlmCallRecord] = field(default_factory=list)
     final_conclusion: Optional[FinalConclusion] = None
     evidence_gate_overrides: list[EvidenceGateOverride] = field(default_factory=list)
+    investigation_questions: list[OpenQuestion] = field(default_factory=list)

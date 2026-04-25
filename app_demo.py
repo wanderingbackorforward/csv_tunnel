@@ -406,6 +406,33 @@ def render_investigation_audit(output_dir: Path) -> None:
             })
         st.dataframe(pd.DataFrame(trace_rows), use_container_width=True, hide_index=True)
 
+    # 调查问题完成情况
+    inv_questions = state_doc.get("investigation_questions", [])
+    if inv_questions:
+        st.markdown("#### 调查问题完成情况")
+        _QS_ZH = {
+            "unanswered": "未回答",
+            "partially_answered": "部分回答",
+            "answered": "已回答",
+            "blocked_by_missing_data": "缺少数据",
+        }
+        q_rows = []
+        for q in inv_questions:
+            findings = q.get("findings", [])
+            q_rows.append({
+                "问题": f"{q.get('qid', '')}: {q.get('text', '')[:20]}",
+                "优先级": q.get("priority", ""),
+                "状态": _QS_ZH.get(q.get("status", ""), q.get("status", "")),
+                "关键发现": (findings[-1][:40] if findings else
+                           (q.get("reason_if_unanswered", "") or "—")[:40]),
+                "人工核查": "是" if q.get("needs_manual_check") else "否",
+            })
+        st.dataframe(pd.DataFrame(q_rows), use_container_width=True, hide_index=True)
+
+        unanswered = [q for q in inv_questions if q.get("status") in ("unanswered", "blocked_by_missing_data")]
+        if unanswered:
+            st.warning(f"仍有 {len(unanswered)} 个问题未回答。")
+
     # 报告预览
     if report_path.exists():
         st.markdown("#### 报告预览")

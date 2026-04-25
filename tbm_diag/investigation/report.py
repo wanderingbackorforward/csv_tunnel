@@ -648,6 +648,41 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
                 )
             lines.append("")
 
+    # ── 调查问题完成情况 ──
+    if state.investigation_questions:
+        _QS = {
+            "unanswered": "未回答",
+            "partially_answered": "部分回答",
+            "answered": "已回答",
+            "blocked_by_missing_data": "缺少数据",
+        }
+        lines.append("## 调查问题完成情况\n")
+        lines.append("| 问题 | 状态 | 已调用工具 | 关键发现 | 是否还需人工核查 |")
+        lines.append("|------|------|-----------|----------|----------------|")
+        for q in state.investigation_questions:
+            status_zh = _QS.get(q.status, q.status)
+            tools_str = ", ".join(q.tools_called) if q.tools_called else "—"
+            finding_str = (q.findings[-1][:40] if q.findings else
+                           (q.reason_if_unanswered[:40] if q.reason_if_unanswered else "—"))
+            finding_str = finding_str.replace("|", "/")
+            manual = "是" if q.needs_manual_check else "否"
+            lines.append(
+                f"| {q.qid}: {q.text[:20]} | {status_zh} "
+                f"| {tools_str} | {finding_str} | {manual} |"
+            )
+        lines.append("")
+
+        # 未回答的问题详情
+        unanswered_qs = [q for q in state.investigation_questions
+                         if q.status in ("unanswered", "blocked_by_missing_data")]
+        if unanswered_qs:
+            lines.append("### 未回答的问题\n")
+            for q in unanswered_qs:
+                lines.append(f"- **{q.qid}**: {q.text}")
+                if q.reason_if_unanswered:
+                    lines.append(f"  - 原因：{q.reason_if_unanswered}")
+            lines.append("")
+
     # ── 证据一致性检查 ──
     if corrections or consistency_warnings or unverified_cases:
         lines.append("## 证据一致性检查\n")

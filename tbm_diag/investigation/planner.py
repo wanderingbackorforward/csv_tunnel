@@ -95,6 +95,11 @@ def _compress_state(state: InvestigationState) -> dict[str, Any]:
             "drilldown_sc_count": drilldown_sc_count,
             "unverified_not_drilled": unverified_not_drilled,
         },
+        "open_questions": [
+            {"qid": q.qid, "text": q.text, "priority": q.priority, "status": q.status}
+            for q in state.investigation_questions
+            if q.status != "answered"
+        ],
         "available_tools": [t for t in LLM_TOOL_WHITELIST if t not in actions_done],
         "completed_tools": [t for t in LLM_TOOL_WHITELIST if t in actions_done],
     }

@@ -23,6 +23,7 @@ from tbm_diag.investigation.state import (
     ActionRecord,
     Observation,
     EvidenceGateOverride,
+    OpenQuestion,
 )
 from tbm_diag.investigation.tools import TOOL_REGISTRY
 from tbm_diag.investigation.planner import plan_next_action
@@ -183,6 +184,258 @@ def _make_observation_summary(action: str, result: dict[str, Any]) -> str:
     return json.dumps({k: v for k, v in result.items() if not k.startswith("_")}, ensure_ascii=False)[:200]
 
 
+def _generate_investigation_questions(state: InvestigationState) -> None:
+    """根据文件特征生成调查问题。在 inspect_file_overview 完成后调用。"""
+    if state.investigation_questions:
+        return
+
+    overview = state.file_overviews.get(state.current_file)
+    if not overview:
+        return
+
+    sem = overview.semantic_event_distribution
+    sd = overview.state_distribution
+    stoppage_count = sem.get("stoppage_segment", 0)
+    stopped_pct = sd.get("stopped", 0)
+    ser_count = (sem.get("suspected_excavation_resistance", 0)
+                 + sem.get("excavation_resistance_under_load", 0))
+    hyd_count = sem.get("hydraulic_instability", 0)
+    event_count = overview.event_count
+
+    questions: list[OpenQuestion] = []
+
+    # Q1: 停机
+    if stoppage_count >= 3 or stopped_pct >= 30:
+        questions.append(OpenQuestion(
+            qid="Q1",
+            text="是否存在长停机？停机是否有异常前兆？",
+            priority="high",
+            relevant_tools=["analyze_stoppage_cases", "drilldown_time_window"],
+            needs_manual_check=True,
+        ))
+    else:
+        questions.append(OpenQuestion(
+            qid="Q1",
+            text="是否存在长停机？停机是否有异常前兆？",
+            priority="low",
+            status="answered",
+            relevant_tools=["analyze_stoppage_cases"],
+            findings=[f"停机片段仅 {stoppage_count} 个，stopped={stopped_pct:.0f}%，不构成主要问题"],
+        ))
+
+    # Q2: SER
+    if ser_count >= 3:
+        questions.append(OpenQuestion(
+            qid="Q2",
+            text="SER 是否是推进中的真实阻力异常，还是停机/语义重叠？",
+            priority="high",
+            relevant_tools=["analyze_resistance_pattern", "drilldown_time_window"],
+            needs_manual_check=True,
+        ))
+    else:
+        questions.append(OpenQuestion(
+            qid="Q2",
+            text="SER 是否是推进中的真实阻力异常，还是停机/语义重叠？",
+            priority="low",
+            status="answered",
+            relevant_tools=["analyze_resistance_pattern"],
+            findings=[f"SER 事件仅 {ser_count} 个，不构成主要问题"],
+        ))
+
+    # Q3: HYD
+    if hyd_count >= 3:
+        questions.append(OpenQuestion(
+            qid="Q3",
+            text="HYD 是否是主因，还是启停边界伴随？",
+            priority="medium",
+            relevant_tools=["analyze_hydraulic_pattern"],
+            needs_manual_check=True,
+        ))
+    else:
+        questions.append(OpenQuestion(
+            qid="Q3",
+            text="HYD 是否是主因，还是启停边界伴随？",
+            priority="low",
+            status="answered",
+            relevant_tools=["analyze_hydraulic_pattern"],
+            findings=[f"HYD 事件仅 {hyd_count} 个，不构成主要问题"],
+        ))
+
+    # Q4: 碎片化
+    if event_count >= 8:
+        questions.append(OpenQuestion(
+            qid="Q4",
+            text="事件是否存在碎片化或规则放大？",
+            priority="medium",
+            relevant_tools=["analyze_event_fragmentation"],
+        ))
+    else:
+        questions.append(OpenQuestion(
+            qid="Q4",
+            text="事件是否存在碎片化或规则放大？",
+            priority="low",
+            status="answered",
+            relevant_tools=["analyze_event_fragmentation"],
+            findings=[f"事件仅 {event_count} 个，不需要碎片化分析"],
+        ))
+
+    # Q5: 施工日志
+    questions.append(OpenQuestion(
+        qid="Q5",
+        text="哪些结论需要施工日志确认？",
+        priority="low",
+        relevant_tools=[],
+        needs_manual_check=True,
+    ))
+
+    state.investigation_questions = questions
+
+
+def _update_question_status(
+    state: InvestigationState,
+    action: str,
+    result: dict[str, Any],
+) -> None:
+    """根据工具调用结果更新调查问题状态。"""
+    if not state.investigation_questions:
+        return
+
+    is_error = result.get("status") == "error"
+    q_map = {q.qid: q for q in state.investigation_questions}
+
+    if action == "analyze_stoppage_cases" and "Q1" in q_map:
+        q = q_map["Q1"]
+        if action not in q.tools_called:
+            q.tools_called.append(action)
+        if is_error:
+            return
+        cases = result.get("merged_cases", 0)
+        total_h = result.get("total_duration_hours", 0)
+        q.findings.append(f"{cases} 个停机案例，共 {total_h}h")
+        if q.status == "unanswered":
+            q.status = "partially_answered"
+
+    elif action == "drilldown_time_window":
+        tid = result.get("target_id", "")
+        hint = result.get("interpretation_hint", "")
+        finding = f"{tid}: {hint}" if hint else f"{tid}: drilldown 完成"
+
+        if tid.startswith("SC_") and "Q1" in q_map:
+            q = q_map["Q1"]
+            if action not in q.tools_called:
+                q.tools_called.append(action)
+            if not is_error:
+                q.findings.append(finding)
+                if q.status in ("unanswered", "partially_answered"):
+                    q.status = "partially_answered"
+
+        elif tid.startswith("SER_") and "Q2" in q_map:
+            q = q_map["Q2"]
+            if action not in q.tools_called:
+                q.tools_called.append(action)
+            if not is_error:
+                q.findings.append(finding)
+                if q.status in ("unanswered", "partially_answered"):
+                    q.status = "partially_answered"
+
+    elif action == "analyze_resistance_pattern" and "Q2" in q_map:
+        q = q_map["Q2"]
+        if action not in q.tools_called:
+            q.tools_called.append(action)
+        if is_error:
+            return
+        summary = result.get("summary", "")
+        all_overlap = result.get("all_stopped_overlap", False)
+        if all_overlap:
+            q.findings.append("SER 事件多与停机重叠，暂不能证明推进中阻力异常")
+        else:
+            adv = result.get("in_advancing_ratio", 0)
+            q.findings.append(f"SER 推进中占比 {adv:.0%}")
+        if q.status == "unanswered":
+            q.status = "partially_answered"
+
+    elif action == "analyze_hydraulic_pattern" and "Q3" in q_map:
+        q = q_map["Q3"]
+        if action not in q.tools_called:
+            q.tools_called.append(action)
+        if is_error:
+            return
+        isolated = result.get("isolated_short_fluctuation", False)
+        near_stop = result.get("near_stoppage_boundary", False)
+        if isolated:
+            q.findings.append("HYD 多为孤立短时波动，不构成系统性异常")
+        if near_stop:
+            q.findings.append("HYD 靠近停机边界，可能为启停伴随")
+        q.status = "answered"
+        q.needs_manual_check = q.needs_manual_check and not isolated
+
+    elif action == "analyze_event_fragmentation" and "Q4" in q_map:
+        q = q_map["Q4"]
+        if action not in q.tools_called:
+            q.tools_called.append(action)
+        if is_error:
+            return
+        risk = result.get("fragmentation_risk", False)
+        short_ratio = result.get("short_event_ratio", 0)
+        if risk:
+            q.findings.append(f"存在碎片化风险，短事件占比 {short_ratio:.0%}")
+        else:
+            q.findings.append(f"碎片化风险低，短事件占比 {short_ratio:.0%}")
+        q.status = "answered"
+
+
+def _finalize_question_status(state: InvestigationState) -> None:
+    """在调查结束时最终确认问题状态。"""
+    for q in state.investigation_questions:
+        # Q1: 停机类 — 需要 analyze + drilldown 才算 answered
+        if q.qid == "Q1" and q.priority == "high":
+            has_analyze = "analyze_stoppage_cases" in q.tools_called
+            has_dd = "drilldown_time_window" in q.tools_called
+            if has_analyze and has_dd:
+                q.status = "answered"
+            elif has_analyze and not has_dd:
+                q.status = "partially_answered"
+                q.reason_if_unanswered = "已分析停机案例但未做 drilldown 窗口验证"
+            elif q.status == "unanswered":
+                q.reason_if_unanswered = "未执行停机分析"
+
+        # Q2: SER 类
+        if q.qid == "Q2" and q.priority == "high":
+            has_analyze = "analyze_resistance_pattern" in q.tools_called
+            has_dd = "drilldown_time_window" in q.tools_called
+            if has_analyze and has_dd:
+                q.status = "answered"
+            elif has_analyze:
+                q.status = "partially_answered"
+                q.reason_if_unanswered = "已分析 SER 模式但未做 drilldown 验证"
+            elif q.status == "unanswered":
+                q.reason_if_unanswered = "未执行 SER 分析"
+
+        # Q5: 施工日志 — 有任何发现就 partially
+        if q.qid == "Q5":
+            answered_qs = [
+                oq for oq in state.investigation_questions
+                if oq.qid != "Q5" and oq.status in ("answered", "partially_answered")
+            ]
+            if answered_qs:
+                q.status = "partially_answered"
+                manual_items = []
+                for oq in state.investigation_questions:
+                    if oq.needs_manual_check and oq.findings:
+                        manual_items.append(f"{oq.qid}: {oq.findings[-1]}")
+                if manual_items:
+                    q.findings = [f"需施工日志确认：{'; '.join(manual_items[:3])}"]
+                else:
+                    q.findings = ["所有疑似结论均需施工日志确认"]
+            else:
+                q.status = "unanswered"
+                q.reason_if_unanswered = "调查未产生足够发现"
+
+        # 任何 unanswered 且 high 的问题标注原因
+        if q.status == "unanswered" and q.priority == "high" and not q.reason_if_unanswered:
+            q.reason_if_unanswered = "因轮数限制或工具未执行"
+
+
 def _select_drilldown_target(state: InvestigationState) -> tuple[str, str]:
     """选择 evidence gate 要求的 drilldown 目标。返回 (target_id, reason)。"""
     fp = state.current_file
@@ -261,6 +514,16 @@ def _check_evidence_gate(
             "file_path": state.current_file,
             "target_id": target_id,
         }, f"存在未验证事件级异常线索 {target_id}，必须先做 drilldown"
+
+    # 规则 3: 高优先级问题未被尝试调查
+    actions_done = {a.action for a in state.actions_taken}
+    for q in state.investigation_questions:
+        if q.priority == "high" and q.status == "unanswered":
+            for tool in q.relevant_tools:
+                if tool not in actions_done and tool != "drilldown_time_window":
+                    return True, tool, {
+                        "file_path": state.current_file,
+                    }, f"高优先级问题 {q.qid}（{q.text}）尚未被调查"
 
     return False, "", {}, ""
 
@@ -418,9 +681,10 @@ def run_investigation(
         state.actions_taken[-1].observation_summary = obs_summary
 
         _update_state(state, action, arguments, result)
+        _update_question_status(state, action, result)
 
         if action == "inspect_file_overview" and state.mode == "single_file":
-            pass
+            _generate_investigation_questions(state)
 
         if action == "generate_investigation_report":
             report_text = result.get("report_text", "")
@@ -440,6 +704,9 @@ def run_investigation(
 
     if not state.stop_reason:
         state.stop_reason = f"max_iterations ({max_iterations})"
+
+    # ── 问题状态最终确认 ──
+    _finalize_question_status(state)
 
     # ── 最终结论（必须在报告生成之前调用）──
     from tbm_diag.investigation.tools import finalize_investigation

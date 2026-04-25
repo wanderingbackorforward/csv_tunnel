@@ -320,11 +320,22 @@ def render_investigation_audit(output_dir: Path) -> None:
     eg_overrides = state_doc.get("evidence_gate_overrides", [])
     stoppage_cases_all = state_doc.get("stoppage_cases", {})
     total_sc = sum(len(v) for v in stoppage_cases_all.values()) if isinstance(stoppage_cases_all, dict) else 0
-    dd_sc = sum(
-        1 for a in state_doc.get("actions_taken", [])
-        if a.get("action") == "drilldown_time_window"
-        and (a.get("arguments") or {}).get("target_id", "").startswith("SC_")
-    )
+    # 统一 coverage: 含单次 + batch drilldown
+    sc_drilled_gui: set[str] = set()
+    for o in state_doc.get("observations", []):
+        if not isinstance(o, dict):
+            continue
+        data = o.get("data", {})
+        if o.get("action") == "drilldown_time_window":
+            tid = data.get("target_id", "")
+            if tid.startswith("SC_") and data.get("status") != "error":
+                sc_drilled_gui.add(tid)
+        elif o.get("action") == "drilldown_time_windows_batch" and data.get("status") != "error":
+            for pt in data.get("per_target", []):
+                tid = pt.get("target_id", "")
+                if tid.startswith("SC_") and pt.get("status") != "error":
+                    sc_drilled_gui.add(tid)
+    dd_sc = len(sc_drilled_gui)
     if eg_overrides or total_sc > 0:
         st.markdown("#### Evidence Gate")
         col_eg1, col_eg2, col_eg3 = st.columns(3)

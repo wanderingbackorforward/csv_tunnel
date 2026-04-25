@@ -215,3 +215,40 @@ class InvestigationState:
     evidence_gate_overrides: list[EvidenceGateOverride] = field(default_factory=list)
     investigation_questions: list[OpenQuestion] = field(default_factory=list)
     investigation_plan: Optional[InvestigationPlan] = None
+
+
+def compute_drilldown_coverage(state: InvestigationState) -> dict[str, Any]:
+    """统一计算 SC drilldown 覆盖率（含单次和批量）。"""
+    single_ids: set[str] = set()
+    batch_ids: set[str] = set()
+
+    for obs in state.observations:
+        if obs.action == "drilldown_time_window":
+            tid = obs.data.get("target_id", "")
+            if tid.startswith("SC_") and obs.data.get("status") != "error":
+                single_ids.add(tid)
+        elif obs.action == "drilldown_time_windows_batch":
+            if obs.data.get("status") == "error":
+                continue
+            for pt in obs.data.get("per_target", []):
+                tid = pt.get("target_id", "")
+                if tid.startswith("SC_") and pt.get("status") != "error":
+                    batch_ids.add(tid)
+
+    covered = single_ids | batch_ids
+    all_case_ids: list[str] = []
+    for cases in state.stoppage_cases.values():
+        for c in cases:
+            all_case_ids.append(c.case_id)
+    total = len(all_case_ids)
+    uncovered = sorted(set(all_case_ids) - covered)
+
+    return {
+        "total_count": total,
+        "covered_count": len(covered),
+        "coverage_ratio": len(covered) / total if total > 0 else 0,
+        "covered_case_ids": sorted(covered),
+        "uncovered_case_ids": uncovered,
+        "single_drilldown_case_ids": sorted(single_ids),
+        "batch_drilldown_case_ids": sorted(batch_ids),
+    }

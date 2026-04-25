@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from tbm_diag.investigation.state import InvestigationState
+from tbm_diag.investigation.state import InvestigationState, compute_drilldown_coverage
 
 
 _CASE_TYPE_LABELS = {
@@ -269,10 +269,9 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
         # 补充 validator 区域的综合限制因素（未被 warnings 覆盖的）
         if fc.validator_applied:
             supplementary: list[str] = []
-            total_cases_v = sum(len(v) for v in state.stoppage_cases.values())
-            dd_count = sum(1 for o in state.observations
-                          if o.action == "drilldown_time_window"
-                          and (o.data.get("target_id", "").startswith("SC_")))
+            cov_v = compute_drilldown_coverage(state)
+            total_cases_v = cov_v["total_count"]
+            dd_count = cov_v["covered_count"]
             unclassified_v = total_cases_v - len(state.case_classifications)
             fallback_count = state.llm_fallback_count
 
@@ -623,14 +622,19 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
 
     # ── Evidence Gate 审计 ──
     eg_overrides = state.evidence_gate_overrides
-    total_cases_eg = sum(len(v) for v in state.stoppage_cases.values())
-    dd_sc_eg = sum(1 for o in state.observations
-                   if o.action == "drilldown_time_window"
-                   and (o.data.get("target_id", "").startswith("SC_")))
+    cov = compute_drilldown_coverage(state)
+    total_cases_eg = cov["total_count"]
+    dd_sc_eg = cov["covered_count"]
     if eg_overrides or total_cases_eg > 0:
         lines.append("## Evidence Gate 审计\n")
         lines.append(f"- Evidence Gate 触发次数：{len(eg_overrides)}")
         lines.append(f"- 停机案例 drilldown 覆盖率：{dd_sc_eg}/{total_cases_eg}")
+        if cov["single_drilldown_case_ids"]:
+            lines.append(f"- 单次 drilldown 覆盖：{', '.join(cov['single_drilldown_case_ids'])}")
+        if cov["batch_drilldown_case_ids"]:
+            lines.append(f"- batch drilldown 覆盖：{', '.join(cov['batch_drilldown_case_ids'])}")
+        if cov["uncovered_case_ids"]:
+            lines.append(f"- 未覆盖：{', '.join(cov['uncovered_case_ids'])}")
         unverified_eg = [
             cid for cid, cls in state.case_classifications.items()
             if cls.case_type == "event_level_abnormal_unverified"

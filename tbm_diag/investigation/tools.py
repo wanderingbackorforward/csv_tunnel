@@ -1264,6 +1264,11 @@ def _rule_finalize(state: Any) -> dict[str, Any]:
     return conclusion
 
 
+def _llm_finalize_drilldown_count(state: Any) -> int:
+    from tbm_diag.investigation.state import compute_drilldown_coverage
+    return compute_drilldown_coverage(state)["covered_count"]
+
+
 def _llm_finalize(state: Any) -> tuple[Any, str, str, str]:
     """调用 LLM 生成最终结论。返回 (conclusion_or_None, status, model, error)。"""
     import os
@@ -1297,7 +1302,7 @@ def _llm_finalize(state: Any) -> tuple[Any, str, str, str]:
         "planned_count": sum(1 for cls in state.case_classifications.values() if cls.case_type == "planned_like_stoppage"),
         "unclassified_count": sum(len(v) for v in state.stoppage_cases.values()) - sum(1 for _ in state.case_classifications.values()),
         "drilldown_hints": [o.data.get("interpretation_hint", "") for o in state.observations if o.action == "drilldown_time_window"],
-        "drilldown_count": sum(1 for o in state.observations if o.action == "drilldown_time_window"),
+        "drilldown_count": _llm_finalize_drilldown_count(state),
         "resistance_summary": next((o.data.get("summary", "") for o in state.observations if o.action == "analyze_resistance_pattern"), ""),
         "hydraulic_summary": next((o.data.get("summary", "") for o in state.observations if o.action == "analyze_hydraulic_pattern"), ""),
         "tool_errors": [f"{o.action}: {o.data.get('error', '')}" for o in state.observations if o.data.get("status") == "error"],
@@ -1419,14 +1424,25 @@ def validate_final_conclusion(state: Any) -> None:
         warnings.append(f"核心工具报错（{', '.join(core_errors)}），结论需谨慎解读")
 
     # ── 2. drilldown 不支持时不能说 SER 主导停机 ──
-    drilldown_obs = [o for o in state.observations if o.action == "drilldown_time_window"]
-    stoppage_case_drilldowns = [o for o in drilldown_obs
-                                 if o.data.get("target_event_info", {}).get("source") == "stoppage_case"
-                                 or (o.data.get("target_id", "").startswith("SC_"))]
-    clean_pre_drilldowns = [o for o in stoppage_case_drilldowns
-                            if "停机前未见明显异常" in (o.data.get("interpretation_hint") or "")]
+    from tbm_diag.investigation.state import compute_drilldown_coverage
+    cov = compute_drilldown_coverage(state)
+    sc_drilldown_count = cov["covered_count"]
 
-    if clean_pre_drilldowns and ("SER 主导" in fc.primary_conclusion_zh or "SER主导" in fc.primary_conclusion_zh):
+    drilldown_obs = [o for o in state.observations if o.action == "drilldown_time_window"]
+    # 收集所有 SC drilldown hints（含 batch）
+    all_sc_hints: list[str] = []
+    for o in state.observations:
+        if o.action == "drilldown_time_window" and o.data.get("target_id", "").startswith("SC_"):
+            all_sc_hints.append(o.data.get("interpretation_hint") or "")
+        elif o.action == "drilldown_time_windows_batch" and o.data.get("status") != "error":
+            for pt in o.data.get("per_target", []):
+                if pt.get("target_id", "").startswith("SC_") and pt.get("status") != "error":
+                    all_sc_hints.append(pt.get("interpretation_hint") or "")
+    clean_pre_count = sum(1 for h in all_sc_hints if "停机前未见明显异常" in h)
+
+    if clean_pre_count and (
+        "SER 主导" in fc.primary_conclusion_zh or "SER主导" in fc.primary_conclusion_zh
+    ):
         fc.primary_conclusion_zh = fc.primary_conclusion_zh.replace(
             "SER 主导停机", "SER 是重要线索，但当前 drilldown 未证明 SER 是停机直接前兆"
         ).replace(
@@ -1458,13 +1474,13 @@ def validate_final_conclusion(state: Any) -> None:
 
     # ── 4. drilldown 覆盖不足时不能泛化 ──
     top_n = min(3, total_cases)
-    if total_cases > 0 and len(stoppage_case_drilldowns) < top_n:
+    if total_cases > 0 and sc_drilldown_count < top_n:
         if "本次停机" in fc.primary_conclusion_zh and ("由" in fc.primary_conclusion_zh or "主导" in fc.primary_conclusion_zh):
             warnings.append(
-                f"仅 drilldown {len(stoppage_case_drilldowns)}/{top_n} 个停机案例，"
+                f"仅 drilldown {sc_drilldown_count}/{top_n} 个停机案例，"
                 f"结论不能泛化到全部 {total_cases} 个停机"
             )
-            if fc.convergence_status == "converged" and len(stoppage_case_drilldowns) < 2:
+            if fc.convergence_status == "converged" and sc_drilldown_count < 2:
                 fc.convergence_status = "partially_converged"
                 downgrades.append("convergence: converged→partially_converged（drilldown 覆盖不足）")
 
@@ -1486,16 +1502,16 @@ def validate_final_conclusion(state: Any) -> None:
             downgrades.append("ruled_out 修正：计划停机排除→待施工日志确认")
 
     # ── 7. drilldown 覆盖不足时不能完全排除 SER 主导假设 ──
-    if total_cases > 0 and len(stoppage_case_drilldowns) < total_cases:
+    if total_cases > 0 and sc_drilldown_count < total_cases:
         for i, item in enumerate(fc.ruled_out_zh):
             if "SER" in item and ("排除" in item or "已排除" in item or "主导" in item):
                 fc.ruled_out_zh[i] = (
                     f"当前未支持：SER 主导停机假设。"
-                    f"drilldown 仅覆盖 {len(stoppage_case_drilldowns)}/{total_cases} 个停机案例，"
+                    f"drilldown 仅覆盖 {sc_drilldown_count}/{total_cases} 个停机案例，"
                     f"不能完全排除，需继续核查未分类停机案例。"
                 )
                 warnings.append(
-                    f"drilldown 覆盖不足（{len(stoppage_case_drilldowns)}/{total_cases}），"
+                    f"drilldown 覆盖不足（{sc_drilldown_count}/{total_cases}），"
                     f"SER 主导假设不能完全排除"
                 )
 

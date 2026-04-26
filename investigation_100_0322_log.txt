@@ -1,0 +1,162 @@
+WARNING [tbm_diag.ingestion] 1 unrecognized column(s) will be kept as-is: ['Unnamed: 39']
+WARNING [tbm_diag.ingestion] Fields with suspicious units (kept as raw, do not use for physics): ['raw_top_left_stab_stroke_bar', 'raw_top_right_stab_stroke_bar']
+[investigate] task=df504e46 mode=single_file focus=auto files=1
+[investigate] planner=hybrid
+[investigate] round 1 planner=hybrid_rule reason: 尚未检查当前文件概览
+[investigate] action: inspect_file_overview({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['inspect_file_overview']
+[audit] rejected: []
+[investigate] observe: rows=86400, events=346, time=2025-03-22 00:00:00~2025-03-22 23:59:59
+[investigate] round 2 planner=hybrid_rule reason: 尚未加载事件摘要
+[investigate] action: load_event_summary({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['load_event_summary']
+[audit] rejected: []
+[investigate] observe: events=346, sem_dist={'stoppage_segment': 21, 'low_efficiency_excavation': 71, 'suspected_excavation_resistance': 207, 'hydraulic_instability': 46, 'excavation_resistance_under_load': 1}
+[investigate] round 3 planner=hybrid_llm reason: 停机段21个、停机率53%为最高优先级，需先追查停机根因才能提升整体效率
+[investigate] action: analyze_stoppage_cases({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['analyze_stoppage_cases']
+[audit] rejected: []
+[investigate] observe: 16 个停机案例，共 13.8h
+[investigate] round 4 planner=hybrid_llm reason: 规则推荐：对最大停机案例SC_005(225min)进行时间窗口钻取，深入分析该长停机事件的具体SER和液压事件序列，为完整回答Q1提供证据支撑
+[investigate] action: drilldown_time_window({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['drilldown_time_window']
+[audit] rejected: []
+[arg_resolver] controller 解析 target_id=SC_005（LLM 原始参数无效）
+[investigate] observe: [SC_005] 前:600行，速度24.43，normal_excavation98% | 中:13482行，速度0.02，stopped98% | 后:600行，速度27.71，normal_excavation96% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 5 planner=hybrid_llm reason: 已完成1个单点钻取(SC_005)。剩余15个停机案例需系统分析。SER计数208次是关键异常指标，系统性分析掘进阻力模式可同时回答Q2/Q3/Q4，揭示停机前的阻力异常规律，避免逐案例钻取导致效率不足。
+[investigate] action: analyze_resistance_pattern({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['analyze_resistance_pattern']
+[audit] rejected: []
+[investigate] observe: SER 事件 208 个，共 15.2h，推进中占比 87%，时间集中
+[investigate] round 6 planner=hybrid_llm reason: 当前仅完成1次drilldown，尚有16个停机案例待分析。批量钻取可一次性处理多个高耗时案例（如SC_013的195min等），加快信息收集效率，为P3-P5问题提供更全面的数据支撑，提升整体调查进度。
+[investigate] action: drilldown_time_windows_batch({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['drilldown_time_windows_batch']
+[audit] rejected: []
+[arg_resolver] controller 解析 target_ids=['SC_013', 'SC_008', 'SC_004', 'SC_003', 'SC_015']（LLM 原始参数无效）
+[investigate] observe: 批量钻取 5/5 个目标完成，5 个停机前无异常
+[investigate] round 7 planner=hybrid_llm reason: 已完成5/5批量钻取但仍有11个停机案例待分析，且hyd_count=46(液压异常)，停机率53%，应深入分析液压模式与停机的关联性，为生成报告提供依据
+[investigate] action: analyze_hydraulic_pattern({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['analyze_hydraulic_pattern']
+[audit] rejected: []
+[investigate] observe: HYD 事件 46 个，共 0.1h，与 SER 同步，靠近停机边界，多为孤立短时波动
+[investigate] round 8 planner=hybrid_llm reason: 剩余 7 个未验证事件，346 个事件分布需要理解，drilldown_done 仅 1/16，碎片化分析是生成可靠报告的前置步骤
+[investigate] action: analyze_event_fragmentation({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['analyze_event_fragmentation']
+[audit] rejected: []
+[investigate] observe: 事件 346 个，平均 307s，短事件占比 80%
+[investigate] round 9 planner=hybrid_llm reason: 已完成核心 drilldown (SER 208 个、水压 46 个、停机 16 个)，未验证案例仅 7 个，数据充分支撑报告生成。规则推荐的 drilldown_time_window 无法执行（仅剩 generate_investigation_report），且剩余未验证案例数不足以继续钻取。
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_windows_batch (reason: stoppage coverage 6/16 < depth target，批量钻取 ['SC_011', 'SC_010', 'SC_001', 'SC_009', 'SC_007'])
+[investigate] observe: 批量钻取 5/5 个目标完成，4 个停机前无异常
+[investigate] round 10 planner=hybrid_llm reason: 规则推荐的drilldown_time_window不在allowed_actions中。批量钻取5/5已完成，P3/P4已完成，P1/P2进行中。核心问题：7个未验证案例、3个问题(Q1/Q2部分回答,Q5未回答)、16个停机案例中4个停机前无异常但12个待解释。当前状态适合生成中期报告汇总发现，识别剩余疑点，为后续钻取提供方向。
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_windows_batch (reason: stoppage coverage 11/16 < depth target，批量钻取 ['SC_014', 'SC_002', 'SC_012', 'SC_006', 'SC_016'])
+[investigate] observe: 批量钻取 5/5 个目标完成，5 个停机前无异常
+[investigate] round 11 planner=hybrid_llm reason: 批量钻取已完成(5/5无异常)，P1/P3/P4已完成，P2进行中需汇总；SER 208个、停机率53%需整合分析生成报告；Q1/Q2部分回答、Q5未回答，需输出调查结论
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_window (reason: 存在未验证事件级异常线索 SC_013，必须先做 drilldown)
+[investigate] observe: [SC_013] 前:600行，速度29.23，normal_excavation98% | 中:11710行，速度0.01，stopped98% | 后:600行，速度26.86，normal_excavation100% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 12 planner=hybrid_llm reason: SC_008 (67min) 是较长的停机案例，值得深入钻取；Q5未回答，drilldown可帮助获取完整信息；unverified_count=6需逐个验证
+[investigate] action: drilldown_time_window({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['drilldown_time_window']
+[audit] rejected: []
+[arg_resolver] 无可用 drilldown 目标
+[investigate] observe: error: need target_id or start_time
+[investigate] round 13 planner=hybrid_llm reason: drilldown已达2次且遇到参数错误(error: need target_id or start_time)，无法继续钻取。SER=208、停机率53%、未验证案例6个、Q5未答，当前唯一允许动作generate_investigation_report可综合P1/P3/P4已完成的分析推进P2并输出结论报告，回答Q1/Q2/Q5
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_window (reason: 存在未验证事件级异常线索 SC_008，必须先做 drilldown)
+[investigate] observe: [SC_008] 前:600行，速度30.32，normal_excavation100% | 中:4024行，速度0.07，stopped92% | 后:600行，速度33.09，normal_excavation100% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 14 planner=hybrid_llm reason: 已连续进行5次钻取操作，drilldown_done=3，需暂停并汇总当前发现；unverified_count=5个未验证案例，stopped_pct=53%且ser_count=208，说明问题普遍存在；Q5未回答，需整合已有信息；P2进行中应阶段性总结。
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_window (reason: 存在未验证事件级异常线索 SC_004，必须先做 drilldown)
+[investigate] observe: [SC_004] 前:600行，速度29.63，normal_excavation100% | 中:3976行，速度2.73，stopped81% | 后:600行，速度32.01，normal_excavation100% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 15 planner=hybrid_llm reason: 虽然已进行15轮调查，但stoppage_cases=16，drilldown_done=4，仅完成25%的窗口钻取。仍有12个停机案例需要分析以全面回答Q5（停机根因）。rule_recommended动作合理，应继续系统性地完成剩余案例钻取，为P2调查报告提供完整数据支撑。
+[investigate] action: drilldown_time_window({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-3-22-20250827085006.xls"})
+[audit] candidates: ['drilldown_time_window']
+[audit] rejected: []
+[arg_resolver] 无可用 drilldown 目标
+[investigate] observe: error: need target_id or start_time
+[investigate] round 16 planner=hybrid_llm reason: 连续5次drilldown_time_window失败(last_obs: need target_id or start_time)，drilldown_done=4，unverified=4，已积累16个停机案例数据。鉴于钻取操作持续受阻且allowed_actions限制为generate_investigation_report，应汇总现有调查结果生成报告，推进调查结论。
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_window (reason: 存在未验证事件级异常线索 SC_003，必须先做 drilldown)
+[investigate] observe: [SC_003] 前:600行，速度21.43，normal_excavation100% | 中:2103行，速度0.1，stopped88% | 后:600行，速度28.79，normal_excavation100% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 17 planner=hybrid_llm reason: 钻取已达5次上限（R3），停止钻取条件满足（R5）。停机案例16个，SER异常208条，液压46条。Q1/Q2部分回答，Q5未答，需汇总分析后输出调查报告。
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_window (reason: 存在未验证事件级异常线索 SC_015，必须先做 drilldown)
+[investigate] observe: [SC_015] 前:600行，速度27.84，normal_excavation100% | 中:1999行，速度0.08，stopped90% | 后:600行，速度28.45，normal_excavation99% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 18 planner=hybrid_llm reason: 已连续5次执行drilldown_time_window，6次钻取已完成。questions中Q5未回答且Q1/Q2部分回答，需汇总现有发现形成阶段性结论，而非继续钻取新案例。generate_investigation_report可整合已完成的6次钻取结果，回答关键问题并推进P2计划。
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_window (reason: 存在未验证事件级异常线索 SC_007，必须先做 drilldown)
+[investigate] observe: [SC_007] 前:600行，速度24.37，normal_excavation98% | 中:1005行，速度0.13，stopped51% | 后:600行，速度14.96，normal_excavation66% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 19 planner=hybrid_llm reason: 轮次19且连续5次钻取后，钻取完成率已达7/16，未验证项仅1个；P1/P3/P4已完成，P2进行中；允许动作仅剩报告生成；结合SER累计208条、HYD 46条、停机率53%等完整数据，应输出调查报告整合发现并回答剩余问题
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_window (reason: 存在未验证事件级异常线索 SC_006，必须先做 drilldown)
+[investigate] observe: [SC_006] 前:600行，速度33.2，normal_excavation100% | 中:767行，速度0.15，stopped77% | 后:600行，速度25.68，normal_excavation98% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 20 planner=hybrid_llm reason: drilldown_done已8次，覆盖50%的停机案例；plan中P2仍在进行中但接近收尾；允许动作中只有generate_investigation_report，说明系统判断当前数据已足够生成调查报告，应在继续钻取前先汇总已有发现
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[investigate] observe: report generated, 16 cases
+[investigate] STOP: report generated
+[investigate] completeness: complete_for_depth (已达到深度复核目标 (16/16))
+[investigate] conclusion: not_converged (llm)
+[investigate] planner_runtime_status: llm_ok
+[investigate] report_quality_status: warning
+[investigate] done in 332.1s, 20 tool calls, 20 rounds
+[investigate] output: investigation_100_0322
+
+======================================================================
+  # TBM 调查报告
+  
+  ## 1. 调查结论总览
+  
+  ### 运行质量
+  
+  - 调查运行状态：**部分成功**
+  - 实际 planner：混合 planner（规则 2 轮 + LLM 18 轮）
+  - LLM 成功率：18/18
+  - 报告质量门禁：**有警告**
+  
+  ### 调查充分性
+  
+  - 调查深度：深度复核
+  - 停机案例总数：16
+  - 当前深度目标：16/16
+  - 实际 drilldown 覆盖：16/16
+  - 调查充分性：**已达到当前深度目标**
+  
+  ### 调查结论
+  
+  - 调查状态：未收敛
+  - 置信度：低
+  - 主要问题类型：停机分析、掘进阻力、液压异常
+  - 覆盖情况：drilldown 覆盖 16/16
+  
+  **结论：** 当前 CSV 证据不支持 SER/HYD 直接触发停机；已 drilldown 的 16 个停机案例中 15 个停机前未见明显行级异常、停机后恢复正常；停机性质仍需施工日志确认。
+  
+  **关键发现：**
+  - 共发现 16 个停机案例，已 drilldown 16 个，未覆盖 0 个。
+  ... (完整报告见 investigation_100_0322\investigation_report.md)
+======================================================================
+
+✓ 报告: investigation_100_0322\investigation_report.md
+✓ 状态: investigation_100_0322\investigation_state.json
+✓ 记忆: investigation_100_0322\case_memory.json

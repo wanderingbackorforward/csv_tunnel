@@ -1,0 +1,220 @@
+[
+  {
+    "case_id": "SC_003",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 04:22:24",
+    "end_time": "2025-02-22 10:18:07",
+    "duration_seconds": 21343.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_006"
+    ],
+    "case_type": "event_level_abnormal_unverified",
+    "confidence": 0.32,
+    "reasons": [
+      "长停机 (356min)",
+      "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+      "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+      "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_009",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 17:04:54",
+    "end_time": "2025-02-22 22:35:07",
+    "duration_seconds": 19813.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_035"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.5,
+    "reasons": [
+      "长停机 (330min)",
+      "前后窗口无异常事件，更像计划停机",
+      "（疑似，需结合施工日志确认）"
+    ],
+    "pre_has_ser": false,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": false
+  },
+  {
+    "case_id": "SC_001",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 00:00:00",
+    "end_time": "2025-02-22 02:54:10",
+    "duration_seconds": 10450.0,
+    "merged_event_count": 2,
+    "merged_event_ids": [
+      "LEE_001",
+      "LEE_002"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.5,
+    "reasons": [
+      "长停机 (174min)",
+      "前后窗口无异常事件，更像计划停机",
+      "（疑似，需结合施工日志确认）"
+    ],
+    "pre_has_ser": false,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": false
+  },
+  {
+    "case_id": "SC_007",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 14:30:04",
+    "end_time": "2025-02-22 15:11:27",
+    "duration_seconds": 2483.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_026"
+    ],
+    "case_type": "uncertain_stoppage",
+    "confidence": 0.35,
+    "reasons": [
+      "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+      "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+      "（证据不足，建议人工核查）"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_005",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 12:07:17",
+    "end_time": "2025-02-22 12:41:44",
+    "duration_seconds": 2067.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_016"
+    ],
+    "case_type": "uncertain_stoppage",
+    "confidence": 0.35,
+    "reasons": [
+      "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+      "（证据不足，建议人工核查）"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": false
+  },
+  {
+    "case_id": "SC_010",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 23:17:40",
+    "end_time": "2025-02-22 23:46:17",
+    "duration_seconds": 1717.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_038"
+    ],
+    "case_type": "uncertain_stoppage",
+    "confidence": 0.35,
+    "reasons": [
+      "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+      "（证据不足，建议人工核查）"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": false
+  },
+  {
+    "case_id": "SC_008",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 15:51:21",
+    "end_time": "2025-02-22 16:19:12",
+    "duration_seconds": 1671.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_031"
+    ],
+    "case_type": "uncertain_stoppage",
+    "confidence": 0.35,
+    "reasons": [
+      "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+      "（证据不足，建议人工核查）"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": false
+  },
+  {
+    "case_id": "SC_006",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 13:19:12",
+    "end_time": "2025-02-22 13:43:36",
+    "duration_seconds": 1464.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_020"
+    ],
+    "case_type": "event_level_abnormal_unverified",
+    "confidence": 0.31,
+    "reasons": [
+      "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+      "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+      "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+      "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": true,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_002",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 03:28:34",
+    "end_time": "2025-02-22 03:45:26",
+    "duration_seconds": 1012.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_004"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.57,
+    "reasons": [
+      "前后窗口无异常事件，更像计划停机",
+      "（疑似，需结合施工日志确认）"
+    ],
+    "pre_has_ser": false,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": false
+  },
+  {
+    "case_id": "SC_004",
+    "file_path": "sample2.xls",
+    "start_time": "2025-02-22 11:00:30",
+    "end_time": "2025-02-22 11:11:44",
+    "duration_seconds": 674.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_012"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.57,
+    "reasons": [
+      "前后窗口无异常事件，更像计划停机",
+      "（疑似，需结合施工日志确认）"
+    ],
+    "pre_has_ser": false,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": false
+  }
+]

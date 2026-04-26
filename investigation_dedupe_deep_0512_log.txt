@@ -1,0 +1,102 @@
+WARNING [tbm_diag.ingestion] 1 unrecognized column(s) will be kept as-is: ['Unnamed: 39']
+WARNING [tbm_diag.ingestion] Fields with suspicious units (kept as raw, do not use for physics): ['raw_top_left_stab_stroke_bar', 'raw_top_right_stab_stroke_bar']
+[investigate] task=7d83fc6c mode=single_file focus=auto files=1
+[investigate] planner=hybrid
+[investigate] round 1 planner=hybrid_rule reason: 尚未检查当前文件概览
+[investigate] action: inspect_file_overview({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"})
+[audit] candidates: ['inspect_file_overview']
+[audit] rejected: []
+[investigate] observe: rows=86400, events=444, time=2025-05-12 00:00:00~2025-05-12 23:59:59
+[investigate] round 2 planner=hybrid_rule reason: 尚未加载事件摘要
+[investigate] action: load_event_summary({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"})
+[audit] candidates: ['load_event_summary']
+[audit] rejected: []
+[investigate] observe: events=444, sem_dist={'stoppage_segment': 14, 'low_efficiency_excavation': 126, 'suspected_excavation_resistance': 241, 'hydraulic_instability': 63}
+[investigate] round 3 planner=hybrid_llm reason: SER(掘进阻力异常)数量241个，占比54%为最高异常类型。虽然规则推荐分析停机案例，但stoppage_cases=0无实际停机案例，SER才是最大隐患，需优先解析其模式和分布。
+[investigate] action: analyze_resistance_pattern({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"})
+[audit] candidates: ['analyze_resistance_pattern']
+[audit] rejected: []
+[investigate] observe: SER 事件 241 个，共 19.1h，推进中占比 81%，时间集中，靠近停机
+[investigate] round 4 planner=hybrid_llm reason: 停机段segment=14，stopped=64%，且SER事件靠近停机时间，应分析停机模式与SER的关联性
+[investigate] action: analyze_stoppage_cases({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"})
+[audit] candidates: ['analyze_stoppage_cases']
+[audit] rejected: []
+[investigate] observe: 9 个停机案例，共 16.4h
+[investigate] round 5 planner=hybrid_llm reason: SC_008停机时长353分钟（5.9h），是9个停机案例中较长的案例，需钻取其时间窗口分析SER和HYD事件的具体分布，找出停机根因，为Q3-Q5提供数据支撑
+[investigate] action: drilldown_time_window({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"})
+[audit] candidates: ['drilldown_time_window']
+[audit] rejected: []
+[arg_resolver] controller 解析 target_id=SC_008（LLM 原始参数无效）
+[investigate] observe: [SC_008] 前:600行，速度23.25，normal_excavation84% | 中:21198行，速度0.08，stopped99% | 后:600行，速度33.28，normal_excavation96% → 停机前未见明显异常；停机后恢复正常
+[investigate] round 6 planner=hybrid_llm reason: 规则推荐 SC_003 (243min) 钻取；停机案例共9个仅钻取1个，剩余8个待钻取；SC_003 是长停机案例需优先验证
+[investigate] action: drilldown_time_windows_batch({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"})
+[audit] candidates: ['drilldown_time_windows_batch']
+[audit] rejected: []
+[arg_resolver] controller 解析 target_ids=['SC_003', 'SC_004', 'SC_001', 'SC_006', 'SC_005']（LLM 原始参数无效）
+[investigate] observe: 批量钻取 5/5 个目标完成，5 个停机前无异常
+[investigate] round 7 planner=hybrid_llm reason: 规则推荐的drilldown_time_window指向已钻取的SC_003，违反硬约束。hyd_count=63，水力异常数量较多(P2相关)，剩余3个未钻取案例可后续处理。当前应先分析水力模式以支撑P2进度。
+[investigate] action: analyze_hydraulic_pattern({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"})
+[audit] candidates: ['analyze_hydraulic_pattern']
+[audit] rejected: []
+[investigate] observe: HYD 事件 63 个，共 0.1h，与 SER 同步，靠近停机边界，多为孤立短时波动
+[investigate] round 8 planner=hybrid_llm reason: 已完成6/9个停机案例钻取(Q4和Q5仍unanswered)，现有数据足以支撑中期报告生成；同时可系统性梳理已钻取案例的SER/HYD关联模式，为剩余3个案例(SC_002/SC_007/SC_009)的定向钻取提供依据，避免盲目重复钻取
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[evidence_gate] OVERRIDE: generate_investigation_report → drilldown_time_windows_batch (reason: stoppage coverage 6/9 < depth target，批量钻取 ['SC_007', 'SC_002', 'SC_009'])
+[investigate] observe: 批量钻取 3/3 个目标完成，3 个停机前无异常
+[investigate] round 9 planner=hybrid_llm reason: 所有9个停机案例已完成钻取，无remaining_sc_ids可用。规则推荐drilldown_time_window但SC_003已在already_drilled_sc_ids中违反硬约束。analyze_event_fragmentation可分析停机事件的时间碎片化模式，挖掘潜在规律，为生成调查报告提供支撑。
+[investigate] action: analyze_event_fragmentation({"file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"})
+[audit] candidates: ['analyze_event_fragmentation']
+[audit] rejected: []
+[investigate] observe: 事件 444 个，平均 304s，短事件占比 78%
+[investigate] round 10 planner=hybrid_llm reason: remaining_sc_ids 为空，所有9个停机案例已完成钻取，无法继续 drilldown。硬约束禁止对 already_drilled_sc_ids 中的案例再次钻取。唯一可行的动作是生成调查报告以汇总分析结果并回答剩余问题。
+[investigate] action: generate_investigation_report({})
+[audit] candidates: ['generate_investigation_report']
+[audit] rejected: []
+[investigate] observe: report generated, 9 cases
+[investigate] STOP: report generated
+[investigate] completeness: complete_for_depth (已达到深度复核目标 (9/9))
+[investigate] conclusion: converged (fallback)
+[investigate] planner_runtime_status: llm_ok
+[investigate] report_quality_status: warning
+[investigate] done in 183.2s, 10 tool calls, 10 rounds
+[investigate] output: investigation_dedupe_deep_0512
+
+======================================================================
+  # TBM 调查报告
+  
+  ## 1. 调查结论总览
+  
+  ### 运行质量
+  
+  - 调查运行状态：**部分成功**
+  - 实际 planner：混合 planner（规则 2 轮 + LLM 8 轮）
+  - LLM 成功率：8/8
+  - 报告质量门禁：**有警告**
+  
+  ### 调查充分性
+  
+  - 调查深度：深度复核
+  - 停机案例总数：9
+  - 当前深度目标：9/9
+  - 实际 drilldown 覆盖：9/9
+  - 调查充分性：**已达到当前深度目标**
+  
+  ### 调查结论
+  
+  - 调查状态：已收敛
+  - 置信度：中
+  - 主要问题类型：停机分析、掘进阻力、液压异常
+  - 覆盖情况：drilldown 覆盖 9/9
+  
+  **结论：** 当前 CSV 证据不支持 SER/HYD 直接触发停机；已 drilldown 的 9 个停机案例中 9 个停机前未见明显行级异常、停机后恢复正常；停机性质仍需施工日志确认。
+  
+  **关键发现：**
+  - 共发现 9 个停机案例，已 drilldown 9 个，未覆盖 0 个。
+  ... (完整报告见 investigation_dedupe_deep_0512\investigation_report.md)
+======================================================================
+
+✓ 报告: investigation_dedupe_deep_0512\investigation_report.md
+✓ 状态: investigation_dedupe_deep_0512\investigation_state.json
+✓ 记忆: investigation_dedupe_deep_0512\case_memory.json

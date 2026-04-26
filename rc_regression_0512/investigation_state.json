@@ -1,0 +1,4289 @@
+{
+  "task_id": "456e1524",
+  "mode": "single_file",
+  "input_files": [
+    "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"
+  ],
+  "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+  "file_overviews": {
+    "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls": {
+      "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "total_rows": 86400,
+      "time_start": "2025-05-12 00:00:00",
+      "time_end": "2025-05-12 23:59:59",
+      "state_distribution": {
+        "stopped": 64.2,
+        "normal_excavation": 27.2,
+        "low_load_operation": 8.5,
+        "heavy_load_excavation": 0.2
+      },
+      "event_count": 444,
+      "semantic_event_distribution": {
+        "stoppage_segment": 14,
+        "low_efficiency_excavation": 126,
+        "suspected_excavation_resistance": 241,
+        "hydraulic_instability": 63
+      }
+    }
+  },
+  "event_summaries": {
+    "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls": {
+      "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "event_count": 444,
+      "event_type_distribution": {
+        "low_efficiency_excavation": 140,
+        "suspected_excavation_resistance": 241,
+        "hydraulic_instability": 63
+      },
+      "semantic_event_distribution": {
+        "stoppage_segment": 14,
+        "low_efficiency_excavation": 126,
+        "suspected_excavation_resistance": 241,
+        "hydraulic_instability": 63
+      },
+      "top_events": [
+        {
+          "event_id": "LEE_131",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 16:42:13",
+          "end": "2025-05-12 22:29:00",
+          "duration_s": 20807,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_015",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 04:52:49",
+          "end": "2025-05-12 08:55:46",
+          "duration_s": 14577,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_090",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 10:48:40",
+          "end": "2025-05-12 13:14:11",
+          "duration_s": 8731,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_002",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 00:10:52",
+          "end": "2025-05-12 02:31:10",
+          "duration_s": 8418,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_127",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 15:43:49",
+          "end": "2025-05-12 16:12:14",
+          "duration_s": 1705,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_007",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 03:22:08",
+          "end": "2025-05-12 03:44:32",
+          "duration_s": 1344,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_115",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 14:45:30",
+          "end": "2025-05-12 15:03:21",
+          "duration_s": 1071,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_112",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 14:13:29",
+          "end": "2025-05-12 14:28:02",
+          "duration_s": 873,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_136",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 23:13:37",
+          "end": "2025-05-12 23:26:19",
+          "duration_s": 762,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "LEE_010",
+          "event_type": "low_efficiency_excavation",
+          "start": "2025-05-12 04:00:24",
+          "end": "2025-05-12 04:09:57",
+          "duration_s": 573,
+          "peak_score": 1.0,
+          "dominant_state": "停机/静止"
+        }
+      ]
+    }
+  },
+  "stoppage_cases": {
+    "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls": [
+      {
+        "case_id": "SC_008",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 16:42:13",
+        "end_time": "2025-05-12 22:35:30",
+        "duration_seconds": 21197.0,
+        "merged_event_count": 2,
+        "merged_event_ids": [
+          "LEE_131",
+          "LEE_132"
+        ]
+      },
+      {
+        "case_id": "SC_003",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 04:52:49",
+        "end_time": "2025-05-12 08:55:46",
+        "duration_seconds": 14577.0,
+        "merged_event_count": 1,
+        "merged_event_ids": [
+          "LEE_015"
+        ]
+      },
+      {
+        "case_id": "SC_004",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 10:41:10",
+        "end_time": "2025-05-12 13:14:11",
+        "duration_seconds": 9181.0,
+        "merged_event_count": 2,
+        "merged_event_ids": [
+          "LEE_089",
+          "LEE_090"
+        ]
+      },
+      {
+        "case_id": "SC_001",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 00:10:52",
+        "end_time": "2025-05-12 02:31:10",
+        "duration_seconds": 8418.0,
+        "merged_event_count": 1,
+        "merged_event_ids": [
+          "LEE_002"
+        ]
+      },
+      {
+        "case_id": "SC_007",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 15:43:49",
+        "end_time": "2025-05-12 16:12:14",
+        "duration_seconds": 1705.0,
+        "merged_event_count": 1,
+        "merged_event_ids": [
+          "LEE_127"
+        ]
+      },
+      {
+        "case_id": "SC_002",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 03:22:08",
+        "end_time": "2025-05-12 03:44:32",
+        "duration_seconds": 1344.0,
+        "merged_event_count": 1,
+        "merged_event_ids": [
+          "LEE_007"
+        ]
+      },
+      {
+        "case_id": "SC_006",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 14:45:30",
+        "end_time": "2025-05-12 15:03:21",
+        "duration_seconds": 1071.0,
+        "merged_event_count": 1,
+        "merged_event_ids": [
+          "LEE_115"
+        ]
+      },
+      {
+        "case_id": "SC_005",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 14:13:29",
+        "end_time": "2025-05-12 14:28:02",
+        "duration_seconds": 873.0,
+        "merged_event_count": 1,
+        "merged_event_ids": [
+          "LEE_112"
+        ]
+      },
+      {
+        "case_id": "SC_009",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "start_time": "2025-05-12 23:13:37",
+        "end_time": "2025-05-12 23:26:19",
+        "duration_seconds": 762.0,
+        "merged_event_count": 1,
+        "merged_event_ids": [
+          "LEE_136"
+        ]
+      }
+    ]
+  },
+  "transition_analyses": {
+    "SC_008": {
+      "case_id": "SC_008",
+      "pre_events": [
+        {
+          "event_id": "LEE_130",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 16:37:23",
+          "duration_s": 109,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_226",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:37:24",
+          "duration_s": 110,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "HYD_035",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 16:32:22",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_230",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:41:41",
+          "duration_s": 12,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_231",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:42:00",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_229",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:41:29",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_227",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:40:32",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_228",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:41:11",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "LEE_134",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 22:42:19",
+          "duration_s": 26,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "LEE_133",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 22:37:07",
+          "duration_s": 12,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_235",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 22:42:19",
+          "duration_s": 27,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_234",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 22:37:10",
+          "duration_s": 10,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "HYD_038",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 22:43:21",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_036",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 22:40:00",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_037",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 22:43:08",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": true,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 84.0,
+        "low_load_operation": 15.8,
+        "heavy_load_excavation": 0.2
+      },
+      "post_state_distribution": {
+        "normal_excavation": 96.0,
+        "low_load_operation": 3.7,
+        "heavy_load_excavation": 0.3
+      }
+    },
+    "SC_003": {
+      "case_id": "SC_003",
+      "pre_events": [
+        {
+          "event_id": "LEE_014",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 04:45:13",
+          "duration_s": 33,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_013",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 04:44:58",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_012",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 04:44:46",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_037",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 04:43:32",
+          "duration_s": 137,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_036",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 04:43:17",
+          "duration_s": 11,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_035",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 04:43:05",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_034",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 04:42:53",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "LEE_017",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 08:56:10",
+          "duration_s": 188,
+          "dominant_state": "重载推进"
+        },
+        {
+          "event_id": "LEE_025",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:01:43",
+          "duration_s": 79,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "LEE_026",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:03:11",
+          "duration_s": 34,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_030",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:04:35",
+          "duration_s": 24,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_031",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:05:05",
+          "duration_s": 12,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_027",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:03:50",
+          "duration_s": 10,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_024",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:01:28",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_016",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 08:55:59",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_039",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 08:55:56",
+          "duration_s": 276,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_040",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 09:00:38",
+          "duration_s": 146,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_029",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:04:22",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_032",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:05:23",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_023",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:01:11",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_028",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:04:05",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_019",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 08:59:44",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_018",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 08:59:29",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_020",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 08:59:55",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_021",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:00:12",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_022",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 09:00:43",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_041",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 09:03:09",
+          "duration_s": 186,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": false,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 100.0
+      },
+      "post_state_distribution": {
+        "normal_excavation": 71.0,
+        "low_load_operation": 16.2,
+        "heavy_load_excavation": 12.8
+      }
+    },
+    "SC_004": {
+      "case_id": "SC_004",
+      "pre_events": [
+        {
+          "event_id": "LEE_085",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 10:34:10",
+          "duration_s": 256,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_084",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 10:33:18",
+          "duration_s": 42,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_130",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 10:40:22",
+          "duration_s": 378,
+          "dominant_state": "停机/静止"
+        },
+        {
+          "event_id": "SER_125",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 10:32:23",
+          "duration_s": 99,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_011",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 10:33:57",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_086",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 10:40:25",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_087",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 10:40:42",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_088",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 10:40:58",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_126",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 10:34:07",
+          "duration_s": 327,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_127",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 10:39:38",
+          "duration_s": 10,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_128",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 10:39:53",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_129",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 10:40:08",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "LEE_095",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:17:30",
+          "duration_s": 156,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_101",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:23:05",
+          "duration_s": 98,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_098",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:20:59",
+          "duration_s": 87,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_094",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:16:31",
+          "duration_s": 49,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "LEE_092",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:16:02",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_093",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:16:18",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_096",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:20:17",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_097",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:20:34",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_100",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:22:52",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_099",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:22:37",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_135",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 13:17:27",
+          "duration_s": 160,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_136",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 13:20:16",
+          "duration_s": 131,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_137",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 13:22:35",
+          "duration_s": 129,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_134",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 13:15:28",
+          "duration_s": 114,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_016",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 13:22:21",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_013",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 13:17:15",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_014",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 13:20:03",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_015",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 13:21:45",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_017",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 13:24:00",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "LEE_091",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 13:15:48",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_132",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 13:14:44",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_133",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 13:15:00",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": true,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 90.7,
+        "low_load_operation": 9.2,
+        "heavy_load_excavation": 0.2
+      },
+      "post_state_distribution": {
+        "normal_excavation": 80.7,
+        "low_load_operation": 18.2,
+        "heavy_load_excavation": 1.2
+      }
+    },
+    "SC_001": {
+      "case_id": "SC_001",
+      "pre_events": [
+        {
+          "event_id": "LEE_001",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 00:10:23",
+          "duration_s": 19,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_001",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 00:10:27",
+          "duration_s": 16,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "HYD_001",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 00:10:40",
+          "duration_s": 12,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "LEE_003",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 02:31:53",
+          "duration_s": 34,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_003",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 02:31:55",
+          "duration_s": 33,
+          "dominant_state": "低负载运行"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": true,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 97.7,
+        "low_load_operation": 2.2,
+        "heavy_load_excavation": 0.2
+      },
+      "post_state_distribution": {
+        "normal_excavation": 95.0,
+        "low_load_operation": 4.2,
+        "heavy_load_excavation": 0.8
+      }
+    },
+    "SC_007": {
+      "case_id": "SC_007",
+      "pre_events": [
+        {
+          "event_id": "LEE_126",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 15:38:26",
+          "duration_s": 185,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_218",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:38:27",
+          "duration_s": 185,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_220",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:43:43",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_219",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:43:29",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "LEE_128",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 16:20:38",
+          "duration_s": 78,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_224",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:20:43",
+          "duration_s": 75,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_222",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:16:52",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_033",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 16:12:39",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_223",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 16:17:07",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": false,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 70.8,
+        "low_load_operation": 29.0,
+        "heavy_load_excavation": 0.2
+      },
+      "post_state_distribution": {
+        "normal_excavation": 88.7,
+        "low_load_operation": 11.2,
+        "heavy_load_excavation": 0.2
+      }
+    },
+    "SC_002": {
+      "case_id": "SC_002",
+      "pre_events": [
+        {
+          "event_id": "SER_022",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:19:32",
+          "duration_s": 35,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_021",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:19:18",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_017",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:17:14",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_019",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:18:52",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_018",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:17:27",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_016",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:16:41",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_020",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:19:06",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "SER_028",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:50:10",
+          "duration_s": 79,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_024",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:45:09",
+          "duration_s": 17,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_026",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:49:47",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_027",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:49:57",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_025",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 03:49:33",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": false,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 100.0
+      },
+      "post_state_distribution": {
+        "normal_excavation": 100.0
+      }
+    },
+    "SC_006": {
+      "case_id": "SC_006",
+      "pre_events": [
+        {
+          "event_id": "LEE_114",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 14:39:05",
+          "duration_s": 41,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_186",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:38:52",
+          "duration_s": 56,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "HYD_026",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 14:39:04",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_189",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:40:33",
+          "duration_s": 78,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_188",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:40:16",
+          "duration_s": 12,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_187",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:39:59",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_182",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:37:48",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_183",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:38:02",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_180",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:37:19",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_178",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:36:20",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_179",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:37:04",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_181",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:37:37",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_177",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:35:48",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_184",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:38:18",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_185",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:38:37",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "LEE_117",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 15:06:05",
+          "duration_s": 87,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "LEE_118",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 15:10:31",
+          "duration_s": 61,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "LEE_116",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 15:04:00",
+          "duration_s": 40,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "LEE_119",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 15:11:45",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_192",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:06:08",
+          "duration_s": 85,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_201",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:10:30",
+          "duration_s": 63,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_191",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:04:02",
+          "duration_s": 40,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_197",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:09:07",
+          "duration_s": 34,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_195",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:08:38",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_200",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:10:15",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_196",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:08:52",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_198",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:09:48",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_202",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:11:43",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_028",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 15:05:08",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_193",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:07:44",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_199",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:10:02",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_203",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:11:59",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_027",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 15:03:45",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_194",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 15:08:22",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": true,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 94.8,
+        "low_load_operation": 5.2
+      },
+      "post_state_distribution": {
+        "normal_excavation": 71.5,
+        "low_load_operation": 27.8,
+        "heavy_load_excavation": 0.7
+      }
+    },
+    "SC_005": {
+      "case_id": "SC_005",
+      "pre_events": [
+        {
+          "event_id": "LEE_111",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 14:05:47",
+          "duration_s": 48,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_166",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:05:50",
+          "duration_s": 47,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "HYD_024",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 14:05:39",
+          "duration_s": 9,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_023",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 14:05:07",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_022",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 14:04:19",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_168",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:08:39",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_167",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:08:23",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "HYD_025",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 14:12:20",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "LEE_113",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 14:33:05",
+          "duration_s": 34,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_176",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:32:55",
+          "duration_s": 46,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_175",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:32:42",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_182",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:37:48",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_183",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:38:02",
+          "duration_s": 8,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_180",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:37:19",
+          "duration_s": 7,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_172",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:31:05",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_170",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:30:34",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_173",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:31:36",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_174",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:32:30",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_178",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:36:20",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_179",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:37:04",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_181",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:37:37",
+          "duration_s": 5,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_171",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:30:52",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        },
+        {
+          "event_id": "SER_177",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 14:35:48",
+          "duration_s": 4,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": true,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 93.0,
+        "low_load_operation": 6.8,
+        "heavy_load_excavation": 0.2
+      },
+      "post_state_distribution": {
+        "normal_excavation": 96.2,
+        "low_load_operation": 3.8
+      }
+    },
+    "SC_009": {
+      "case_id": "SC_009",
+      "pre_events": [
+        {
+          "event_id": "LEE_135",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 23:12:32",
+          "duration_s": 33,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_236",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 23:12:37",
+          "duration_s": 34,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "HYD_063",
+          "semantic_type": "hydraulic_instability",
+          "start": "2025-05-12 23:12:18",
+          "duration_s": 6,
+          "dominant_state": "正常推进"
+        }
+      ],
+      "post_events": [
+        {
+          "event_id": "LEE_137",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 23:28:45",
+          "duration_s": 35,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "LEE_138",
+          "semantic_type": "low_efficiency_excavation",
+          "start": "2025-05-12 23:33:32",
+          "duration_s": 21,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_238",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 23:28:49",
+          "duration_s": 32,
+          "dominant_state": "低负载运行"
+        },
+        {
+          "event_id": "SER_239",
+          "semantic_type": "suspected_excavation_resistance",
+          "start": "2025-05-12 23:33:35",
+          "duration_s": 19,
+          "dominant_state": "低负载运行"
+        }
+      ],
+      "pre_has_ser": true,
+      "pre_has_hyd": true,
+      "pre_has_heavy_load": false,
+      "post_has_anomaly": true,
+      "pre_state_distribution": {
+        "normal_excavation": 96.7,
+        "low_load_operation": 3.3
+      },
+      "post_state_distribution": {
+        "normal_excavation": 92.7,
+        "low_load_operation": 6.7,
+        "heavy_load_excavation": 0.7
+      }
+    }
+  },
+  "case_classifications": {
+    "SC_008": {
+      "case_id": "SC_008",
+      "case_type": "event_level_abnormal_unverified",
+      "confidence": 0.34,
+      "reasons": [
+        "长停机 (353min)",
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+      ]
+    },
+    "SC_003": {
+      "case_id": "SC_003",
+      "case_type": "event_level_abnormal_unverified",
+      "confidence": 0.32,
+      "reasons": [
+        "长停机 (243min)",
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+      ]
+    },
+    "SC_004": {
+      "case_id": "SC_004",
+      "case_type": "event_level_abnormal_unverified",
+      "confidence": 0.34,
+      "reasons": [
+        "长停机 (153min)",
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+      ]
+    },
+    "SC_001": {
+      "case_id": "SC_001",
+      "case_type": "event_level_abnormal_unverified",
+      "confidence": 0.34,
+      "reasons": [
+        "长停机 (140min)",
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+      ]
+    },
+    "SC_007": {
+      "case_id": "SC_007",
+      "case_type": "uncertain_stoppage",
+      "confidence": 0.35,
+      "reasons": [
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（证据不足，建议人工核查）"
+      ]
+    },
+    "SC_002": {
+      "case_id": "SC_002",
+      "case_type": "uncertain_stoppage",
+      "confidence": 0.35,
+      "reasons": [
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（证据不足，建议人工核查）"
+      ]
+    },
+    "SC_006": {
+      "case_id": "SC_006",
+      "case_type": "event_level_abnormal_unverified",
+      "confidence": 0.31,
+      "reasons": [
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+      ]
+    },
+    "SC_005": {
+      "case_id": "SC_005",
+      "case_type": "event_level_abnormal_unverified",
+      "confidence": 0.31,
+      "reasons": [
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+      ]
+    },
+    "SC_009": {
+      "case_id": "SC_009",
+      "case_type": "event_level_abnormal_unverified",
+      "confidence": 0.31,
+      "reasons": [
+        "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+        "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+        "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+        "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+      ]
+    }
+  },
+  "cross_file_patterns": [],
+  "observations": [
+    {
+      "round_num": 1,
+      "action": "inspect_file_overview",
+      "result_summary": "rows=86400, events=444, time=2025-05-12 00:00:00~2025-05-12 23:59:59",
+      "data": {
+        "status": "ok",
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "total_rows": 86400,
+        "time_start": "2025-05-12 00:00:00",
+        "time_end": "2025-05-12 23:59:59",
+        "state_distribution": {
+          "stopped": 64.2,
+          "normal_excavation": 27.2,
+          "low_load_operation": 8.5,
+          "heavy_load_excavation": 0.2
+        },
+        "event_count": 444,
+        "semantic_event_distribution": {
+          "stoppage_segment": 14,
+          "low_efficiency_excavation": 126,
+          "suspected_excavation_resistance": 241,
+          "hydraulic_instability": 63
+        }
+      }
+    },
+    {
+      "round_num": 2,
+      "action": "load_event_summary",
+      "result_summary": "events=444, sem_dist={'stoppage_segment': 14, 'low_efficiency_excavation': 126, 'suspected_excavation_resistance': 241, 'hydraulic_instability': 63}",
+      "data": {
+        "status": "ok",
+        "event_count": 444,
+        "event_type_distribution": {
+          "low_efficiency_excavation": 140,
+          "suspected_excavation_resistance": 241,
+          "hydraulic_instability": 63
+        },
+        "semantic_event_distribution": {
+          "stoppage_segment": 14,
+          "low_efficiency_excavation": 126,
+          "suspected_excavation_resistance": 241,
+          "hydraulic_instability": 63
+        },
+        "top_events": [
+          {
+            "event_id": "LEE_131",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 16:42:13",
+            "end": "2025-05-12 22:29:00",
+            "duration_s": 20807,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_015",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 04:52:49",
+            "end": "2025-05-12 08:55:46",
+            "duration_s": 14577,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_090",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 10:48:40",
+            "end": "2025-05-12 13:14:11",
+            "duration_s": 8731,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_002",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 00:10:52",
+            "end": "2025-05-12 02:31:10",
+            "duration_s": 8418,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_127",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 15:43:49",
+            "end": "2025-05-12 16:12:14",
+            "duration_s": 1705,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_007",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 03:22:08",
+            "end": "2025-05-12 03:44:32",
+            "duration_s": 1344,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_115",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 14:45:30",
+            "end": "2025-05-12 15:03:21",
+            "duration_s": 1071,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_112",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 14:13:29",
+            "end": "2025-05-12 14:28:02",
+            "duration_s": 873,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_136",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 23:13:37",
+            "end": "2025-05-12 23:26:19",
+            "duration_s": 762,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          },
+          {
+            "event_id": "LEE_010",
+            "event_type": "low_efficiency_excavation",
+            "start": "2025-05-12 04:00:24",
+            "end": "2025-05-12 04:09:57",
+            "duration_s": 573,
+            "peak_score": 1.0,
+            "dominant_state": "停机/静止"
+          }
+        ]
+      }
+    },
+    {
+      "round_num": 3,
+      "action": "analyze_resistance_pattern",
+      "result_summary": "SER 事件 241 个，共 19.1h，推进中占比 81%，时间集中，靠近停机",
+      "data": {
+        "status": "ok",
+        "ser_count": 241,
+        "ser_total_duration_h": 19.1,
+        "dominant_states": {
+          "停机/静止": 14,
+          "正常推进": 195,
+          "低负载运行": 32
+        },
+        "concentrated_in_time": true,
+        "near_stoppage": true,
+        "in_advancing_count": 195,
+        "in_advancing_ratio": 0.81,
+        "top_ser_event_ids": [
+          "SER_138",
+          "SER_043",
+          "SER_094"
+        ],
+        "invalid_ser_count": 14,
+        "all_stopped_overlap": false,
+        "summary": "SER 事件 241 个，共 19.1h，推进中占比 81%，时间集中，靠近停机"
+      }
+    },
+    {
+      "round_num": 4,
+      "action": "analyze_event_fragmentation",
+      "result_summary": "事件 444 个，平均 304s，短事件占比 78%",
+      "data": {
+        "status": "ok",
+        "event_count": 444,
+        "avg_duration_s": 303.9,
+        "short_event_count": 348,
+        "short_event_ratio": 0.78,
+        "low_efficiency_count": 126,
+        "low_efficiency_total_h": 1.5,
+        "fragmentation_risk": false,
+        "summary": "事件 444 个，平均 304s，短事件占比 78%"
+      }
+    },
+    {
+      "round_num": 5,
+      "action": "analyze_stoppage_cases",
+      "result_summary": "9 个停机案例，共 16.4h",
+      "data": {
+        "status": "ok",
+        "stoppage_count": 14,
+        "merged_cases": 9,
+        "total_duration_h": 16.4,
+        "top_cases": [
+          {
+            "case_id": "SC_008",
+            "start_time": "2025-05-12 16:42:13",
+            "end_time": "2025-05-12 22:35:30",
+            "duration_min": 353.3,
+            "case_type": "event_level_abnormal_unverified",
+            "confidence": 0.34,
+            "reasons": [
+              "长停机 (353min)",
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+            ]
+          },
+          {
+            "case_id": "SC_003",
+            "start_time": "2025-05-12 04:52:49",
+            "end_time": "2025-05-12 08:55:46",
+            "duration_min": 242.9,
+            "case_type": "event_level_abnormal_unverified",
+            "confidence": 0.32,
+            "reasons": [
+              "长停机 (243min)",
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+            ]
+          },
+          {
+            "case_id": "SC_004",
+            "start_time": "2025-05-12 10:41:10",
+            "end_time": "2025-05-12 13:14:11",
+            "duration_min": 153.0,
+            "case_type": "event_level_abnormal_unverified",
+            "confidence": 0.34,
+            "reasons": [
+              "长停机 (153min)",
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+            ]
+          },
+          {
+            "case_id": "SC_001",
+            "start_time": "2025-05-12 00:10:52",
+            "end_time": "2025-05-12 02:31:10",
+            "duration_min": 140.3,
+            "case_type": "event_level_abnormal_unverified",
+            "confidence": 0.34,
+            "reasons": [
+              "长停机 (140min)",
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+            ]
+          },
+          {
+            "case_id": "SC_007",
+            "start_time": "2025-05-12 15:43:49",
+            "end_time": "2025-05-12 16:12:14",
+            "duration_min": 28.4,
+            "case_type": "uncertain_stoppage",
+            "confidence": 0.35,
+            "reasons": [
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（证据不足，建议人工核查）"
+            ]
+          },
+          {
+            "case_id": "SC_002",
+            "start_time": "2025-05-12 03:22:08",
+            "end_time": "2025-05-12 03:44:32",
+            "duration_min": 22.4,
+            "case_type": "uncertain_stoppage",
+            "confidence": 0.35,
+            "reasons": [
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（证据不足，建议人工核查）"
+            ]
+          },
+          {
+            "case_id": "SC_006",
+            "start_time": "2025-05-12 14:45:30",
+            "end_time": "2025-05-12 15:03:21",
+            "duration_min": 17.9,
+            "case_type": "event_level_abnormal_unverified",
+            "confidence": 0.31,
+            "reasons": [
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+            ]
+          },
+          {
+            "case_id": "SC_005",
+            "start_time": "2025-05-12 14:13:29",
+            "end_time": "2025-05-12 14:28:02",
+            "duration_min": 14.6,
+            "case_type": "event_level_abnormal_unverified",
+            "confidence": 0.31,
+            "reasons": [
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+            ]
+          },
+          {
+            "case_id": "SC_009",
+            "start_time": "2025-05-12 23:13:37",
+            "end_time": "2025-05-12 23:26:19",
+            "duration_min": 12.7,
+            "case_type": "event_level_abnormal_unverified",
+            "confidence": 0.31,
+            "reasons": [
+              "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+              "停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）",
+              "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+              "（事件级异常线索，未经 drilldown 窗口验证，不能判定为异常停机）"
+            ]
+          }
+        ],
+        "summary": "9 个停机案例，共 16.4h"
+      }
+    },
+    {
+      "round_num": 6,
+      "action": "drilldown_time_window",
+      "result_summary": "[SC_008] 前:600行，速度23.25，normal_excavation84% | 中:21198行，速度0.08，stopped99% | 后:600行，速度33.28，normal_excavation96% → 停机前未见明显异常；停机后恢复正常",
+      "data": {
+        "status": "ok",
+        "target_id": "SC_008",
+        "target_event_info": {
+          "target_id": "SC_008",
+          "source": "stoppage_case",
+          "start_time": "2025-05-12 16:42:13",
+          "end_time": "2025-05-12 22:35:30"
+        },
+        "pre_summary": {
+          "rows": 600,
+          "empty": false,
+          "avg_advance_speed": 23.25,
+          "avg_penetration_rate": 5.17,
+          "avg_cutter_torque": 833.88,
+          "avg_total_thrust": 8402.67,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "normal_excavation": 84.0,
+            "low_load_operation": 15.8,
+            "heavy_load_excavation": 0.2
+          },
+          "time_range": "2025-05-12 16:32:13 ~ 2025-05-12 16:42:13"
+        },
+        "during_summary": {
+          "rows": 21198,
+          "empty": false,
+          "avg_advance_speed": 0.08,
+          "avg_penetration_rate": 0.02,
+          "avg_cutter_torque": 4.24,
+          "avg_total_thrust": 17.58,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "stopped": 98.7,
+            "low_load_operation": 1.0,
+            "normal_excavation": 0.3,
+            "heavy_load_excavation": 0.0
+          },
+          "time_range": "2025-05-12 16:42:13 ~ 2025-05-12 22:35:30"
+        },
+        "post_summary": {
+          "rows": 600,
+          "empty": false,
+          "avg_advance_speed": 33.28,
+          "avg_penetration_rate": 7.48,
+          "avg_cutter_torque": 1179.67,
+          "avg_total_thrust": 9269.67,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "normal_excavation": 96.0,
+            "low_load_operation": 3.7,
+            "heavy_load_excavation": 0.3
+          },
+          "time_range": "2025-05-12 22:35:30 ~ 2025-05-12 22:45:30"
+        },
+        "semantic_overlap": {
+          "during": {
+            "total": 4,
+            "ser": 2,
+            "hyd": 0,
+            "stoppage": 2,
+            "loweff": 0,
+            "ids": [
+              "LEE_131",
+              "LEE_132",
+              "SER_232",
+              "SER_233"
+            ]
+          },
+          "pre": {
+            "total": 9,
+            "ser": 6,
+            "hyd": 1,
+            "stoppage": 1,
+            "loweff": 1,
+            "ids": [
+              "LEE_131",
+              "LEE_130",
+              "SER_226",
+              "HYD_035",
+              "SER_230",
+              "SER_231",
+              "SER_229",
+              "SER_227",
+              "SER_228"
+            ]
+          },
+          "post": {
+            "total": 9,
+            "ser": 3,
+            "hyd": 3,
+            "stoppage": 1,
+            "loweff": 2,
+            "ids": [
+              "LEE_132",
+              "LEE_134",
+              "LEE_133",
+              "SER_233",
+              "SER_235",
+              "SER_234",
+              "HYD_038",
+              "HYD_036",
+              "HYD_037"
+            ]
+          }
+        },
+        "divergence_notes": [],
+        "transition_findings": [
+          "推进→停机转变",
+          "停机→恢复转变"
+        ],
+        "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+        "compact_pre": "600行，速度23.25，normal_excavation84%",
+        "compact_during": "21198行，速度0.08，stopped99%",
+        "compact_post": "600行，速度33.28，normal_excavation96%",
+        "summary": "[SC_008] 前:600行，速度23.25，normal_excavation84% | 中:21198行，速度0.08，stopped99% | 后:600行，速度33.28，normal_excavation96% → 停机前未见明显异常；停机后恢复正常"
+      }
+    },
+    {
+      "round_num": 7,
+      "action": "drilldown_time_window",
+      "result_summary": "[SC_003] 前:600行，速度22.97，normal_excavation100% | 中:14578行，速度0.02，stopped97% | 后:600行，速度10.84，normal_excavation71% → 停机前未见明显异常；停机后恢复正常",
+      "data": {
+        "status": "ok",
+        "target_id": "SC_003",
+        "target_event_info": {
+          "target_id": "SC_003",
+          "source": "stoppage_case",
+          "start_time": "2025-05-12 04:52:49",
+          "end_time": "2025-05-12 08:55:46"
+        },
+        "pre_summary": {
+          "rows": 600,
+          "empty": false,
+          "avg_advance_speed": 22.97,
+          "avg_penetration_rate": 4.77,
+          "avg_cutter_torque": 937.23,
+          "avg_total_thrust": 14499.5,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "normal_excavation": 100.0
+          },
+          "time_range": "2025-05-12 04:42:49 ~ 2025-05-12 04:52:49"
+        },
+        "during_summary": {
+          "rows": 14578,
+          "empty": false,
+          "avg_advance_speed": 0.02,
+          "avg_penetration_rate": 0.0,
+          "avg_cutter_torque": 6.25,
+          "avg_total_thrust": 0.86,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "stopped": 96.6,
+            "low_load_operation": 3.4,
+            "normal_excavation": 0.1
+          },
+          "time_range": "2025-05-12 04:52:49 ~ 2025-05-12 08:55:46"
+        },
+        "post_summary": {
+          "rows": 600,
+          "empty": false,
+          "avg_advance_speed": 10.84,
+          "avg_penetration_rate": 2.58,
+          "avg_cutter_torque": 588.58,
+          "avg_total_thrust": 9703.33,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "normal_excavation": 71.0,
+            "low_load_operation": 16.2,
+            "heavy_load_excavation": 12.8
+          },
+          "time_range": "2025-05-12 08:55:46 ~ 2025-05-12 09:05:46"
+        },
+        "semantic_overlap": {
+          "during": {
+            "total": 3,
+            "ser": 1,
+            "hyd": 1,
+            "stoppage": 1,
+            "loweff": 0,
+            "ids": [
+              "LEE_015",
+              "SER_038",
+              "HYD_006"
+            ]
+          },
+          "pre": {
+            "total": 8,
+            "ser": 4,
+            "hyd": 0,
+            "stoppage": 1,
+            "loweff": 3,
+            "ids": [
+              "LEE_015",
+              "LEE_014",
+              "LEE_013",
+              "LEE_012",
+              "SER_037",
+              "SER_036",
+              "SER_035",
+              "SER_034"
+            ]
+          },
+          "post": {
+            "total": 22,
+            "ser": 4,
+            "hyd": 0,
+            "stoppage": 1,
+            "loweff": 17,
+            "ids": [
+              "LEE_015",
+              "LEE_017",
+              "LEE_025",
+              "LEE_026",
+              "LEE_030",
+              "LEE_031",
+              "LEE_027",
+              "LEE_024",
+              "LEE_016",
+              "SER_038",
+              "SER_039",
+              "SER_040",
+              "LEE_029",
+              "LEE_032",
+              "LEE_023",
+              "LEE_028",
+              "LEE_019",
+              "LEE_018",
+              "LEE_020",
+              "LEE_021",
+              "LEE_022",
+              "SER_041"
+            ]
+          }
+        },
+        "divergence_notes": [],
+        "transition_findings": [
+          "推进→停机转变",
+          "停机→恢复转变"
+        ],
+        "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+        "compact_pre": "600行，速度22.97，normal_excavation100%",
+        "compact_during": "14578行，速度0.02，stopped97%",
+        "compact_post": "600行，速度10.84，normal_excavation71%",
+        "summary": "[SC_003] 前:600行，速度22.97，normal_excavation100% | 中:14578行，速度0.02，stopped97% | 后:600行，速度10.84，normal_excavation71% → 停机前未见明显异常；停机后恢复正常"
+      }
+    },
+    {
+      "round_num": 8,
+      "action": "drilldown_time_window",
+      "result_summary": "[SC_004] 前:600行，速度13.08，normal_excavation91% | 中:9182行，速度0.04，stopped70% | 后:600行，速度11.57，normal_excavation81% → 停机前未见明显异常；停机后恢复正常",
+      "data": {
+        "status": "ok",
+        "target_id": "SC_004",
+        "target_event_info": {
+          "target_id": "SC_004",
+          "source": "stoppage_case",
+          "start_time": "2025-05-12 10:41:10",
+          "end_time": "2025-05-12 13:14:11"
+        },
+        "pre_summary": {
+          "rows": 600,
+          "empty": false,
+          "avg_advance_speed": 13.08,
+          "avg_penetration_rate": 3.11,
+          "avg_cutter_torque": 659.82,
+          "avg_total_thrust": 13670.33,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "normal_excavation": 90.7,
+            "low_load_operation": 9.2,
+            "heavy_load_excavation": 0.2
+          },
+          "time_range": "2025-05-12 10:31:10 ~ 2025-05-12 10:41:10"
+        },
+        "during_summary": {
+          "rows": 9182,
+          "empty": false,
+          "avg_advance_speed": 0.04,
+          "avg_penetration_rate": 0.01,
+          "avg_cutter_torque": 33.25,
+          "avg_total_thrust": 20.79,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "stopped": 69.7,
+            "low_load_operation": 28.7,
+            "normal_excavation": 1.6
+          },
+          "time_range": "2025-05-12 10:41:10 ~ 2025-05-12 13:14:11"
+        },
+        "post_summary": {
+          "rows": 600,
+          "empty": false,
+          "avg_advance_speed": 11.57,
+          "avg_penetration_rate": 2.76,
+          "avg_cutter_torque": 601.6,
+          "avg_total_thrust": 11375.17,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "normal_excavation": 80.7,
+            "low_load_operation": 18.2,
+            "heavy_load_excavation": 1.2
+          },
+          "time_range": "2025-05-12 13:14:11 ~ 2025-05-12 13:24:11"
+        },
+        "semantic_overlap": {
+          "during": {
+            "total": 5,
+            "ser": 2,
+            "hyd": 1,
+            "stoppage": 2,
+            "loweff": 0,
+            "ids": [
+              "LEE_090",
+              "LEE_089",
+              "SER_130",
+              "SER_131",
+              "HYD_012"
+            ]
+          },
+          "pre": {
+            "total": 13,
+            "ser": 6,
+            "hyd": 1,
+            "stoppage": 1,
+            "loweff": 5,
+            "ids": [
+              "LEE_089",
+              "LEE_085",
+              "LEE_084",
+              "SER_130",
+              "SER_125",
+              "HYD_011",
+              "LEE_086",
+              "LEE_087",
+              "LEE_088",
+              "SER_126",
+              "SER_127",
+              "SER_128",
+              "SER_129"
+            ]
+          },
+          "post": {
+            "total": 24,
+            "ser": 7,
+            "hyd": 5,
+            "stoppage": 1,
+            "loweff": 11,
+            "ids": [
+              "LEE_090",
+              "LEE_095",
+              "LEE_101",
+              "LEE_098",
+              "LEE_094",
+              "LEE_092",
+              "LEE_093",
+              "LEE_096",
+              "LEE_097",
+              "LEE_100",
+              "LEE_099",
+              "SER_135",
+              "SER_136",
+              "SER_137",
+              "SER_134",
+              "HYD_016",
+              "HYD_013",
+              "HYD_014",
+              "HYD_015",
+              "HYD_017",
+              "LEE_091",
+              "SER_131",
+              "SER_132",
+              "SER_133"
+            ]
+          }
+        },
+        "divergence_notes": [],
+        "transition_findings": [
+          "推进→停机转变",
+          "停机→恢复转变"
+        ],
+        "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+        "compact_pre": "600行，速度13.08，normal_excavation91%",
+        "compact_during": "9182行，速度0.04，stopped70%",
+        "compact_post": "600行，速度11.57，normal_excavation81%",
+        "summary": "[SC_004] 前:600行，速度13.08，normal_excavation91% | 中:9182行，速度0.04，stopped70% | 后:600行，速度11.57，normal_excavation81% → 停机前未见明显异常；停机后恢复正常"
+      }
+    },
+    {
+      "round_num": 9,
+      "action": "drilldown_time_windows_batch",
+      "result_summary": "批量钻取 5/5 个目标完成，5 个停机前无异常",
+      "data": {
+        "status": "ok",
+        "batch_summary": {
+          "total_targets": 5,
+          "successful": 5,
+          "abnormal_before_count": 0,
+          "normal_before_count": 5,
+          "recovered_after_count": 5,
+          "unsupported_targets": 0
+        },
+        "per_target": [
+          {
+            "target_id": "SC_001",
+            "status": "ok",
+            "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+            "compact_pre": "600行，速度37.11，normal_excavation98%",
+            "compact_during": "8419行，速度0.02，stopped98%",
+            "compact_post": "600行，速度32.79，normal_excavation95%",
+            "pre_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 37.11,
+              "avg_penetration_rate": 7.44,
+              "avg_cutter_torque": 1333.37,
+              "avg_total_thrust": 15015.83,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 97.7,
+                "low_load_operation": 2.2,
+                "heavy_load_excavation": 0.2
+              },
+              "time_range": "2025-05-12 00:00:52 ~ 2025-05-12 00:10:52"
+            },
+            "during_summary": {
+              "rows": 8419,
+              "empty": false,
+              "avg_advance_speed": 0.02,
+              "avg_penetration_rate": 0.0,
+              "avg_cutter_torque": 3.58,
+              "avg_total_thrust": 1.81,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "stopped": 98.0,
+                "low_load_operation": 1.9,
+                "normal_excavation": 0.1
+              },
+              "time_range": "2025-05-12 00:10:52 ~ 2025-05-12 02:31:10"
+            },
+            "post_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 32.79,
+              "avg_penetration_rate": 7.06,
+              "avg_cutter_torque": 1261.2,
+              "avg_total_thrust": 7965.5,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 95.0,
+                "low_load_operation": 4.2,
+                "heavy_load_excavation": 0.8
+              },
+              "time_range": "2025-05-12 02:31:10 ~ 2025-05-12 02:41:10"
+            },
+            "divergence_notes": [],
+            "target_event_info": {
+              "target_id": "SC_001",
+              "source": "stoppage_case",
+              "start_time": "2025-05-12 00:10:52",
+              "end_time": "2025-05-12 02:31:10"
+            },
+            "semantic_overlap": {
+              "during": {
+                "total": 3,
+                "ser": 1,
+                "hyd": 1,
+                "stoppage": 1,
+                "loweff": 0,
+                "ids": [
+                  "LEE_002",
+                  "SER_002",
+                  "HYD_001"
+                ]
+              },
+              "pre": {
+                "total": 4,
+                "ser": 1,
+                "hyd": 1,
+                "stoppage": 1,
+                "loweff": 1,
+                "ids": [
+                  "LEE_002",
+                  "LEE_001",
+                  "SER_001",
+                  "HYD_001"
+                ]
+              },
+              "post": {
+                "total": 4,
+                "ser": 2,
+                "hyd": 0,
+                "stoppage": 1,
+                "loweff": 1,
+                "ids": [
+                  "LEE_002",
+                  "LEE_003",
+                  "SER_002",
+                  "SER_003"
+                ]
+              }
+            },
+            "transition_findings": [
+              "推进→停机转变",
+              "停机→恢复转变"
+            ]
+          },
+          {
+            "target_id": "SC_006",
+            "status": "ok",
+            "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+            "compact_pre": "600行，速度20.23，normal_excavation95%",
+            "compact_during": "1072行，速度0.15，stopped72%",
+            "compact_post": "600行，速度16.79，normal_excavation72%",
+            "pre_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 20.23,
+              "avg_penetration_rate": 4.97,
+              "avg_cutter_torque": 880.1,
+              "avg_total_thrust": 9020.83,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 94.8,
+                "low_load_operation": 5.2
+              },
+              "time_range": "2025-05-12 14:35:30 ~ 2025-05-12 14:45:30"
+            },
+            "during_summary": {
+              "rows": 1072,
+              "empty": false,
+              "avg_advance_speed": 0.15,
+              "avg_penetration_rate": 0.01,
+              "avg_cutter_torque": 43.85,
+              "avg_total_thrust": 13.25,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "stopped": 72.2,
+                "low_load_operation": 27.1,
+                "normal_excavation": 0.7
+              },
+              "time_range": "2025-05-12 14:45:30 ~ 2025-05-12 15:03:21"
+            },
+            "post_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 16.79,
+              "avg_penetration_rate": 3.92,
+              "avg_cutter_torque": 706.3,
+              "avg_total_thrust": 6626.83,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 71.5,
+                "low_load_operation": 27.8,
+                "heavy_load_excavation": 0.7
+              },
+              "time_range": "2025-05-12 15:03:21 ~ 2025-05-12 15:13:21"
+            },
+            "divergence_notes": [],
+            "target_event_info": {
+              "target_id": "SC_006",
+              "source": "stoppage_case",
+              "start_time": "2025-05-12 14:45:30",
+              "end_time": "2025-05-12 15:03:21"
+            },
+            "semantic_overlap": {
+              "during": {
+                "total": 2,
+                "ser": 1,
+                "hyd": 0,
+                "stoppage": 1,
+                "loweff": 0,
+                "ids": [
+                  "LEE_115",
+                  "SER_190"
+                ]
+              },
+              "pre": {
+                "total": 16,
+                "ser": 13,
+                "hyd": 1,
+                "stoppage": 1,
+                "loweff": 1,
+                "ids": [
+                  "LEE_115",
+                  "LEE_114",
+                  "SER_186",
+                  "HYD_026",
+                  "SER_189",
+                  "SER_188",
+                  "SER_187",
+                  "SER_182",
+                  "SER_183",
+                  "SER_180",
+                  "SER_178",
+                  "SER_179",
+                  "SER_181",
+                  "SER_177",
+                  "SER_184",
+                  "SER_185"
+                ]
+              },
+              "post": {
+                "total": 21,
+                "ser": 14,
+                "hyd": 2,
+                "stoppage": 1,
+                "loweff": 4,
+                "ids": [
+                  "LEE_115",
+                  "LEE_117",
+                  "LEE_118",
+                  "LEE_116",
+                  "LEE_119",
+                  "SER_190",
+                  "SER_192",
+                  "SER_201",
+                  "SER_191",
+                  "SER_197",
+                  "SER_195",
+                  "SER_200",
+                  "SER_196",
+                  "SER_198",
+                  "SER_202",
+                  "HYD_028",
+                  "SER_193",
+                  "SER_199",
+                  "SER_203",
+                  "HYD_027",
+                  "SER_194"
+                ]
+              }
+            },
+            "transition_findings": [
+              "推进→停机转变",
+              "停机→恢复转变"
+            ]
+          },
+          {
+            "target_id": "SC_005",
+            "status": "ok",
+            "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+            "compact_pre": "600行，速度26.39，normal_excavation93%",
+            "compact_during": "874行，速度0.22，stopped89%",
+            "compact_post": "600行，速度21.88，normal_excavation96%",
+            "pre_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 26.39,
+              "avg_penetration_rate": 6.51,
+              "avg_cutter_torque": 1116.82,
+              "avg_total_thrust": 8549.83,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 93.0,
+                "low_load_operation": 6.8,
+                "heavy_load_excavation": 0.2
+              },
+              "time_range": "2025-05-12 14:03:29 ~ 2025-05-12 14:13:29"
+            },
+            "during_summary": {
+              "rows": 874,
+              "empty": false,
+              "avg_advance_speed": 0.22,
+              "avg_penetration_rate": 0.03,
+              "avg_cutter_torque": 30.8,
+              "avg_total_thrust": 64.53,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "stopped": 89.2,
+                "low_load_operation": 9.3,
+                "normal_excavation": 1.5
+              },
+              "time_range": "2025-05-12 14:13:29 ~ 2025-05-12 14:28:02"
+            },
+            "post_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 21.88,
+              "avg_penetration_rate": 5.39,
+              "avg_cutter_torque": 940.85,
+              "avg_total_thrust": 8804.33,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 96.2,
+                "low_load_operation": 3.8
+              },
+              "time_range": "2025-05-12 14:28:02 ~ 2025-05-12 14:38:02"
+            },
+            "divergence_notes": [],
+            "target_event_info": {
+              "target_id": "SC_005",
+              "source": "stoppage_case",
+              "start_time": "2025-05-12 14:13:29",
+              "end_time": "2025-05-12 14:28:02"
+            },
+            "semantic_overlap": {
+              "during": {
+                "total": 2,
+                "ser": 1,
+                "hyd": 0,
+                "stoppage": 1,
+                "loweff": 0,
+                "ids": [
+                  "LEE_112",
+                  "SER_169"
+                ]
+              },
+              "pre": {
+                "total": 9,
+                "ser": 3,
+                "hyd": 4,
+                "stoppage": 1,
+                "loweff": 1,
+                "ids": [
+                  "LEE_112",
+                  "LEE_111",
+                  "SER_166",
+                  "HYD_024",
+                  "HYD_023",
+                  "HYD_022",
+                  "SER_168",
+                  "SER_167",
+                  "HYD_025"
+                ]
+              },
+              "post": {
+                "total": 17,
+                "ser": 15,
+                "hyd": 0,
+                "stoppage": 1,
+                "loweff": 1,
+                "ids": [
+                  "LEE_112",
+                  "LEE_113",
+                  "SER_169",
+                  "SER_176",
+                  "SER_175",
+                  "SER_182",
+                  "SER_183",
+                  "SER_180",
+                  "SER_172",
+                  "SER_170",
+                  "SER_173",
+                  "SER_174",
+                  "SER_178",
+                  "SER_179",
+                  "SER_181",
+                  "SER_171",
+                  "SER_177"
+                ]
+              }
+            },
+            "transition_findings": [
+              "推进→停机转变",
+              "停机→恢复转变"
+            ]
+          },
+          {
+            "target_id": "SC_009",
+            "status": "ok",
+            "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+            "compact_pre": "600行，速度35.48，normal_excavation97%",
+            "compact_during": "763行，速度0.29，stopped80%",
+            "compact_post": "600行，速度34.21，normal_excavation93%",
+            "pre_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 35.48,
+              "avg_penetration_rate": 7.97,
+              "avg_cutter_torque": 1386.6,
+              "avg_total_thrust": 9047.67,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 96.7,
+                "low_load_operation": 3.3
+              },
+              "time_range": "2025-05-12 23:03:37 ~ 2025-05-12 23:13:37"
+            },
+            "during_summary": {
+              "rows": 763,
+              "empty": false,
+              "avg_advance_speed": 0.29,
+              "avg_penetration_rate": 0.02,
+              "avg_cutter_torque": 43.11,
+              "avg_total_thrust": 28.44,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "stopped": 80.3,
+                "low_load_operation": 18.5,
+                "normal_excavation": 1.2
+              },
+              "time_range": "2025-05-12 23:13:37 ~ 2025-05-12 23:26:19"
+            },
+            "post_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 34.21,
+              "avg_penetration_rate": 7.48,
+              "avg_cutter_torque": 1253.58,
+              "avg_total_thrust": 7956.0,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 92.7,
+                "low_load_operation": 6.7,
+                "heavy_load_excavation": 0.7
+              },
+              "time_range": "2025-05-12 23:26:19 ~ 2025-05-12 23:36:19"
+            },
+            "divergence_notes": [],
+            "target_event_info": {
+              "target_id": "SC_009",
+              "source": "stoppage_case",
+              "start_time": "2025-05-12 23:13:37",
+              "end_time": "2025-05-12 23:26:19"
+            },
+            "semantic_overlap": {
+              "during": {
+                "total": 2,
+                "ser": 1,
+                "hyd": 0,
+                "stoppage": 1,
+                "loweff": 0,
+                "ids": [
+                  "LEE_136",
+                  "SER_237"
+                ]
+              },
+              "pre": {
+                "total": 4,
+                "ser": 1,
+                "hyd": 1,
+                "stoppage": 1,
+                "loweff": 1,
+                "ids": [
+                  "LEE_136",
+                  "LEE_135",
+                  "SER_236",
+                  "HYD_063"
+                ]
+              },
+              "post": {
+                "total": 6,
+                "ser": 3,
+                "hyd": 0,
+                "stoppage": 1,
+                "loweff": 2,
+                "ids": [
+                  "LEE_136",
+                  "LEE_137",
+                  "LEE_138",
+                  "SER_237",
+                  "SER_238",
+                  "SER_239"
+                ]
+              }
+            },
+            "transition_findings": [
+              "推进→停机转变",
+              "停机→恢复转变"
+            ]
+          },
+          {
+            "target_id": "SC_007",
+            "status": "ok",
+            "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+            "compact_pre": "600行，速度17.88，normal_excavation71%",
+            "compact_during": "1706行，速度0.11，stopped91%",
+            "compact_post": "600行，速度23.73，normal_excavation89%",
+            "pre_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 17.88,
+              "avg_penetration_rate": 3.93,
+              "avg_cutter_torque": 684.85,
+              "avg_total_thrust": 6878.5,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 70.8,
+                "low_load_operation": 29.0,
+                "heavy_load_excavation": 0.2
+              },
+              "time_range": "2025-05-12 15:33:49 ~ 2025-05-12 15:43:49"
+            },
+            "during_summary": {
+              "rows": 1706,
+              "empty": false,
+              "avg_advance_speed": 0.11,
+              "avg_penetration_rate": 0.01,
+              "avg_cutter_torque": 17.8,
+              "avg_total_thrust": 16.18,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "stopped": 90.7,
+                "low_load_operation": 8.7,
+                "normal_excavation": 0.6
+              },
+              "time_range": "2025-05-12 15:43:49 ~ 2025-05-12 16:12:14"
+            },
+            "post_summary": {
+              "rows": 600,
+              "empty": false,
+              "avg_advance_speed": 23.73,
+              "avg_penetration_rate": 5.27,
+              "avg_cutter_torque": 901.92,
+              "avg_total_thrust": 9085.67,
+              "ser_hits": 0,
+              "ser_ratio": 0.0,
+              "lee_hits": 0,
+              "lee_ratio": 0.0,
+              "hyd_hits": 0,
+              "hyd_ratio": 0.0,
+              "state_distribution": {
+                "normal_excavation": 88.7,
+                "low_load_operation": 11.2,
+                "heavy_load_excavation": 0.2
+              },
+              "time_range": "2025-05-12 16:12:14 ~ 2025-05-12 16:22:14"
+            },
+            "divergence_notes": [],
+            "target_event_info": {
+              "target_id": "SC_007",
+              "source": "stoppage_case",
+              "start_time": "2025-05-12 15:43:49",
+              "end_time": "2025-05-12 16:12:14"
+            },
+            "semantic_overlap": {
+              "during": {
+                "total": 2,
+                "ser": 1,
+                "hyd": 0,
+                "stoppage": 1,
+                "loweff": 0,
+                "ids": [
+                  "LEE_127",
+                  "SER_221"
+                ]
+              },
+              "pre": {
+                "total": 5,
+                "ser": 3,
+                "hyd": 0,
+                "stoppage": 1,
+                "loweff": 1,
+                "ids": [
+                  "LEE_127",
+                  "LEE_126",
+                  "SER_218",
+                  "SER_220",
+                  "SER_219"
+                ]
+              },
+              "post": {
+                "total": 7,
+                "ser": 4,
+                "hyd": 1,
+                "stoppage": 1,
+                "loweff": 1,
+                "ids": [
+                  "LEE_127",
+                  "LEE_128",
+                  "SER_221",
+                  "SER_224",
+                  "SER_222",
+                  "HYD_033",
+                  "SER_223"
+                ]
+              }
+            },
+            "transition_findings": [
+              "推进→停机转变",
+              "停机→恢复转变"
+            ]
+          }
+        ],
+        "summary": "批量钻取 5/5 个目标完成，5 个停机前无异常",
+        "target_ids": [
+          "SC_001",
+          "SC_006",
+          "SC_005",
+          "SC_009",
+          "SC_007"
+        ]
+      }
+    },
+    {
+      "round_num": 10,
+      "action": "analyze_hydraulic_pattern",
+      "result_summary": "HYD 事件 63 个，共 0.1h，与 SER 同步，靠近停机边界，多为孤立短时波动",
+      "data": {
+        "status": "ok",
+        "hyd_count": 63,
+        "hyd_total_duration_h": 0.1,
+        "near_stoppage_boundary": true,
+        "sync_with_ser": true,
+        "isolated_short_fluctuation": true,
+        "short_event_ratio": 1.0,
+        "top_hyd_event_ids": [
+          "HYD_001",
+          "HYD_042",
+          "HYD_040"
+        ],
+        "summary": "HYD 事件 63 个，共 0.1h，与 SER 同步，靠近停机边界，多为孤立短时波动"
+      }
+    },
+    {
+      "round_num": 11,
+      "action": "drilldown_time_window",
+      "result_summary": "[SC_002] 前:600行，速度24.13，normal_excavation100% | 中:1345行，速度0.16，stopped86% | 后:600行，速度26.16，normal_excavation100% → 停机前未见明显异常；停机后恢复正常",
+      "data": {
+        "status": "ok",
+        "target_id": "SC_002",
+        "target_event_info": {
+          "target_id": "SC_002",
+          "source": "stoppage_case",
+          "start_time": "2025-05-12 03:22:08",
+          "end_time": "2025-05-12 03:44:32"
+        },
+        "pre_summary": {
+          "rows": 600,
+          "empty": false,
+          "avg_advance_speed": 24.13,
+          "avg_penetration_rate": 5.14,
+          "avg_cutter_torque": 996.23,
+          "avg_total_thrust": 13120.17,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "normal_excavation": 100.0
+          },
+          "time_range": "2025-05-12 03:12:08 ~ 2025-05-12 03:22:08"
+        },
+        "during_summary": {
+          "rows": 1345,
+          "empty": false,
+          "avg_advance_speed": 0.16,
+          "avg_penetration_rate": 0.01,
+          "avg_cutter_torque": 26.39,
+          "avg_total_thrust": 12.27,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "stopped": 86.3,
+            "low_load_operation": 13.0,
+            "normal_excavation": 0.7
+          },
+          "time_range": "2025-05-12 03:22:08 ~ 2025-05-12 03:44:32"
+        },
+        "post_summary": {
+          "rows": 600,
+          "empty": false,
+          "avg_advance_speed": 26.16,
+          "avg_penetration_rate": 5.39,
+          "avg_cutter_torque": 1013.38,
+          "avg_total_thrust": 13148.17,
+          "ser_hits": 0,
+          "ser_ratio": 0.0,
+          "lee_hits": 0,
+          "lee_ratio": 0.0,
+          "hyd_hits": 0,
+          "hyd_ratio": 0.0,
+          "state_distribution": {
+            "normal_excavation": 100.0
+          },
+          "time_range": "2025-05-12 03:44:32 ~ 2025-05-12 03:54:32"
+        },
+        "semantic_overlap": {
+          "during": {
+            "total": 2,
+            "ser": 1,
+            "hyd": 0,
+            "stoppage": 1,
+            "loweff": 0,
+            "ids": [
+              "LEE_007",
+              "SER_023"
+            ]
+          },
+          "pre": {
+            "total": 8,
+            "ser": 7,
+            "hyd": 0,
+            "stoppage": 1,
+            "loweff": 0,
+            "ids": [
+              "LEE_007",
+              "SER_022",
+              "SER_021",
+              "SER_017",
+              "SER_019",
+              "SER_018",
+              "SER_016",
+              "SER_020"
+            ]
+          },
+          "post": {
+            "total": 7,
+            "ser": 6,
+            "hyd": 0,
+            "stoppage": 1,
+            "loweff": 0,
+            "ids": [
+              "LEE_007",
+              "SER_023",
+              "SER_028",
+              "SER_024",
+              "SER_026",
+              "SER_027",
+              "SER_025"
+            ]
+          }
+        },
+        "divergence_notes": [],
+        "transition_findings": [
+          "推进→停机转变",
+          "停机→恢复转变"
+        ],
+        "interpretation_hint": "停机前未见明显异常；停机后恢复正常",
+        "compact_pre": "600行，速度24.13，normal_excavation100%",
+        "compact_during": "1345行，速度0.16，stopped86%",
+        "compact_post": "600行，速度26.16，normal_excavation100%",
+        "summary": "[SC_002] 前:600行，速度24.13，normal_excavation100% | 中:1345行，速度0.16，stopped86% | 后:600行，速度26.16，normal_excavation100% → 停机前未见明显异常；停机后恢复正常"
+      }
+    },
+    {
+      "round_num": 12,
+      "action": "generate_investigation_report",
+      "result_summary": "report generated, 9 cases",
+      "data": {
+        "status": "ok",
+        "report_text": "# TBM 停机调查报告\n\n## 1. 一句话结论\n\n这一天共识别出 9 段停机（合计 16.4h），已逐案检查 9 段。\n\n## 2. 这一天发生了什么\n\n- 时间范围：2025-05-12 00:00:00 ~ 2025-05-12 23:59:59\n- 共识别出 **9 段停机**，合计 **16.4h**\n- 已逐案检查 9/9 段\n- 最长一段停了 353 分钟（2025-05-12 16:42:13 ~ 2025-05-12 22:35:30）\n- 当天共识别异常事件 444 个（停机相关 14 段、SER 241 个、HYD 63 个）\n\n## 3. 最值得人工核查的停机段\n\n以下停机段按时长从长到短排列，建议优先核查排在前面的案例。\n\n| 优先级 | 案例 | 时间段 | 时长 | CSV 观察结论 | 建议核查原因 |\n|--------|------|--------|------|-------------|-------------|\n| 1 | SC_008 | 2025-05-12 16:42:13 ~ 2025-05-12 22:35:30 | 353min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n| 2 | SC_003 | 2025-05-12 04:52:49 ~ 2025-05-12 08:55:46 | 243min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n| 3 | SC_004 | 2025-05-12 10:41:10 ~ 2025-05-12 13:14:11 | 153min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n| 4 | SC_001 | 2025-05-12 00:10:52 ~ 2025-05-12 02:31:10 | 140min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n| 5 | SC_007 | 2025-05-12 15:43:49 ~ 2025-05-12 16:12:14 | 28min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n| 6 | SC_002 | 2025-05-12 03:22:08 ~ 2025-05-12 03:44:32 | 22min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n| 7 | SC_006 | 2025-05-12 14:45:30 ~ 2025-05-12 15:03:21 | 18min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n| 8 | SC_005 | 2025-05-12 14:13:29 ~ 2025-05-12 14:28:02 | 15min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n| 9 | SC_009 | 2025-05-12 23:13:37 ~ 2025-05-12 23:26:19 | 13min | 停机前未见明显异常；停机后恢复正常 | 性质待施工日志确认 |\n\n## 4. 我们已经查清了什么\n\n### 4.1 停机\n\n- 停机案例总数：9\n- 已逐案检查：9\n\n### 4.2 掘进阻力异常（SER）\n\n> SER = 疑似掘进阻力异常，即推进过程中遇到的地层阻力突然升高。\n\n- SER 事件数：241 次\n- SER 总时长：19.1h\n- 其中推进中发生：81%\n- 当前判断：推进中存在 SER，且与停机时段相邻，可能是停机诱因\n\n### 4.3 液压异常（HYD）\n\n未执行液压分析。\n\n### 4.4 碎片化\n\n- 短事件占比：78%\n- 碎片化风险低，事件统计可信\n\n## 5. 还不能下结论的地方\n\n- SC_008：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_003：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_004：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_001：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_006：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_005：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_009：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- 施工日志确认：2025-05-12 15:43:49 ~ 2025-05-12 16:12:14（SC_007）\n- 施工日志确认：2025-05-12 03:22:08 ~ 2025-05-12 03:44:32（SC_002）\n\n> 以上不确定项是因为当前 CSV 数据不足以给出确定结论，需要结合施工日志或其他外部证据进一步判断。\n\n## 6. 下一步怎么查\n\n1. 确认停机性质（SC_008、SC_003、SC_004、SC_001、SC_007等）：计划安排、检修/换刀、等待、交接班、外部调度或异常停机\n2. 核查 SER 高发时段对应的地层和操作记录，判断是否为地层变化导致\n\n## 7. 技术附录\n\n> 以下为技术审计信息，供系统开发者或审计人员参考。\n\n## ReAct 调查轨迹\n\n| 轮次 | Planner | LLM | 决策理由 | 调用工具 | 观察结果 | Evidence Gate |\n|------|---------|-----|----------|----------|----------|--------------|\n| 1 | 混合/规则 | — | 尚未检查当前文件概览 | inspect_file_overview | rows=86400, events=444, time=2025-05-12 00:00:00~2025-05-12 | — |\n| 2 | 混合/规则 | — | 尚未加载事件摘要 | load_event_summary | events=444, sem_dist={'stoppage_segment': 14, 'low_efficienc | — |\n| 3 | 混合/LLM | success | stoppage_cases=0，无法执行停机分析。SER共241例，占比最高(54%)，是掘进阻力 | analyze_resistance_pattern | SER 事件 241 个，共 19.1h，推进中占比 81%，时间集中，靠近停机 | — |\n| 4 | 混合/LLM | success | stoppage_cases=0无可钻停机案例，SER时间集中特征已明，需解构241个SER事件与6 | analyze_event_fragmentation | 事件 444 个，平均 304s，短事件占比 78% | — |\n| 5 | 混合/LLM | success | 停机率64%为关键风险点，SER占54%且未执行任何drilldown，P2进行中，规则优先追查停机 | analyze_stoppage_cases | 9 个停机案例，共 16.4h | — |\n| 6 | 混合/LLM | success | 遵循规则推荐，对停机时间最长的案例之一 SC_008 (353min) 进行窗口钻取，尚未有任何 d | drilldown_time_window | [SC_008] 前:600行，速度23.25，normal_excavation84% / 中:21198行，速度0. | — |\n| 7 | 混合/LLM | success | SC_003有243分钟停机时长，是较长停机案例，从remaining_sc_ids中选取进行时间窗 | drilldown_time_window | [SC_003] 前:600行，速度22.97，normal_excavation100% / 中:14578行，速度0 | — |\n| 8 | 混合/LLM | success | 规则推荐：SC_004 停机时长153分钟，属于较长停机案例，需要钻取时间窗口分析停机前后的异常信号 | drilldown_time_window | [SC_004] 前:600行，速度13.08，normal_excavation91% / 中:9182行，速度0.0 | — |\n| 9 | 混合/LLM | success | [已修正] → SC_001, SC_005, SC_006, SC_007, SC_009 | drilldown_time_windows_batch | 批量钻取 5/5 个目标完成，5 个停机前无异常 | — |\n| 10 | 混合/LLM | success | 硬约束阻止选择规则推荐动作（SC_001已钻取）。剩余SC_002已完成8/9钻取。水力异常63个、 | analyze_hydraulic_pattern | HYD 事件 63 个，共 0.1h，需核查统计口径 | — |\n| 11 | 混合/LLM | success | [Evidence Gate] stoppage coverage 不足，需 drilldown S | drilldown_time_window | [SC_002] 前:600行，速度24.13，normal_excavation100% / 中:1345行，速度0. | override: generate_investigation_report→drilldown_time_window |\n| 12 | 混合/LLM | success | 所有9个停机案例(SC_001~SC_009)已完成drilldown，remaining_sc_i | generate_investigation_report | 无 | — |\n\n## Planner 与大模型调用审计\n\n- Planner 类型：混合 planner（关键分支调用 LLM）\n- LLM 调用次数：10\n- LLM 成功次数：10\n- fallback 次数：0\n- 模型：MiniMax-M2.7\n\n本次使用 hybrid planner，共 10 次 LLM planner 调用，全部成功。\n\n### LLM 调用明细\n\n> 以下为 LLM planner 决策摘要，仅用于审计；最终业务结论以 validator 校验后的调查结论为准。\n\n| 轮次 | 状态 | 选择 | 耗时 | 摘要 |\n|------|------|------|------|------|\n| 3 | success | analyze_resistance_pattern | 19.7s |  |\n| 4 | success | analyze_event_fragmentation | 13.4s |  |\n| 5 | success | analyze_stoppage_cases | 13.0s |  |\n| 6 | success | drilldown_time_window | 4.9s |  |\n| 7 | success | drilldown_time_window | 6.8s |  |\n| 8 | success | drilldown_time_window | 8.3s |  |\n| 9 | success | drilldown_time_windows_batch | 7.2s |  |\n| 10 | success | analyze_hydraulic_pattern | 14.0s |  |\n| 11 | success | generate_investigation_report | 11.7s |  |\n| 12 | success | generate_investigation_report | 8.2s |  |\n\n### Evidence Gate 审计\n\n- Evidence Gate 触发次数：1\n- 停机案例 drilldown 覆盖率：9/9\n- 单次 drilldown 覆盖：SC_002, SC_003, SC_004, SC_008\n- batch drilldown 覆盖：SC_001, SC_005, SC_006, SC_007, SC_009\n\n- 第 11 轮：LLM 选择 `generate_investigation_report`，但stoppage coverage 不足，需 drilldown SC_002，因此改为 `drilldown_time_window(SC_002)`\n\n### drilldown 明细\n\n| 目标 | 前窗口观察 | 事件期间观察 | 后窗口观察 | 初步解释 |\n|------|-----------|-------------|-----------|----------|\n| SC_008 | 600行，速度23.25，normal_excavation84% | 21198行，速度0.08，stopped99% | 600行，速度33.28，normal_excavation96% | 停机前未见明显异常；停机后恢复正常 |\n| SC_003 | 600行，速度22.97，normal_excavation100% | 14578行，速度0.02，stopped97% | 600行，速度10.84，normal_excavation71% | 停机前未见明显异常；停机后恢复正常 |\n| SC_004 | 600行，速度13.08，normal_excavation91% | 9182行，速度0.04，stopped70% | 600行，速度11.57，normal_excavation81% | 停机前未见明显异常；停机后恢复正常 |\n| SC_002 | 600行，速度24.13，normal_excavation100% | 1345行，速度0.16，stopped86% | 600行，速度26.16，normal_excavation100% | 停机前未见明显异常；停机后恢复正常 |\n| SC_001 | 600行，速度37.11，normal_excavation98% | 8419行，速度0.02，stopped98% | 600行，速度32.79，normal_excavation95% | 停机前未见明显异常；停机后恢复正常 |\n| SC_006 | 600行，速度20.23，normal_excavation95% | 1072行，速度0.15，stopped72% | 600行，速度16.79，normal_excavation72% | 停机前未见明显异常；停机后恢复正常 |\n| SC_005 | 600行，速度26.39，normal_excavation93% | 874行，速度0.22，stopped89% | 600行，速度21.88，normal_excavation96% | 停机前未见明显异常；停机后恢复正常 |\n| SC_009 | 600行，速度35.48，normal_excavation97% | 763行，速度0.29，stopped80% | 600行，速度34.21，normal_excavation93% | 停机前未见明显异常；停机后恢复正常 |\n| SC_007 | 600行，速度17.88，normal_excavation71% | 1706行，速度0.11，stopped91% | 600行，速度23.73，normal_excavation89% | 停机前未见明显异常；停机后恢复正常 |\n\n#### 钻取详情：SC_008\n\n- 事件期间重叠事件数：4\n- 重叠 SER：2\n- 重叠停机：2\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：21198行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=23.25，转矩=833.88，normal_excavation=84%，low_load_operation=16%，heavy_load_excavation=0%\n- 事件期间：速度=0.08，转矩=4.24，stopped=99%，low_load_operation=1%，normal_excavation=0%\n- 后窗口：速度=33.28，转矩=1179.67，normal_excavation=96%，low_load_operation=4%，heavy_load_excavation=0%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n#### 钻取详情：SC_003\n\n- 事件期间重叠事件数：3\n- 重叠 SER：1\n- 重叠 HYD：1\n- 重叠停机：1\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：14578行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=22.97，转矩=937.23，normal_excavation=100%\n- 事件期间：速度=0.02，转矩=6.25，stopped=97%，low_load_operation=3%，normal_excavation=0%\n- 后窗口：速度=10.84，转矩=588.58，normal_excavation=71%，low_load_operation=16%，heavy_load_excavation=13%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n#### 钻取详情：SC_004\n\n- 事件期间重叠事件数：5\n- 重叠 SER：2\n- 重叠 HYD：1\n- 重叠停机：2\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：9182行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=13.08，转矩=659.82，normal_excavation=91%，low_load_operation=9%，heavy_load_excavation=0%\n- 事件期间：速度=0.04，转矩=33.25，stopped=70%，low_load_operation=29%，normal_excavation=2%\n- 后窗口：速度=11.57，转矩=601.6，normal_excavation=81%，low_load_operation=18%，heavy_load_excavation=1%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n#### 钻取详情：SC_002\n\n- 事件期间重叠事件数：2\n- 重叠 SER：1\n- 重叠停机：1\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：1345行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=24.13，转矩=996.23，normal_excavation=100%\n- 事件期间：速度=0.16，转矩=26.39，stopped=86%，low_load_operation=13%，normal_excavation=1%\n- 后窗口：速度=26.16，转矩=1013.38，normal_excavation=100%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n#### 钻取详情：SC_001\n\n- 事件期间重叠事件数：3\n- 重叠 SER：1\n- 重叠 HYD：1\n- 重叠停机：1\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：8419行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=37.11，转矩=1333.37，normal_excavation=98%，low_load_operation=2%，heavy_load_excavation=0%\n- 事件期间：速度=0.02，转矩=3.58，stopped=98%，low_load_operation=2%，normal_excavation=0%\n- 后窗口：速度=32.79，转矩=1261.2，normal_excavation=95%，low_load_operation=4%，heavy_load_excavation=1%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n#### 钻取详情：SC_006\n\n- 事件期间重叠事件数：2\n- 重叠 SER：1\n- 重叠停机：1\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：1072行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=20.23，转矩=880.1，normal_excavation=95%，low_load_operation=5%\n- 事件期间：速度=0.15，转矩=43.85，stopped=72%，low_load_operation=27%，normal_excavation=1%\n- 后窗口：速度=16.79，转矩=706.3，normal_excavation=72%，low_load_operation=28%，heavy_load_excavation=1%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n#### 钻取详情：SC_005\n\n- 事件期间重叠事件数：2\n- 重叠 SER：1\n- 重叠停机：1\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：874行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=26.39，转矩=1116.82，normal_excavation=93%，low_load_operation=7%，heavy_load_excavation=0%\n- 事件期间：速度=0.22，转矩=30.8，stopped=89%，low_load_operation=9%，normal_excavation=2%\n- 后窗口：速度=21.88，转矩=940.85，normal_excavation=96%，low_load_operation=4%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n#### 钻取详情：SC_009\n\n- 事件期间重叠事件数：2\n- 重叠 SER：1\n- 重叠停机：1\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：763行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=35.48，转矩=1386.6，normal_excavation=97%，low_load_operation=3%\n- 事件期间：速度=0.29，转矩=43.11，stopped=80%，low_load_operation=18%，normal_excavation=1%\n- 后窗口：速度=34.21，转矩=1253.58，normal_excavation=93%，low_load_operation=7%，heavy_load_excavation=1%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n#### 钻取详情：SC_007\n\n- 事件期间重叠事件数：2\n- 重叠 SER：1\n- 重叠停机：1\n\n**行级规则命中：**\n- 前窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 事件期间：1706行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n- 后窗口：600行，SER=0/0.0%，HYD=0/0.0%，LEE=0/0.0%\n\n**工况统计：**\n- 前窗口：速度=17.88，转矩=684.85，normal_excavation=71%，low_load_operation=29%，heavy_load_excavation=0%\n- 事件期间：速度=0.11，转矩=17.8，stopped=91%，low_load_operation=9%，normal_excavation=1%\n- 后窗口：速度=23.73，转矩=901.92，normal_excavation=89%，low_load_operation=11%，heavy_load_excavation=0%\n\n- 初步解释: 停机前未见明显异常；停机后恢复正常\n- 转变发现: 推进→停机转变，停机→恢复转变\n\n### Top 停机案例\n\n| 案例ID | 开始时间 | 结束时间 | 时长(min) | 合并事件数 | 分类 | 置信度 |\n|--------|----------|----------|-----------|-----------|------|--------|\n| SC_008 | 2025-05-12 16:42:13 | 2025-05-12 22:35:30 | 353 | 2 | 性质待施工日志确认 | 34% |\n| SC_003 | 2025-05-12 04:52:49 | 2025-05-12 08:55:46 | 243 | 1 | 性质待施工日志确认 | 32% |\n| SC_004 | 2025-05-12 10:41:10 | 2025-05-12 13:14:11 | 153 | 2 | 性质待施工日志确认 | 34% |\n| SC_001 | 2025-05-12 00:10:52 | 2025-05-12 02:31:10 | 140 | 1 | 性质待施工日志确认 | 34% |\n| SC_007 | 2025-05-12 15:43:49 | 2025-05-12 16:12:14 | 28 | 1 | 性质待施工日志确认 | 35% |\n| SC_002 | 2025-05-12 03:22:08 | 2025-05-12 03:44:32 | 22 | 1 | 性质待施工日志确认 | 35% |\n| SC_006 | 2025-05-12 14:45:30 | 2025-05-12 15:03:21 | 18 | 1 | 性质待施工日志确认 | 31% |\n| SC_005 | 2025-05-12 14:13:29 | 2025-05-12 14:28:02 | 15 | 1 | 性质待施工日志确认 | 31% |\n| SC_009 | 2025-05-12 23:13:37 | 2025-05-12 23:26:19 | 13 | 1 | 性质待施工日志确认 | 31% |\n\n### 证据一致性检查\n\n**分类修正：**\n- SC_008: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_008: 分类依据「停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 HYD 未被窗口证据支持（pre HYD hits=0）\n- SC_008: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_008: 分类从 event_level_abnormal_unverified 降级为 planned_like_stoppage——drilldown 显示「停机前未见明显异常；停机后恢复正常」，与异常线索矛盾\n- SC_003: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_003: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_003: 分类从 event_level_abnormal_unverified 降级为 planned_like_stoppage——drilldown 显示「停机前未见明显异常；停机后恢复正常」，与异常线索矛盾\n- SC_004: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_004: 分类依据「停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 HYD 未被窗口证据支持（pre HYD hits=0）\n- SC_004: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_004: 分类从 event_level_abnormal_unverified 降级为 planned_like_stoppage——drilldown 显示「停机前未见明显异常；停机后恢复正常」，与异常线索矛盾\n- SC_001: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_001: 分类依据「停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 HYD 未被窗口证据支持（pre HYD hits=0）\n- SC_001: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_001: 分类从 event_level_abnormal_unverified 降级为 planned_like_stoppage——drilldown 显示「停机前未见明显异常；停机后恢复正常」，与异常线索矛盾\n- SC_007: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_007: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_002: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_002: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_006: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_006: 分类依据「停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 HYD 未被窗口证据支持（pre HYD hits=0）\n- SC_006: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_006: 分类从 event_level_abnormal_unverified 降级为 planned_like_stoppage——drilldown 显示「停机前未见明显异常；停机后恢复正常」，与异常线索矛盾\n- SC_005: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_005: 分类依据「停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 HYD 未被窗口证据支持（pre HYD hits=0）\n- SC_005: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_005: 分类从 event_level_abnormal_unverified 降级为 planned_like_stoppage——drilldown 显示「停机前未见明显异常；停机后恢复正常」，与异常线索矛盾\n- SC_009: 分类依据「停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 SER 未被窗口证据支持（pre SER ratio=0.000）\n- SC_009: 分类依据「停机前存在液压不稳定 (HYD)（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——停机前 HYD 未被窗口证据支持（pre HYD hits=0）\n- SC_009: 分类依据「恢复后仍有异常事件（事件级证据，未经 drilldown 验证）」已按 drilldown 修正——恢复后窗口未检测到异常\n- SC_009: 分类从 event_level_abnormal_unverified 降级为 planned_like_stoppage——drilldown 显示「停机前未见明显异常；停机后恢复正常」，与异常线索矛盾\n\n**已验证案例：**\n- SC_008：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_003：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_004：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_001：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_006：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_005：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n- SC_009：事件级曾提示异常线索，但窗口钻取后未见明显 SER/HYD 行级异常；性质仍需施工日志确认\n\n### 调查问题完成情况\n\n| 问题 | 状态 | 已调用工具 | 关键发现 | 人工核查 |\n|------|------|-----------|----------|---------|\n| Q1: 是否存在长停机？停机是否有异常前兆？ | 部分回答 | analyze_stoppage_cases, drilldown_time_window, drilldown_time_windows_batch | SC_002: 停机前未见明显异常；停机后恢复正常 | 是 |\n| Q2: SER 是否是推进中的真实阻力异常，还是 | 部分回答 | analyze_resistance_pattern | SER 推进中占比 81% | 是 |\n| Q3: HYD 是否是主因，还是启停边界伴随？ | 已回答 | analyze_hydraulic_pattern | HYD 需先核查统计口径 | 否 |\n| Q4: 事件是否存在碎片化或规则放大？ | 已回答 | analyze_event_fragmentation | 碎片化风险低，短事件占比 78% | 否 |\n| Q5: 哪些结论需要施工日志确认？ | 未回答 | — | — | 是 |\n",
+        "total_original_events": 11,
+        "total_merged_cases": 9,
+        "abnormal_count": 0,
+        "planned_count": 9,
+        "uncertain_count": 9
+      }
+    }
+  ],
+  "actions_taken": [
+    {
+      "round_num": 1,
+      "action": "inspect_file_overview",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"
+      },
+      "rationale": "尚未检查当前文件概览",
+      "observation_summary": "rows=86400, events=444, time=2025-05-12 00:00:00~2025-05-12 23:59:59",
+      "planner_type": "hybrid_rule",
+      "llm_called": false,
+      "llm_status": "skipped",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 2,
+      "action": "load_event_summary",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"
+      },
+      "rationale": "尚未加载事件摘要",
+      "observation_summary": "events=444, sem_dist={'stoppage_segment': 14, 'low_efficiency_excavation': 126, 'suspected_excavation_resistance': 241, 'hydraulic_instability': 63}",
+      "planner_type": "hybrid_rule",
+      "llm_called": false,
+      "llm_status": "skipped",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 3,
+      "action": "analyze_resistance_pattern",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"
+      },
+      "rationale": "stoppage_cases=0，无法执行停机分析。SER共241例，占比最高(54%)，是掘进阻力的主导异常，应优先分析其模式以识别系统性风险。",
+      "observation_summary": "SER 事件 241 个，共 19.1h，推进中占比 81%，时间集中，靠近停机",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 4,
+      "action": "analyze_event_fragmentation",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"
+      },
+      "rationale": "stoppage_cases=0无可钻停机案例，SER时间集中特征已明，需解构241个SER事件与63个HYD事件碎片化模式，揭示停机前事件聚集机理，支撑P2调查进展",
+      "observation_summary": "事件 444 个，平均 304s，短事件占比 78%",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 5,
+      "action": "analyze_stoppage_cases",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"
+      },
+      "rationale": "停机率64%为关键风险点，SER占54%且未执行任何drilldown，P2进行中，规则优先追查停机原因以定位异常根源",
+      "observation_summary": "9 个停机案例，共 16.4h",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 6,
+      "action": "drilldown_time_window",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "target_id": "SC_008"
+      },
+      "rationale": "遵循规则推荐，对停机时间最长的案例之一 SC_008 (353min) 进行窗口钻取，尚未有任何 drilldown 执行，应优先钻取高停机时长案例以获取关键信息",
+      "observation_summary": "[SC_008] 前:600行，速度23.25，normal_excavation84% | 中:21198行，速度0.08，stopped99% | 后:600行，速度33.28，normal_excavation96% → 停机前未见明显异常；停机后恢复正常",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 7,
+      "action": "drilldown_time_window",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "target_id": "SC_003"
+      },
+      "rationale": "SC_003有243分钟停机时长，是较长停机案例，从remaining_sc_ids中选取进行时间窗口钻取，符合规则推荐",
+      "observation_summary": "[SC_003] 前:600行，速度22.97，normal_excavation100% | 中:14578行，速度0.02，stopped97% | 后:600行，速度10.84，normal_excavation71% → 停机前未见明显异常；停机后恢复正常",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 8,
+      "action": "drilldown_time_window",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "target_id": "SC_004"
+      },
+      "rationale": "规则推荐：SC_004 停机时长153分钟，属于较长停机案例，需要钻取时间窗口分析停机前后的异常信号，推进P2调查进度",
+      "observation_summary": "[SC_004] 前:600行，速度13.08，normal_excavation91% | 中:9182行，速度0.04，stopped70% | 后:600行，速度11.57，normal_excavation81% → 停机前未见明显异常；停机后恢复正常",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 9,
+      "action": "drilldown_time_windows_batch",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "target_ids": [
+          "SC_001",
+          "SC_006",
+          "SC_005",
+          "SC_009",
+          "SC_007"
+        ]
+      },
+      "rationale": "SC_001 (140min) 为规则推荐的长时间停机案例，且仍在 remaining_sc_ids 中；使用批量版本可提高效率，同时覆盖多个待分析案例",
+      "observation_summary": "批量钻取 5/5 个目标完成，5 个停机前无异常",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 10,
+      "action": "analyze_hydraulic_pattern",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls"
+      },
+      "rationale": "硬约束阻止选择规则推荐动作（SC_001已钻取）。剩余SC_002已完成8/9钻取。水力异常63个、4个未验证案例表明需深入分析液压系统模式，而非继续单一案例钻取。P4已完成，P1/P2进行中，可通过分析水力模式支撑调查。",
+      "observation_summary": "HYD 事件 63 个，共 0.1h，与 SER 同步，靠近停机边界，多为孤立短时波动",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    },
+    {
+      "round_num": 11,
+      "action": "drilldown_time_window",
+      "arguments": {
+        "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+        "target_id": "SC_002"
+      },
+      "rationale": "[Evidence Gate] stoppage coverage 不足，需 drilldown SC_002",
+      "observation_summary": "[SC_002] 前:600行，速度24.13，normal_excavation100% | 中:1345行，速度0.16，stopped86% | 后:600行，速度26.16，normal_excavation100% → 停机前未见明显异常；停机后恢复正常",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": true,
+      "evidence_gate_original_action": "generate_investigation_report",
+      "evidence_gate_reason": "stoppage coverage 不足，需 drilldown SC_002"
+    },
+    {
+      "round_num": 12,
+      "action": "generate_investigation_report",
+      "arguments": {},
+      "rationale": "所有9个停机案例(SC_001~SC_009)已完成drilldown，remaining_sc_ids为空，无新案例可钻取。规则推荐drilldown_time_window但受硬约束限制不可执行。当前应生成调查报告，整合已完成的钻取结果以回答Q1/Q2/Q5并完成P2计划。",
+      "observation_summary": "report generated, 9 cases",
+      "planner_type": "hybrid_llm",
+      "llm_called": true,
+      "llm_status": "success",
+      "fallback_used": false,
+      "evidence_gate_override": false,
+      "evidence_gate_original_action": "",
+      "evidence_gate_reason": ""
+    }
+  ],
+  "open_questions": [],
+  "confidence": 0.0,
+  "iteration_count": 12,
+  "stop_reason": "report_generated",
+  "audit_log": [
+    {
+      "round_num": 1,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "",
+      "open_questions": [],
+      "candidate_actions": [
+        "inspect_file_overview"
+      ],
+      "candidate_reasons": [
+        "尚未检查当前文件概览"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "inspect_file_overview",
+      "selected_reason": "尚未检查当前文件概览",
+      "is_rule_based": true,
+      "state_snapshot": {},
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 2,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "rows=86400, events=444, time=2025-05-12 00:00:00~2025-05-12 23:59:59",
+      "open_questions": [],
+      "candidate_actions": [
+        "load_event_summary"
+      ],
+      "candidate_reasons": [
+        "尚未加载事件摘要"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "load_event_summary",
+      "selected_reason": "尚未加载事件摘要",
+      "is_rule_based": true,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 3,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "events=444, sem_dist={'stoppage_segment': 14, 'low_efficiency_excavation': 126, 'suspected_excavation_resistance': 241, 'hydraulic_instability': 63}",
+      "open_questions": [],
+      "candidate_actions": [
+        "analyze_resistance_pattern"
+      ],
+      "candidate_reasons": [
+        "stoppage_cases=0，无法执行停机分析。SER共241例，占比最高(54%)，是掘进阻力的主导异常，应优先分析其模式以识别系统性风险。"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "analyze_resistance_pattern",
+      "selected_reason": "stoppage_cases=0，无法执行停机分析。SER共241例，占比最高(54%)，是掘进阻力的主导异常，应优先分析其模式以识别系统性风险。",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 4,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "SER 事件 241 个，共 19.1h，推进中占比 81%，时间集中，靠近停机",
+      "open_questions": [],
+      "candidate_actions": [
+        "analyze_event_fragmentation"
+      ],
+      "candidate_reasons": [
+        "stoppage_cases=0无可钻停机案例，SER时间集中特征已明，需解构241个SER事件与63个HYD事件碎片化模式，揭示停机前事件聚集机理，支撑P2调查进展"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "analyze_event_fragmentation",
+      "selected_reason": "stoppage_cases=0无可钻停机案例，SER时间集中特征已明，需解构241个SER事件与63个HYD事件碎片化模式，揭示停机前事件聚集机理，支撑P2调查进展",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 5,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "事件 444 个，平均 304s，短事件占比 78%",
+      "open_questions": [],
+      "candidate_actions": [
+        "analyze_stoppage_cases"
+      ],
+      "candidate_reasons": [
+        "停机率64%为关键风险点，SER占54%且未执行任何drilldown，P2进行中，规则优先追查停机原因以定位异常根源"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "analyze_stoppage_cases",
+      "selected_reason": "停机率64%为关键风险点，SER占54%且未执行任何drilldown，P2进行中，规则优先追查停机原因以定位异常根源",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 6,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "9 个停机案例，共 16.4h",
+      "open_questions": [],
+      "candidate_actions": [
+        "drilldown_time_window"
+      ],
+      "candidate_reasons": [
+        "遵循规则推荐，对停机时间最长的案例之一 SC_008 (353min) 进行窗口钻取，尚未有任何 drilldown 执行，应优先钻取高停机时长案例以获取关键信息"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "drilldown_time_window",
+      "selected_reason": "遵循规则推荐，对停机时间最长的案例之一 SC_008 (353min) 进行窗口钻取，尚未有任何 drilldown 执行，应优先钻取高停机时长案例以获取关键信息",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 7,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "[SC_008] 前:600行，速度23.25，normal_excavation84% | 中:21198行，速度0.08，stopped99% | 后:600行，速度33.28，normal_excavation96% → 停机前未见明显异常；停机后恢复正常",
+      "open_questions": [],
+      "candidate_actions": [
+        "drilldown_time_window"
+      ],
+      "candidate_reasons": [
+        "SC_003有243分钟停机时长，是较长停机案例，从remaining_sc_ids中选取进行时间窗口钻取，符合规则推荐"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "drilldown_time_window",
+      "selected_reason": "SC_003有243分钟停机时长，是较长停机案例，从remaining_sc_ids中选取进行时间窗口钻取，符合规则推荐",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 8,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "[SC_003] 前:600行，速度22.97，normal_excavation100% | 中:14578行，速度0.02，stopped97% | 后:600行，速度10.84，normal_excavation71% → 停机前未见明显异常；停机后恢复正常",
+      "open_questions": [],
+      "candidate_actions": [
+        "drilldown_time_window"
+      ],
+      "candidate_reasons": [
+        "规则推荐：SC_004 停机时长153分钟，属于较长停机案例，需要钻取时间窗口分析停机前后的异常信号，推进P2调查进度"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "drilldown_time_window",
+      "selected_reason": "规则推荐：SC_004 停机时长153分钟，属于较长停机案例，需要钻取时间窗口分析停机前后的异常信号，推进P2调查进度",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 9,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "[SC_004] 前:600行，速度13.08，normal_excavation91% | 中:9182行，速度0.04，stopped70% | 后:600行，速度11.57，normal_excavation81% → 停机前未见明显异常；停机后恢复正常",
+      "open_questions": [],
+      "candidate_actions": [
+        "drilldown_time_windows_batch"
+      ],
+      "candidate_reasons": [
+        "SC_001 (140min) 为规则推荐的长时间停机案例，且仍在 remaining_sc_ids 中；使用批量版本可提高效率，同时覆盖多个待分析案例"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "drilldown_time_windows_batch",
+      "selected_reason": "SC_001 (140min) 为规则推荐的长时间停机案例，且仍在 remaining_sc_ids 中；使用批量版本可提高效率，同时覆盖多个待分析案例",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 10,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "批量钻取 5/5 个目标完成，5 个停机前无异常",
+      "open_questions": [],
+      "candidate_actions": [
+        "analyze_hydraulic_pattern"
+      ],
+      "candidate_reasons": [
+        "硬约束阻止选择规则推荐动作（SC_001已钻取）。剩余SC_002已完成8/9钻取。水力异常63个、4个未验证案例表明需深入分析液压系统模式，而非继续单一案例钻取。P4已完成，P1/P2进行中，可通过分析水力模式支撑调查。"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "analyze_hydraulic_pattern",
+      "selected_reason": "硬约束阻止选择规则推荐动作（SC_001已钻取）。剩余SC_002已完成8/9钻取。水力异常63个、4个未验证案例表明需深入分析液压系统模式，而非继续单一案例钻取。P4已完成，P1/P2进行中，可通过分析水力模式支撑调查。",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 11,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "HYD 事件 63 个，共 0.1h，与 SER 同步，靠近停机边界，多为孤立短时波动",
+      "open_questions": [],
+      "candidate_actions": [
+        "generate_investigation_report"
+      ],
+      "candidate_reasons": [
+        "SC_001已在already_drilled_sc_ids中，硬约束禁止重复钻取。剩余未钻取案例仅剩SC_002，且已完成8/9=89%的停机案例钻取，应生成调查报告整合已有发现并推进结论"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "generate_investigation_report",
+      "selected_reason": "SC_001已在already_drilled_sc_ids中，硬约束禁止重复钻取。剩余未钻取案例仅剩SC_002，且已完成8/9=89%的停机案例钻取，应生成调查报告整合已有发现并推进结论",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    },
+    {
+      "round_num": 12,
+      "current_file": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+      "current_observation_summary": "[SC_002] 前:600行，速度24.13，normal_excavation100% | 中:1345行，速度0.16，stopped86% | 后:600行，速度26.16，normal_excavation100% → 停机前未见明显异常；停机后恢复正常",
+      "open_questions": [],
+      "candidate_actions": [
+        "generate_investigation_report"
+      ],
+      "candidate_reasons": [
+        "所有9个停机案例(SC_001~SC_009)已完成drilldown，remaining_sc_ids为空，无新案例可钻取。规则推荐drilldown_time_window但受硬约束限制不可执行。当前应生成调查报告，整合已完成的钻取结果以回答Q1/Q2/Q5并完成P2计划。"
+      ],
+      "rejected_actions": [],
+      "rejected_reasons": [],
+      "selected_action": "generate_investigation_report",
+      "selected_reason": "所有9个停机案例(SC_001~SC_009)已完成drilldown，remaining_sc_ids为空，无新案例可钻取。规则推荐drilldown_time_window但受硬约束限制不可执行。当前应生成调查报告，整合已完成的钻取结果以回答Q1/Q2/Q5并完成P2计划。",
+      "is_rule_based": false,
+      "state_snapshot": {
+        "events": 444,
+        "stoppage_segment": 14,
+        "SER": 241,
+        "HYD": 63,
+        "stopped_pct": 64.2
+      },
+      "triggered_by_field": "",
+      "observation_used": ""
+    }
+  ],
+  "focus": "auto",
+  "planner_type": "hybrid",
+  "llm_call_count": 10,
+  "llm_success_count": 10,
+  "llm_fallback_count": 0,
+  "llm_model": "MiniMax-M2.7",
+  "llm_calls": [
+    {
+      "round_num": 1,
+      "model": "",
+      "base_url_host": "",
+      "status": "skipped",
+      "selected_action": "",
+      "selected_reason": "",
+      "thought_summary": "",
+      "raw_preview": "",
+      "error_message": "",
+      "latency_seconds": 0.0,
+      "parse_strategy": "",
+      "cleaned_preview": ""
+    },
+    {
+      "round_num": 2,
+      "model": "",
+      "base_url_host": "",
+      "status": "skipped",
+      "selected_action": "",
+      "selected_reason": "",
+      "thought_summary": "",
+      "raw_preview": "",
+      "error_message": "",
+      "latency_seconds": 0.0,
+      "parse_strategy": "",
+      "cleaned_preview": ""
+    },
+    {
+      "round_num": 3,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "analyze_resistance_pattern",
+      "selected_reason": "stoppage_cases=0，无法执行停机分析。SER共241例，占比最高(54%)，是掘进阻力的主导异常，应优先分析其模式以识别系统性风险。",
+      "thought_summary": "",
+      "raw_preview": "<think>Let me analyze this carefully:\n\n1. stoppage_cases = 0 - This means there are no stoppage cases to analyze\n2. already_drilled_sc_ids = [] and remaining_sc_ids = [] - No drilldown has been done yet\n3. ser_count = 241 - This is the largest category by far\n4. stopped_pct = 64% - 64% of events have stopped (high stoppage rate)\n\nThe rule recommends \"analyze_stoppage_cases\" because \"stoppage_segment=14, stopped=64%，优先停机追查\" (prioritize stoppage investigation).\n\nHowever:\n- stoppage_cases = 0, meaning there are no stoppage cases to analyze\n- It would be meaningless to analyze stoppage cases when there are 0 cases\n\nGiven the constraints:\n1. Can't drilldown (no sc_ids available anyway)\n2. stoppage_cases = 0 - can't analyze 0 cases\n3. SER (suspected_excavation_resistance) is 241, which is the dominant issue\n\nThe largest unresolved issue is clearly SER (241 cases). The plan_status shows:\n- P1: completed\n- P2, P3, P4: pending\n\nWithout stoppage cases to analyze, the next logical step would be to analyze the resistance pattern (which relates to the largest category - SER).\n\nI need to choose from allowed_actions. Since analyze_stoppage_cases has 0 cases to analyze, this would be ineffective.\n\nThe best choice is \"analyze_resistance_pattern\" since:\n1. SER has the highest count (241)\n2. This is the largest unresolved issue\n3. stoppage_cases = 0 makes the rule recommendation ineffective in practice\n\nLet me output the JSON response:</think>\n\n{\"selected_action\": \"analyze_resistance_pattern\", ",
+      "error_message": "",
+      "latency_seconds": 19.69,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"analyze_resistance_pattern\", \"selected_reason\": \"stoppage_cases=0，无法执行停机分析。SER共241例，占比最高(54%)，是掘进阻力的主导异常，应优先分析其模式以识别系统性风险。\", \"stop\": false}"
+    },
+    {
+      "round_num": 4,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "analyze_event_fragmentation",
+      "selected_reason": "stoppage_cases=0无可钻停机案例，SER时间集中特征已明，需解构241个SER事件与63个HYD事件碎片化模式，揭示停机前事件聚集机理，支撑P2调查进展",
+      "thought_summary": "",
+      "raw_preview": "<think>Let me analyze the situation:\n\n1. Current state: Round 4, recent actions were inspect_file_overview, load_event_summary, analyze_resistance_pattern\n2. Last observation: SER events 241, total 19.1h, 81% during propulsion, time concentrated, near stoppage\n3. stoppage_cases: 0 - This means there are no stoppage cases to drill down\n4. drilldown_done_count: 0\n5. already_drilled_sc_ids: [] - empty\n6. remaining_sc_ids: [] - empty\n7. SER count: 241, HYD count: 63, stopped_pct: 64%\n8. Plan status: P1 completed, P2 in_progress, P3 pending, P4 pending\n9. Questions: Q1 partially answered, Q2 partially answered, rest unanswered\n10. Allowed actions: analyze_stoppage_cases, drilldown_time_window, drilldown_time_windows_batch, analyze_hydraulic_pattern, analyze_event_fragmentation, generate_investigation_report\n\nThe rule_recommended is \"analyze_stoppage_cases\" because stoppage segment=14 and stopped=64%.\n\nHowever, I see that stoppage_cases = 0, which means there are no stoppage cases to analyze. Also, already_drilled_sc_ids and remaining_sc_ids are both empty, meaning there's no case to drill down.\n\nGiven that:\n- There are no stoppage cases (stoppage_cases = 0)\n- already_drilled_sc_ids and remaining_sc_ids are empty\n- We need to continue the investigation\n\nThe best action would be to analyze something else. Looking at the allowed actions:\n- analyze_hydraulic_pattern - HYD has 63 events, might be worth analyzing\n- analyze_event_fragmentation - could help understand event patterns\n- gen",
+      "error_message": "",
+      "latency_seconds": 13.42,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"analyze_event_fragmentation\", \"selected_reason\": \"stoppage_cases=0无可钻停机案例，SER时间集中特征已明，需解构241个SER事件与63个HYD事件碎片化模式，揭示停机前事件聚集机理，支撑P2调查进展\", \"stop\": false}"
+    },
+    {
+      "round_num": 5,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "analyze_stoppage_cases",
+      "selected_reason": "停机率64%为关键风险点，SER占54%且未执行任何drilldown，P2进行中，规则优先追查停机原因以定位异常根源",
+      "thought_summary": "",
+      "raw_preview": "<think>\nLet me analyze this situation:\n\n1. **Current State**:\n   - Round 5, 444 events, average 304s duration\n   - 78% short events\n   - Stopped_pct: 64%\n   - SER_count: 241 (54% of events are SER - 掘进阻力异常)\n   - Hydraulic issues: 63 cases\n   - 0 unverified events\n   - Plan P2 is in progress\n\n2. **Key Insight**:\n   - Stoppage rate is 64% which is HIGH\n   - SER is 54% of all events - this is significant\n   - Rule recommends `analyze_stoppage_cases` because stopped_pct=64%\n   - But wait - drilldown_done_count = 0, already_drilled_sc_ids is empty, remaining_sc_ids is empty\n   - This means NO drilldown has been done yet\n\n3. **What's happening**:\n   - Multiple analysis actions have been done (inspect_file_overview, load_event_summary, analyze_resistance_pattern, analyze_event_fragmentation)\n   - But NO drilldown has been performed yet\n   - The stoppage rate is 64% which is very high\n   - SER count is 241 which is significant\n\n4. **Decision**:\n   - Rule recommends `analyze_stoppage_cases`\n   - However, I need to consider if this is the best action\n   - The stoppage rate is 64%, which is very high\n   - SER is 241 out of 444 events (54%)\n   - Hydraulic is 63 events (14%)\n   - We have 78% short events which indicates frequent stops\n\nGiven that:\n- No drilldown has been done yet\n- Stoppage rate is 64%\n- The rule strongly recommends `analyze_stoppage_cases`\n- P2 is in progress (likely related to stoppage investigation)\n\nThe rule recommendation should be followed as there's no strong reaso",
+      "error_message": "",
+      "latency_seconds": 12.96,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"analyze_stoppage_cases\", \"selected_reason\": \"停机率64%为关键风险点，SER占54%且未执行任何drilldown，P2进行中，规则优先追查停机原因以定位异常根源\", \"stop\": false}"
+    },
+    {
+      "round_num": 6,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "drilldown_time_window",
+      "selected_reason": "遵循规则推荐，对停机时间最长的案例之一 SC_008 (353min) 进行窗口钻取，尚未有任何 drilldown 执行，应优先钻取高停机时长案例以获取关键信息",
+      "thought_summary": "",
+      "raw_preview": "<think>\n让我分析当前情况：\n\n1. 当前是第6轮\n2. 有9个停机案例，共16.4小时\n3. drilldown_done_count = 0，说明还没有做任何钻取\n4. already_drilled_sc_ids = []，所有案例都还没钻取\n5. remaining_sc_ids 包含所有9个案例\n6. 规则推荐 drilldown_time_window，对 SC_008 (353min) 做窗口钻取\n\n规则推荐对 SC_008 进行钻取，这个案例有353分钟的停机时间（最长的之一）。我应该遵循规则推荐。\n\nallowed_actions 包含：\n- drilldown_time_window\n- drilldown_time_windows_batch\n- analyze_hydraulic_pattern\n- generate_investigation_report\n\n按照要求，我应该选择 rule_recommended，因为没有充分理由不选择它。\n\n我需要输出：\n{\"selected_action\": \"drilldown_time_window\", \"selected_reason\": \"理由\", \"stop\": false}\n</think>\n\n{\"selected_action\": \"drilldown_time_window\", \"selected_reason\": \"遵循规则推荐，对停机时间最长的案例之一 SC_008 (353min) 进行窗口钻取，尚未有任何 drilldown 执行，应优先钻取高停机时长案例以获取关键信息\", \"stop\": false}",
+      "error_message": "",
+      "latency_seconds": 4.9,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"drilldown_time_window\", \"selected_reason\": \"遵循规则推荐，对停机时间最长的案例之一 SC_008 (353min) 进行窗口钻取，尚未有任何 drilldown 执行，应优先钻取高停机时长案例以获取关键信息\", \"stop\": false}"
+    },
+    {
+      "round_num": 7,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "drilldown_time_window",
+      "selected_reason": "SC_003有243分钟停机时长，是较长停机案例，从remaining_sc_ids中选取进行时间窗口钻取，符合规则推荐",
+      "thought_summary": "",
+      "raw_preview": "<think>\n让我分析当前情况：\n\n1. 当前是第7轮\n2. 最近的actions包括：load_event_summary, analyze_resistance_pattern, analyze_event_fragmentation, analyze_stoppage_cases, drilldown_time_window\n3. 已完成drilldown的案例：SC_008\n4. 剩余可钻取的案例：SC_001, SC_002, SC_003, SC_004, SC_005, SC_006, SC_007, SC_009\n5. 停机案例数：9个\n6. 允许的动作：drilldown_time_windows_batch, analyze_hydraulic_pattern, generate_investigation_report\n7. 规则推荐：drilldown_time_window，理由是对停机案例SC_003(243min)做窗口钻取\n\n关键约束：\n- 不得选择already_drilled_sc_ids中的case做drilldown\n- 如需继续停机drilldown，只能从remaining_sc_ids中选择\n\nSC_003在remaining_sc_ids中，所以可以做drilldown。\n\n规则推荐的是\"drilldown_time_window\"，但允许的动作中有\"drilldown_time_windows_batch\"。这两个是不同的动作。\n\n但规则明确推荐\"drilldown_time_window\"，我应该遵循这个推荐。\n\nSC_003有243分钟的停机时间，是一个较长的停机案例，值得钻取分析。\n\n根据硬约束，我不能选SC_008（已在already_drilled中），但SC_003在remaining_sc_ids中，可以选择。\n\n结论：选择drilldown_time_window对SC_003进行钻取。\n</think>\n\n{\"selected_action\": \"drilldown_time_window\", \"selected_reason\": \"SC_003有243分钟停机时长，是较长停机案例，从remaining_sc_ids中选取进行时间窗口钻取，符合规则推荐\", \"stop\": false}",
+      "error_message": "",
+      "latency_seconds": 6.8,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"drilldown_time_window\", \"selected_reason\": \"SC_003有243分钟停机时长，是较长停机案例，从remaining_sc_ids中选取进行时间窗口钻取，符合规则推荐\", \"stop\": false}"
+    },
+    {
+      "round_num": 8,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "drilldown_time_window",
+      "selected_reason": "规则推荐：SC_004 停机时长153分钟，属于较长停机案例，需要钻取时间窗口分析停机前后的异常信号，推进P2调查进度",
+      "thought_summary": "",
+      "raw_preview": "<think>\n让我分析一下当前情况：\n\n1. 当前是第8轮\n2. 已完成的 drilldown：SC_003, SC_008\n3. 剩余可钻取的停机案例：SC_001, SC_002, SC_004, SC_005, SC_006, SC_007, SC_009\n4. 规则推荐：对 SC_004 (153min) 做 drilldown\n\n最近动作分析：\n- 已经分析过 resistance pattern, event fragmentation, stoppage cases\n- 已经做过 2 次 drilldown_time_window\n\n当前状态：\n- stoppage_cases: 9\n- ser_count: 241 (SER 是掘进阻力异常)\n- stopped_pct: 64%\n- event_count: 444\n- unverified_count: 5\n\nplan_status:\n- P1: partially_completed\n- P2: in_progress\n- P3: pending\n- P4: completed\n\nquestions 状态显示 Q3 和 Q5 还未回答\n\nallowed_actions 包含：\n1. drilldown_time_windows_batch - 批量钻取多个时间窗口\n2. analyze_hydraulic_pattern - 分析液压模式\n3. generate_investigation_report - 生成调查报告\n\n规则推荐 drilldown_time_window 对 SC_004\n\n根据规则，应该遵循推荐的动作（没有充分理由不要违背）。\n\nSC_004 是一个 153 分钟的停机案例，应该进行钻取分析。\n\n需要输出 JSON 格式，包含 selected_action, selected_reason, stop 字段。\n</think>\n\n{\"selected_action\": \"drilldown_time_window\", \"selected_reason\": \"规则推荐：SC_004 停机时长153分钟，属于较长停机案例，需要钻取时间窗口分析停机前后的异常信号，推进P2调查进度\", \"stop\": false}",
+      "error_message": "",
+      "latency_seconds": 8.3,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"drilldown_time_window\", \"selected_reason\": \"规则推荐：SC_004 停机时长153分钟，属于较长停机案例，需要钻取时间窗口分析停机前后的异常信号，推进P2调查进度\", \"stop\": false}"
+    },
+    {
+      "round_num": 9,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "drilldown_time_windows_batch",
+      "selected_reason": "SC_001 (140min) 为规则推荐的长时间停机案例，且仍在 remaining_sc_ids 中；使用批量版本可提高效率，同时覆盖多个待分析案例",
+      "thought_summary": "",
+      "raw_preview": "<think>让我分析一下当前状态：\n\n1. 已经完成 drilldown 的 SC: SC_003, SC_004, SC_008 (3个)\n2. remaining_sc_ids: SC_001, SC_002, SC_005, SC_006, SC_007, SC_009 (6个)\n3. drilldown_done_count: 3\n4. allowed_actions: drilldown_time_windows_batch, analyze_hydraulic_pattern, generate_investigation_report\n\n规则推荐是对 SC_001 做 drilldown_time_window，停留时间140分钟。\n\n但是，我需要注意：\n- allowed_actions 中只有 \"drilldown_time_windows_batch\"，没有单独的 \"drilldown_time_window\"\n- 规则推荐说的是 drilldown_time_window，但实际可用的只有 batch 版本\n\n让我重新审视规则：\n- 如果要做 drilldown，只能从 remaining_sc_ids 中选择\n- SC_001 在 remaining_sc_ids 中，所以可以做\n\n但问题是 allowed_actions 中只有 drilldown_time_windows_batch，没有单独的 drilldown_time_window。我应该选择 drilldown_time_windows_batch。\n\n另外考虑到：\n- 已经分析了 SC_003, SC_004, SC_008 的情况\n- 还有6个 remaining_sc_ids 需要分析\n- drilldown_done_count 是 3\n\n由于 SC_001 被规则推荐（140分钟的长时间停机），我应该使用 drilldown_time_windows_batch 来批量处理这些案例。\n\n\n我将直接输出 JSON 格式的结果。\n</think>\n\n{\"selected_action\": \"drilldown_time_windows_batch\", \"selected_reason\": \"SC_001 (140min) 为规则推荐的长时间停机案例，且仍在 remaining_sc_ids 中；使用批量版本可提高效率，同时覆盖多个待分析案例\", \"stop\": false}",
+      "error_message": "",
+      "latency_seconds": 7.24,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"drilldown_time_windows_batch\", \"selected_reason\": \"SC_001 (140min) 为规则推荐的长时间停机案例，且仍在 remaining_sc_ids 中；使用批量版本可提高效率，同时覆盖多个待分析案例\", \"stop\": false}"
+    },
+    {
+      "round_num": 10,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "analyze_hydraulic_pattern",
+      "selected_reason": "硬约束阻止选择规则推荐动作（SC_001已钻取）。剩余SC_002已完成8/9钻取。水力异常63个、4个未验证案例表明需深入分析液压系统模式，而非继续单一案例钻取。P4已完成，P1/P2进行中，可通过分析水力模式支撑调查。",
+      "thought_summary": "",
+      "raw_preview": "<think>\n让我分析当前情况：\n\n1. **当前状态**：\n   - 轮次：10\n   - 已完成批量钻取5/5个目标，5个停机前无异常\n   - 停机案例总数：9\n   - 已钻取数量：8\n   - 已钻取案例：SC_001, SC_003, SC_004, SC_005, SC_006, SC_007, SC_008, SC_009\n   - 剩余未钻取：SC_002\n   - SER计数：241（掘进阻力异常）\n   - 水力异常计数：63\n   - 停机比例：64%\n   - 事件计数：444\n   - 未验证计数：4\n\n2. **计划状态**：\n   - P1：进行中\n   - P2：进行中\n   - P3：待处理\n   - P4：已完成\n\n3. **问题状态**：\n   - Q1：部分回答\n   - Q2：部分回答\n   - Q3：未回答\n   - Q5：未回答\n\n4. **规则推荐**：\n   - 推荐动作：drilldown_time_window\n   - 理由：对停机案例 SC_001 (140min) 做窗口钻取\n\n5. **约束检查**：\n   - SC_001 已经在 already_drilled_sc_ids 中，不能再钻取\n   - 规则推荐的 SC_001 是已钻取的，违反硬约束\n\n6. **可行动作**：\n   - analyze_hydraulic_pattern：分析水力模式\n   - generate_investigation_report：生成调查报告\n\n7. **剩余任务**：\n   - 仅剩 SC_002 待钻取，但规则推荐 SC_001（已钻取）\n   - 存在4个未验证异常，需要调查\n   - 水力异常计数63个，可深入分析\n\n8. **决策**：\n   - 违反硬约束的规则不可行\n   - 可选：分析水力模式或生成调查报告\n   - 需要验证剩余未验证异常和钻取 SC_002\n\n我需要选择一个既能满足约束，又能推进调查的动作。关键是找出剩余未验证异常的根源，并深入分析水力异常模式。\n\n当前选项有限，必须谨慎决策。\n</think>\n\n{\"selected_action\": \"analyze_hydraulic_pattern\", \"selected_reason\": \"硬约束阻止选择规则推荐动作（SC_001已钻取）。剩余SC_002已完成8/9钻取。水力异常63个、4个未验证案例表明需深入分析液压系统模式，而非继续单一案例钻取。P4已完成，P1/P2进行中，可通过分析水力模式支撑调查。\", \"stop\": false}",
+      "error_message": "",
+      "latency_seconds": 14.03,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"analyze_hydraulic_pattern\", \"selected_reason\": \"硬约束阻止选择规则推荐动作（SC_001已钻取）。剩余SC_002已完成8/9钻取。水力异常63个、4个未验证案例表明需深入分析液压系统模式，而非继续单一案例钻取。P4已完成，P1/P2进行中，可通过分析水力模式支撑调查。\", \"stop\": false}"
+    },
+    {
+      "round_num": 11,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "generate_investigation_report",
+      "selected_reason": "SC_001已在already_drilled_sc_ids中，硬约束禁止重复钻取。剩余未钻取案例仅剩SC_002，且已完成8/9=89%的停机案例钻取，应生成调查报告整合已有发现并推进结论",
+      "thought_summary": "",
+      "raw_preview": "<think>\n让我分析一下当前的情况：\n\n1. round: 11 - 这是第11轮\n2. recent_actions: 一直在做 drilldown_time_window 和 drilldown_time_windows_batch\n3. last_obs: HYD 事件 63 个，与 SER 同步，靠近停机边界，多为孤立短时波动\n4. stoppage_cases: 9 - 有9个停机案例\n5. drilldown_done_count: 8 - 已经钻取了8个案例\n6. already_drilled_sc_ids: [\"SC_001\", \"SC_003\", \"SC_004\", \"SC_005\", \"SC_006\", \"SC_007\", \"SC_008\", \"SC_009\"] - 已经钻取过的案例\n7. remaining_sc_ids: [\"SC_002\"] - 还剩 SC_002 没有钻取\n8. ser_count: 241, hyd_count: 63\n9. stoppage_cases: 9\n10. plan_status: P1, P2 进行中，P3, P4 完成\n11. questions: Q1, Q2 部分回答，Q5 未回答\n12. allowed_actions: [\"generate_investigation_report\"]\n13. rule_recommended: \"drilldown_time_window\"，理由是对停机案例 SC_001 (140min) 做窗口钻取\n\n关键问题：\n- 已经钻取了8个案例，还剩 SC_002\n- already_drilled_sc_ids 中包含了 SC_001\n- rule_recommended 建议对 SC_001 做 drilldown，但 SC_001 已经在 already_drilled_sc_ids 中\n\n\n- 根据硬约束，不能选择 already_drilled_sc_ids 中的 case\n\n这是一个矛盾的情况。已经钻取的案例集合与建议钻取的案例冲突。我需要重新评估策略，确保遵循硬约束并找到最佳调查方向。\n\n目前只剩下一个未钻取的案例 SC_002，尽管钻取率已经很高。考虑到调查的完整性，可能需要探索新的调查方法。\n\ngenerate_investigation_report 似乎是合理的选择。检查硬约束后发现，没有剩余案例可钻取，这进一步支持了生成调查报告的决定。\n\n这个方案能够综合已收集的信息，提供全面的分析视角。\n</think>\n\n{\"selected_action\": \"generate_investigation_report\", \"selected_reason\": \"SC_001已在already_drilled_sc_ids中，硬约束禁止重复钻取。剩余未钻取案例仅剩SC_002，且已完成8/9=89%的停机案例钻取，应生成调查报告整合已有发现并推进结论\", \"stop\": false}",
+      "error_message": "",
+      "latency_seconds": 11.73,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"generate_investigation_report\", \"selected_reason\": \"SC_001已在already_drilled_sc_ids中，硬约束禁止重复钻取。剩余未钻取案例仅剩SC_002，且已完成8/9=89%的停机案例钻取，应生成调查报告整合已有发现并推进结论\", \"stop\": false}"
+    },
+    {
+      "round_num": 12,
+      "model": "MiniMax-M2.7",
+      "base_url_host": "api.minimaxi.com",
+      "status": "success",
+      "selected_action": "generate_investigation_report",
+      "selected_reason": "所有9个停机案例(SC_001~SC_009)已完成drilldown，remaining_sc_ids为空，无新案例可钻取。规则推荐drilldown_time_window但受硬约束限制不可执行。当前应生成调查报告，整合已完成的钻取结果以回答Q1/Q2/Q5并完成P2计划。",
+      "thought_summary": "",
+      "raw_preview": "<think>Let me analyze the situation:\n\n1. **Round**: 12 - We're at round 12\n2. **Recent actions**: Multiple drilldown_time_window actions have been taken\n3. **Last observation**: Shows SC_002 case - front 600m at normal speed (24.13), middle 1345m stopped (86%), rear 600m normal (26.16) - stopped before didn't show obvious anomaly, recovered after stopping\n4. **Stoppage cases**: 9 total\n5. **Drilldown done**: 9 cases already drilled\n6. **Already drilled SC IDs**: SC_001 through SC_009 (all 9 cases)\n7. **Remaining SC IDs**: [] (empty - all cases have been drilled)\n8. **SER count**: 241 (SER = Shield Advance Resistance/掘进阻力异常)\n9. **Hyd count**: 63\n10. **Stopped pct**: 64%\n11. **Event count**: 444\n12. **Unverified count**: 4 (only 4 cases remain unverified out of all stoppage cases)\n13. **Plan status**: P1 completed, P2 in_progress, P3/P4 completed\n14. **Questions**: Q1 partially answered, Q2 partially answered, Q5 unanswered\n15. **Allowed actions**: Only [\"generate_investigation_report\"] is available\n16. **Rule recommended**: drilldown_time_window\n\nKey constraints:\n- Cannot select already_drilled_sc_ids (SC_001-SC_009)\n- remaining_sc_ids is empty\n- Only allowed action is \"generate_investigation_report\"\n\nThe hard constraint states:\n- 不得选择 already_drilled_sc_ids 中的 case 做 drilldown\n- 如需继续停机 drilldown，只能从 remaining_sc_ids 中选择\n\nSince remaining_sc_ids is empty and we cannot select already drilled cases, we cannot do any more drilldown. The only available action is \"generate_investiga",
+      "error_message": "",
+      "latency_seconds": 8.25,
+      "parse_strategy": "direct_json",
+      "cleaned_preview": "{\"selected_action\": \"generate_investigation_report\", \"selected_reason\": \"所有9个停机案例(SC_001~SC_009)已完成drilldown，remaining_sc_ids为空，无新案例可钻取。规则推荐drilldown_time_window但受硬约束限制不可执行。当前应生成调查报告，整合已完成的钻取结果以回答Q1/Q2/Q5并完成P2计划。\", \"stop\": false}"
+    }
+  ],
+  "final_conclusion": {
+    "convergence_status": "partially_converged",
+    "stop_reason": "report_generated",
+    "primary_conclusion_zh": "共 9 个停机案例，暂无明确分类。；所有钻取窗口显示停机前后未见明显异常，停机更像计划性/管理性停机。；SER 事件 241 个，推进中占比 81%。；HYD 事件多为孤立短时波动，不构成系统性液压异常。",
+    "secondary_findings_zh": [
+      "所有钻取窗口显示停机前后未见明显异常，停机更像计划性/管理性停机。",
+      "SER 事件 241 个，推进中占比 81%。",
+      "HYD 事件多为孤立短时波动，不构成系统性液压异常。"
+    ],
+    "ruled_out_zh": [
+      "暂未发现停机前明显 SER/HYD 前兆。",
+      "液压系统不稳定未达到系统性异常级别。"
+    ],
+    "unresolved_questions_zh": [],
+    "confidence_label": "medium",
+    "confidence_reason_zh": "主要证据一致，但所有结论均为疑似，需施工日志确认；validator 已修正过度自信结论",
+    "next_manual_checks": [
+      "核查 2025-05-12 16:42:13 ~ 2025-05-12 22:35:30 对应施工日志（SC_008，353分钟）",
+      "核查 2025-05-12 04:52:49 ~ 2025-05-12 08:55:46 对应施工日志（SC_003，243分钟）",
+      "核查 2025-05-12 10:41:10 ~ 2025-05-12 13:14:11 对应施工日志（SC_004，153分钟）"
+    ],
+    "finalizer_type": "fallback",
+    "finalizer_llm_status": "parse_error",
+    "finalizer_model": "MiniMax-M2.7",
+    "finalizer_error_message": "未找到 JSON",
+    "validator_applied": true,
+    "validation_warnings": [
+      "Top 停机案例均为待确认/未分类，分类证据不足"
+    ],
+    "downgraded_fields": [
+      "convergence: converged→partially_converged（Top 停机案例均未明确分类）"
+    ],
+    "original_convergence_status": "converged",
+    "original_confidence_label": "medium"
+  },
+  "evidence_gate_overrides": [
+    {
+      "round_num": 11,
+      "llm_selected_action": "generate_investigation_report",
+      "final_selected_action": "drilldown_time_window",
+      "override_reason": "stoppage coverage 不足，需 drilldown SC_002",
+      "target_id": "SC_002"
+    }
+  ],
+  "investigation_questions": [
+    {
+      "qid": "Q1",
+      "text": "是否存在长停机？停机是否有异常前兆？",
+      "priority": "high",
+      "status": "answered",
+      "relevant_tools": [
+        "analyze_stoppage_cases",
+        "drilldown_time_window"
+      ],
+      "tools_called": [
+        "analyze_stoppage_cases",
+        "drilldown_time_window",
+        "drilldown_time_windows_batch"
+      ],
+      "findings": [
+        "9 个停机案例，共 0h",
+        "SC_008: 停机前未见明显异常；停机后恢复正常",
+        "SC_003: 停机前未见明显异常；停机后恢复正常",
+        "SC_004: 停机前未见明显异常；停机后恢复正常",
+        "SC_001: 停机前未见明显异常；停机后恢复正常",
+        "SC_006: 停机前未见明显异常；停机后恢复正常",
+        "SC_005: 停机前未见明显异常；停机后恢复正常",
+        "SC_009: 停机前未见明显异常；停机后恢复正常",
+        "SC_007: 停机前未见明显异常；停机后恢复正常",
+        "SC_002: 停机前未见明显异常；停机后恢复正常"
+      ],
+      "needs_manual_check": true,
+      "reason_if_unanswered": ""
+    },
+    {
+      "qid": "Q2",
+      "text": "SER 是否是推进中的真实阻力异常，还是停机/语义重叠？",
+      "priority": "high",
+      "status": "partially_answered",
+      "relevant_tools": [
+        "analyze_resistance_pattern",
+        "drilldown_time_window"
+      ],
+      "tools_called": [
+        "analyze_resistance_pattern"
+      ],
+      "findings": [
+        "SER 推进中占比 81%"
+      ],
+      "needs_manual_check": true,
+      "reason_if_unanswered": "已分析 SER 模式但未做 drilldown 验证"
+    },
+    {
+      "qid": "Q3",
+      "text": "HYD 是否是主因，还是启停边界伴随？",
+      "priority": "medium",
+      "status": "answered",
+      "relevant_tools": [
+        "analyze_hydraulic_pattern"
+      ],
+      "tools_called": [
+        "analyze_hydraulic_pattern"
+      ],
+      "findings": [
+        "HYD 多为孤立短时波动，不构成系统性异常",
+        "HYD 靠近停机边界，可能为启停伴随"
+      ],
+      "needs_manual_check": false,
+      "reason_if_unanswered": ""
+    },
+    {
+      "qid": "Q4",
+      "text": "事件是否存在碎片化或规则放大？",
+      "priority": "medium",
+      "status": "answered",
+      "relevant_tools": [
+        "analyze_event_fragmentation"
+      ],
+      "tools_called": [
+        "analyze_event_fragmentation"
+      ],
+      "findings": [
+        "碎片化风险低，短事件占比 78%"
+      ],
+      "needs_manual_check": false,
+      "reason_if_unanswered": ""
+    },
+    {
+      "qid": "Q5",
+      "text": "哪些结论需要施工日志确认？",
+      "priority": "low",
+      "status": "partially_answered",
+      "relevant_tools": [],
+      "tools_called": [],
+      "findings": [
+        "需施工日志确认：Q1: SC_002: 停机前未见明显异常；停机后恢复正常; Q2: SER 推进中占比 81%"
+      ],
+      "needs_manual_check": true,
+      "reason_if_unanswered": ""
+    }
+  ],
+  "investigation_plan": {
+    "plan_items": [
+      {
+        "plan_id": "P1",
+        "question": "停机验证：是否存在异常停机前兆？",
+        "priority": "high",
+        "required_tools": [
+          "analyze_stoppage_cases",
+          "drilldown_time_windows_batch"
+        ],
+        "target_ids": [
+          "SC_008",
+          "SC_003",
+          "SC_004"
+        ],
+        "status": "completed",
+        "estimated_rounds": 2
+      },
+      {
+        "plan_id": "P2",
+        "question": "SER 验证：是否为推进中真实阻力异常？",
+        "priority": "high",
+        "required_tools": [
+          "analyze_resistance_pattern",
+          "drilldown_time_window"
+        ],
+        "target_ids": [],
+        "status": "partially_completed",
+        "estimated_rounds": 2
+      },
+      {
+        "plan_id": "P3",
+        "question": "HYD 验证：是否为系统性液压异常？",
+        "priority": "medium",
+        "required_tools": [
+          "analyze_hydraulic_pattern"
+        ],
+        "target_ids": [],
+        "status": "completed",
+        "estimated_rounds": 1
+      },
+      {
+        "plan_id": "P4",
+        "question": "碎片化验证：事件是否存在规则放大？",
+        "priority": "medium",
+        "required_tools": [
+          "analyze_event_fragmentation"
+        ],
+        "target_ids": [],
+        "status": "completed",
+        "estimated_rounds": 1
+      }
+    ],
+    "estimated_required_rounds": 9,
+    "recommended_max_iterations": 12,
+    "budget_warning": ""
+  },
+  "executive_summary": {
+    "status_label_zh": "部分收敛",
+    "confidence_label_zh": "中",
+    "one_sentence_conclusion": "当前 CSV 证据不支持 SER 直接触发停机；停机窗口中未见明显 HYD 行级异常；已逐案检查的 9 个停机案例中 9 个停机前未见明显行级异常、停机后恢复正常；停机性质仍需施工日志确认。",
+    "main_problem_type": "停机分析、掘进阻力、液压异常",
+    "key_findings": [
+      "共发现 9 个停机案例，已逐案检查 9 个，未覆盖 0 个。",
+      "已查案例中，9 个停机前未见明显 SER/HYD 行级异常。",
+      "SER 事件 241 个（19.1h），是重要线索，但当前未证明其为停机原因。",
+      "HYD 事件 63 个，需进一步核查。"
+    ],
+    "unresolved_items": [
+      "停机是否计划性/管理性：需施工日志确认",
+      "SER 高发是否对应地层变化：需地质记录确认"
+    ],
+    "next_manual_checks": [
+      "核查施工日志",
+      "核查 SER 高发时段对应地层/操作记录"
+    ],
+    "coverage_summary": "逐案钻取覆盖 9/9",
+    "recommendation_for_user": "部分问题需外部证据确认：；核查施工日志；核查 SER 高发时段对应地质/操作记录；核查检修/换刀/班次记录",
+    "run_status": "partial",
+    "actual_planner_label": "混合 planner（规则 2 轮 + LLM 10 轮）",
+    "llm_success_ratio_text": "10/10",
+    "report_quality_status": "warning"
+  },
+  "evidence_ledger": {
+    "total_stoppage_cases": 9,
+    "drilled_stoppage_cases": 9,
+    "undrilled_stoppage_cases": 0,
+    "drilled_case_ids": [
+      "SC_001",
+      "SC_002",
+      "SC_003",
+      "SC_004",
+      "SC_005",
+      "SC_006",
+      "SC_007",
+      "SC_008",
+      "SC_009"
+    ],
+    "undrilled_case_ids": [],
+    "drilled_cases_no_pre_ser_hyd": 9,
+    "drilled_cases_with_pre_ser_or_hyd": 0,
+    "drilled_cases_inconclusive": 0,
+    "drilled_cases_recovered_after": 9,
+    "confirmed_planned_by_external_log": 0,
+    "confirmed_abnormal_by_external_log": 0,
+    "nature_unknown_count": 9,
+    "external_log_available": false,
+    "ser_event_count": 241,
+    "ser_duration_hours": 19.1,
+    "ser_drilldown_completed": true,
+    "ser_causality_status": "not_proven",
+    "hyd_event_count": 63,
+    "hyd_duration_hours": 0.1,
+    "hyd_status": "insufficient_evidence",
+    "hyd_analysis_executed": true,
+    "validation_errors": [],
+    "validation_passed": true,
+    "investigation_depth": "deep",
+    "target_stoppage_coverage_count": 9,
+    "actual_stoppage_coverage_count": 9,
+    "completeness_status": "complete_for_depth",
+    "completeness_reason": "已达到深度复核目标 (9/9)",
+    "ser_extra_required": false,
+    "target_ser_drilldown_count": 0,
+    "actual_ser_drilldown_count": 0,
+    "ser_drilldown_ids": [],
+    "ser_extra_completeness_status": ""
+  },
+  "compiled_claims": {
+    "one_sentence_conclusion": "当前 CSV 证据不支持 SER 直接触发停机；停机窗口中未见明显 HYD 行级异常；已逐案检查的 9 个停机案例中 9 个停机前未见明显行级异常、停机后恢复正常；停机性质仍需施工日志确认。",
+    "key_findings": [
+      "共发现 9 个停机案例，已逐案检查 9 个，未覆盖 0 个。",
+      "已查案例中，9 个停机前未见明显 SER/HYD 行级异常。",
+      "SER 事件 241 个（19.1h），是重要线索，但当前未证明其为停机原因。",
+      "HYD 事件 63 个，需进一步核查。"
+    ],
+    "unresolved_items": [
+      "停机是否计划性/管理性：需施工日志确认",
+      "SER 高发是否对应地层变化：需地质记录确认"
+    ],
+    "next_manual_checks": [
+      "核查施工日志",
+      "核查 SER 高发时段对应地层/操作记录"
+    ],
+    "allowed_claims": [
+      "共 9 个停机案例，已逐案检查 9 个，未覆盖 0 个",
+      "已逐案检查案例中 9 个停机前未见明显 SER/HYD 行级异常",
+      "已逐案检查案例中 9 个停机后恢复正常",
+      "SER 是需要进一步核查的线索",
+      "当前未证明 SER 与停机存在因果关系",
+      "停机性质仍需施工日志确认"
+    ],
+    "blocked_claims": [
+      "主要原因为计划停机",
+      "确认计划停机",
+      "确认为计划停机",
+      "外部触发因素为主因",
+      "正常操作停顿",
+      "管理性停机已确认",
+      "已确认正常",
+      "已确认计划",
+      "无异常停机",
+      "SER 导致停机",
+      "SER 已排除",
+      "SER 无关"
+    ]
+  },
+  "planner_runtime_status": "llm_ok",
+  "report_quality_status": "warning",
+  "investigation_depth": "deep",
+  "investigation_completeness_status": "complete_for_depth",
+  "report_quality_issues": [
+    {
+      "severity": "warning",
+      "code": "claim_compiler_not_used",
+      "message": "未使用 Claim Compiler 生成结论"
+    }
+  ]
+}

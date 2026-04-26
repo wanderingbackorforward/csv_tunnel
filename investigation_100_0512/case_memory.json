@@ -1,0 +1,192 @@
+[
+  {
+    "case_id": "SC_008",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 16:42:13",
+    "end_time": "2025-05-12 22:35:30",
+    "duration_seconds": 21197.0,
+    "merged_event_count": 2,
+    "merged_event_ids": [
+      "LEE_131",
+      "LEE_132"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.34,
+    "reasons": [
+      "长停机 (353min)",
+      "经 drilldown 验证：停机前后窗口未见明显 SER/HYD 行级异常，疑似计划性/管理性停机，需施工日志确认"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": true,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_003",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 04:52:49",
+    "end_time": "2025-05-12 08:55:46",
+    "duration_seconds": 14577.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_015"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.32,
+    "reasons": [
+      "长停机 (243min)",
+      "经 drilldown 验证：停机前后窗口未见明显 SER/HYD 行级异常，疑似计划性/管理性停机，需施工日志确认"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_004",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 10:41:10",
+    "end_time": "2025-05-12 13:14:11",
+    "duration_seconds": 9181.0,
+    "merged_event_count": 2,
+    "merged_event_ids": [
+      "LEE_089",
+      "LEE_090"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.34,
+    "reasons": [
+      "长停机 (153min)",
+      "经 drilldown 验证：停机前后窗口未见明显 SER/HYD 行级异常，疑似计划性/管理性停机，需施工日志确认"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": true,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_001",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 00:10:52",
+    "end_time": "2025-05-12 02:31:10",
+    "duration_seconds": 8418.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_002"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.34,
+    "reasons": [
+      "长停机 (140min)",
+      "经 drilldown 验证：停机前后窗口未见明显 SER/HYD 行级异常，疑似计划性/管理性停机，需施工日志确认"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": true,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_007",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 15:43:49",
+    "end_time": "2025-05-12 16:12:14",
+    "duration_seconds": 1705.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_127"
+    ],
+    "case_type": "uncertain_stoppage",
+    "confidence": 0.35,
+    "reasons": [
+      "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+      "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+      "（证据不足，建议人工核查）"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_002",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 03:22:08",
+    "end_time": "2025-05-12 03:44:32",
+    "duration_seconds": 1344.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_007"
+    ],
+    "case_type": "uncertain_stoppage",
+    "confidence": 0.35,
+    "reasons": [
+      "停机前存在掘进阻力异常 (SER)（事件级证据，未经 drilldown 验证）",
+      "恢复后仍有异常事件（事件级证据，未经 drilldown 验证）",
+      "（证据不足，建议人工核查）"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": false,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_006",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 14:45:30",
+    "end_time": "2025-05-12 15:03:21",
+    "duration_seconds": 1071.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_115"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.31,
+    "reasons": [
+      "经 drilldown 验证：停机前后窗口未见明显 SER/HYD 行级异常，疑似计划性/管理性停机，需施工日志确认"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": true,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_005",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 14:13:29",
+    "end_time": "2025-05-12 14:28:02",
+    "duration_seconds": 873.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_112"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.31,
+    "reasons": [
+      "经 drilldown 验证：停机前后窗口未见明显 SER/HYD 行级异常，疑似计划性/管理性停机，需施工日志确认"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": true,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  },
+  {
+    "case_id": "SC_009",
+    "file_path": "D:\\电脑管家迁移文件\\xwechat_files\\wxid_1tl9sko3moad22_bcce\\msg\\file\\2026-04\\DZ1296数据解析dsCom_2025.2.20-2025.5.20_2025.8.27\\dsCom\\dsCom_2025-5-12-20250827091636.xls",
+    "start_time": "2025-05-12 23:13:37",
+    "end_time": "2025-05-12 23:26:19",
+    "duration_seconds": 762.0,
+    "merged_event_count": 1,
+    "merged_event_ids": [
+      "LEE_136"
+    ],
+    "case_type": "planned_like_stoppage",
+    "confidence": 0.31,
+    "reasons": [
+      "经 drilldown 验证：停机前后窗口未见明显 SER/HYD 行级异常，疑似计划性/管理性停机，需施工日志确认"
+    ],
+    "pre_has_ser": true,
+    "pre_has_hyd": true,
+    "pre_has_heavy_load": false,
+    "post_has_anomaly": true
+  }
+]

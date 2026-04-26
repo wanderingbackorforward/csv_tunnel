@@ -405,10 +405,13 @@ def _build_ser_text(state: InvestigationState) -> list[str]:
         if obs.action != "analyze_resistance_pattern":
             continue
         data = obs.data or {}
-        lines.append(f"- SER 事件数：{data.get('ser_count', 0)} 次")
-        lines.append(f"- SER 总时长：{data.get('ser_total_duration_h', 0)}h")
         in_adv = data.get("in_advancing_ratio", 0)
-        lines.append(f"- 其中推进中发生：{in_adv:.0%}")
+        # overwrite: keep only the last observation's text
+        lines = [
+            f"- SER 事件数：{data.get('ser_count', 0)} 次",
+            f"- SER 总时长：{data.get('ser_total_duration_h', 0)}h",
+            f"- 其中推进中发生：{in_adv:.0%}",
+        ]
         if data.get("all_stopped_overlap"):
             lines.append("- 当前判断：SER 事件多出现在停机期间，暂不能证明是推进中真实阻力异常")
         elif in_adv > 0.5 and data.get("near_stoppage"):

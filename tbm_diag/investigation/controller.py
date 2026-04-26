@@ -438,19 +438,27 @@ def _update_plan_status(state: InvestigationState, action: str, result: dict) ->
 
     for item in plan.plan_items:
         if item.plan_id == "P1":
+            from tbm_diag.investigation.investigation_depth import (
+                compute_stoppage_coverage_target,
+                compute_p1_status,
+            )
             has_analyze = "analyze_stoppage_cases" in actions_done
-            min_dd = min(1, total_cases) if total_cases > 0 else 0
-            has_enough_dd = len(sc_drilled) >= min_dd
-            unverified = [
-                cid for cid, cls in state.case_classifications.items()
-                if cls.case_type == "event_level_abnormal_unverified"
-            ]
-            unverified_drilled = all(cid in sc_drilled for cid in unverified) if unverified else True
-            if has_analyze and has_enough_dd and unverified_drilled:
+            depth = getattr(state, "investigation_depth", "standard") or "standard"
+            cov_target = compute_stoppage_coverage_target(total_cases, depth)
+            # remaining is not available here, pass 0 to treat as budget-exhausted
+            p1_key, p1_text = compute_p1_status(
+                len(sc_drilled), cov_target,
+                remaining_rounds=0,
+                has_analyze=has_analyze,
+            )
+            if p1_key == "target_completed":
+                item.status = "completed"
+            elif p1_key in ("minimum_completed", "partially_completed"):
+                item.status = "partially_completed"
+            elif p1_key == "not_applicable":
                 item.status = "completed"
             elif has_analyze:
                 item.status = "in_progress"
-            # don't touch if still pending
 
         elif item.plan_id == "P2":
             has_analyze = "analyze_resistance_pattern" in actions_done
@@ -783,54 +791,54 @@ def _check_evidence_gate(
     if action != "generate_investigation_report":
         return False, "", {}, ""
 
+    from tbm_diag.investigation.investigation_depth import (
+        compute_stoppage_coverage_target,
+        select_stoppage_drilldown_batch,
+    )
+
     remaining = max_iterations - state.iteration_count
     total_cases = sum(len(v) for v in state.stoppage_cases.values())
-    drilldown_count = sum(
-        1 for o in state.observations
-        if o.action in ("drilldown_time_window", "drilldown_time_windows_batch")
-        and (o.data.get("target_id", "").startswith("SC_")
-             or any(pt.get("target_id", "").startswith("SC_")
-                     for pt in (o.data.get("per_target") or [])))
-    )
 
     # 如果 max_iterations 即将耗尽（只剩 1 轮），允许生成报告
     if remaining <= 1:
         return False, "", {}, ""
 
-    # 规则 1: 存在停机案例但 drilldown_count == 0 — 优先 batch
-    if total_cases > 0 and drilldown_count == 0:
-        # 收集需要 drilldown 的目标
-        targets_needed = []
-        for cid, cls in state.case_classifications.items():
-            if cls.case_type == "event_level_abnormal_unverified":
-                targets_needed.append(cid)
-        all_cases = []
-        for cases in state.stoppage_cases.values():
-            all_cases.extend(cases)
-        all_cases.sort(key=lambda c: -c.duration_seconds)
+    # ── 核心：depth-aware coverage target 检查 ──
+    if total_cases > 0:
+        depth = getattr(state, "investigation_depth", "standard") or "standard"
+        cov_target = compute_stoppage_coverage_target(total_cases, depth)
+
+        # 收集已 drilldown 的 SC case IDs
         drilldown_done = set()
         for a in state.actions_taken:
             if a.action in ("drilldown_time_window", "drilldown_time_windows_batch"):
                 tid = (a.arguments or {}).get("target_id", "")
-                if tid:
+                if tid and tid.startswith("SC_"):
                     drilldown_done.add(tid)
                 for t in (a.arguments or {}).get("target_ids", []):
-                    drilldown_done.add(t)
-        for c in all_cases:
-            if c.case_id not in drilldown_done and c.case_id not in targets_needed:
-                targets_needed.append(c.case_id)
-        targets_needed = [t for t in targets_needed if t not in drilldown_done][:3]
+                    if t.startswith("SC_"):
+                        drilldown_done.add(t)
 
-        if len(targets_needed) >= 2 and remaining > 2:
-            return True, "drilldown_time_windows_batch", {
-                "file_path": state.current_file,
-                "target_ids": targets_needed,
-            }, f"存在 {len(targets_needed)} 个待验证停机案例，批量钻取"
-        elif targets_needed:
-            return True, "drilldown_time_window", {
-                "file_path": state.current_file,
-                "target_id": targets_needed[0],
-            }, f"停机案例 {targets_needed[0]} 尚未 drilldown"
+        if len(drilldown_done) < cov_target.target_count and remaining > 1:
+            # 选择下一批待 drilldown 目标
+            all_cases = []
+            for cases in state.stoppage_cases.values():
+                all_cases.extend(cases)
+            batch_ids = select_stoppage_drilldown_batch(
+                drilldown_done, all_cases, cov_target,
+            )
+            if batch_ids:
+                if len(batch_ids) >= 2:
+                    return True, "drilldown_time_windows_batch", {
+                        "file_path": state.current_file,
+                        "target_ids": batch_ids,
+                    }, (f"stoppage coverage {len(drilldown_done)}/{cov_target.target_count} "
+                        f"< depth target，批量钻取 {batch_ids}")
+                else:
+                    return True, "drilldown_time_window", {
+                        "file_path": state.current_file,
+                        "target_id": batch_ids[0],
+                    }, f"stoppage coverage 不足，需 drilldown {batch_ids[0]}"
 
     # 规则 2: 存在事件级异常线索但未 drilldown
     unverified = [
@@ -861,8 +869,8 @@ def _check_evidence_gate(
                         if len(not_drilled) >= 2:
                             return True, "drilldown_time_windows_batch", {
                                 "file_path": state.current_file,
-                                "target_ids": not_drilled[:3],
-                            }, f"P1 停机验证未完成，需 drilldown {not_drilled[:3]}"
+                                "target_ids": not_drilled[:5],
+                            }, f"P1 停机验证未完成，需 drilldown {not_drilled[:5]}"
                         else:
                             return True, "drilldown_time_window", {
                                 "file_path": state.current_file,
@@ -1004,6 +1012,7 @@ def run_investigation(
     planner_audit: bool = False,
     focus: str = "auto",
     planner_mode: str = "rule",
+    depth: str = "standard",
 ) -> InvestigationResult:
     """运行停机案例追查 ReAct 循环。"""
     output_dir = Path(output_dir)
@@ -1020,6 +1029,7 @@ def run_investigation(
         current_file=input_files[0] if input_files else "",
         focus=focus,
         planner_type=planner_mode,
+        investigation_depth=depth or "standard",
     )
 
     start_time = time.time()
@@ -1241,6 +1251,19 @@ def run_investigation(
     if ledger_errors:
         print(f"[investigate] LEDGER VALIDATION FAILED: {'; '.join(ledger_errors)}")
     state.compiled_claims = compile_claims_from_ledger(state.evidence_ledger)
+
+    # ── investigation completeness ──
+    from tbm_diag.investigation.investigation_depth import (
+        compute_stoppage_coverage_target,
+        compute_completeness_status,
+    )
+    total_sc = state.evidence_ledger.total_stoppage_cases
+    actual_sc = state.evidence_ledger.drilled_stoppage_cases
+    depth = state.investigation_depth or "standard"
+    cov_target = compute_stoppage_coverage_target(total_sc, depth)
+    comp_status, comp_msg = compute_completeness_status(actual_sc, cov_target, remaining_rounds=0)
+    state.investigation_completeness_status = comp_status
+    print(f"[investigate] completeness: {comp_status} ({comp_msg})")
 
     _build_executive_summary(state)
     if state.final_conclusion:

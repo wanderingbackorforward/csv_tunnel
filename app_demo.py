@@ -917,40 +917,41 @@ def render_investigation_tab() -> None:
     )
     output_dir_text = st.text_input("输入输出目录", value=str(INVESTIGATION_DEMO_DIR))
 
-    # ── 三档主入口 ──
-    _PRESETS = {
-        "深度 LLM 调查（推荐）": {"mode": "auto", "planner": "llm", "max_iterations": 50,
-                                  "desc": "默认推荐，使用大模型参与每轮调查决策，适合展示完整 ReAct 能力。需要配置 OPENAI_API_KEY。"},
-        "标准混合调查": {"mode": "auto", "planner": "hybrid", "max_iterations": 20,
-                        "desc": "兼顾稳定和成本，部分关键轮次调用大模型。"},
-        "快速规则初筛": {"mode": "auto", "planner": "rule", "max_iterations": 12,
-                        "desc": "不调用大模型，适合快速预览或 API 不可用时使用。"},
+    # ── 调查深度选择 ──
+    _DEPTH_PRESETS = {
+        "快速初筛": {"depth": "quick", "desc": "查 Top 3 停机案例，适合快速预览。"},
+        "标准调查（推荐）": {"depth": "standard", "desc": "查约 60% 停机案例，最多 10 个。兼顾速度与充分性。"},
+        "深度复核": {"depth": "deep", "desc": "查全部停机案例，最多 30 个。"},
+        "穷尽调查": {"depth": "exhaustive", "desc": "查全部停机案例 + 关键 SER 窗口。"},
     }
-    preset_label = st.radio("调查档位", list(_PRESETS.keys()), index=0, horizontal=True,
-                            help="选择调查深度，高级设置可覆盖")
-    preset = _PRESETS[preset_label]
-    st.caption(preset["desc"])
+    depth_label = st.radio("调查深度", list(_DEPTH_PRESETS.keys()), index=1, horizontal=True,
+                           help="选择调查充分性目标")
+    depth_preset = _DEPTH_PRESETS[depth_label]
+    st.caption(depth_preset["desc"])
+    selected_depth = depth_preset["depth"]
 
-    focus_mode = preset["mode"]
-    planner_mode = preset["planner"]
-    max_iterations = preset["max_iterations"]
-    planner_audit = True
+    # ── Planner 选择 ──
+    _PLANNER_PRESETS = {
+        "LLM（推荐）": "llm",
+        "混合": "hybrid",
+        "纯规则": "rule",
+    }
+    planner_label = st.radio("Planner", list(_PLANNER_PRESETS.keys()), index=0, horizontal=True)
+    planner_mode = _PLANNER_PRESETS[planner_label]
+
+    from tbm_diag.investigation.investigation_depth import get_depth_default_iterations
+    default_iterations = get_depth_default_iterations(selected_depth)
 
     # ── 高级设置（默认折叠）──
-    with st.expander("高级设置（开发者/调试用）"):
+    with st.expander("高级设置"):
         adv_mode = st.selectbox("调查聚焦模式", ["auto", "stoppage", "resistance", "hydraulic", "fragmentation"],
                                 help="auto=自动选择 | 其他=专项调查")
-        adv_planner = st.selectbox("Planner 模式", ["llm", "hybrid", "rule"],
-                                   help="llm=每轮调LLM | hybrid=混合 | rule=纯规则")
-        adv_iter = st.number_input("自定义轮数", min_value=1, max_value=100,
-                                   value=preset["max_iterations"], step=1)
+        adv_iter = st.number_input("自定义轮数", min_value=1, max_value=200,
+                                   value=default_iterations, step=1)
         adv_audit = st.checkbox("启用 planner 审计日志", value=True)
-        if adv_mode != "auto" or adv_planner != preset["planner"] or adv_iter != preset["max_iterations"] or not adv_audit:
-            focus_mode = adv_mode
-            planner_mode = adv_planner
-            max_iterations = adv_iter
-            planner_audit = adv_audit
-            st.info(f"高级设置已覆盖：mode={focus_mode}, planner={planner_mode}, iterations={max_iterations}")
+        max_iterations = adv_iter
+        focus_mode = adv_mode
+        planner_audit = adv_audit
 
     # ── API Key 检查 ──
     api_key_missing = planner_mode == "llm" and not has_openai_compatible_config()
@@ -983,6 +984,8 @@ def render_investigation_tab() -> None:
             focus_mode,
             "--planner",
             planner_mode,
+            "--depth",
+            selected_depth,
             "--max-iterations",
             str(int(max_iterations)),
         ]

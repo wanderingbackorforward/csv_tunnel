@@ -311,6 +311,34 @@ def _build_section_1_executive(lines: list[str], state: InvestigationState) -> N
                 lines.append(f"> - {issue.message}")
         lines.append("")
 
+    # 调查充分性卡片
+    from tbm_diag.investigation.investigation_depth import (
+        get_depth_label, compute_stoppage_coverage_target,
+    )
+    cov = compute_drilldown_coverage(state)
+    total_sc = cov["total_count"]
+    actual_sc = cov["covered_count"]
+    depth = state.investigation_depth or "standard"
+    cov_target = compute_stoppage_coverage_target(total_sc, depth)
+    comp_status = state.investigation_completeness_status or ""
+    lines.append("### 调查充分性\n")
+    lines.append(f"- 调查深度：{get_depth_label(depth)}")
+    lines.append(f"- 停机案例总数：{total_sc}")
+    lines.append(f"- 当前深度目标：{cov_target.target_count}/{total_sc}")
+    lines.append(f"- 实际 drilldown 覆盖：{actual_sc}/{total_sc}")
+    if comp_status == "complete_for_depth":
+        lines.append("- 调查充分性：**已达到当前深度目标**")
+    elif comp_status == "not_applicable_no_stoppage":
+        lines.append("- 调查充分性：无停机案例，不适用")
+    elif comp_status == "incomplete_due_to_budget":
+        lines.append("- 调查充分性：**因预算不足未完成**")
+        lines.append(f"> 本次报告为部分调查结果，不代表全部停机案例均已完成 drilldown。")
+    elif comp_status == "incomplete_due_to_cap":
+        lines.append("- 调查充分性：**已达到上限，但未覆盖全部**")
+    else:
+        lines.append(f"- 调查充分性：{comp_status or '未知'}")
+    lines.append("")
+
     if es:
         lines.append("### 调查结论\n")
         lines.append(f"- 调查状态：{es.status_label_zh}")

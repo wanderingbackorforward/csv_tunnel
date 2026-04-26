@@ -39,6 +39,7 @@ class ReportCheckResult:
     p1_status_issue: str = ""
     generalization_issue: str = ""
     hyd_conclusion_issue: str = ""
+    completeness_info: dict = field(default_factory=dict)
     details: list[str] = field(default_factory=list)
 
 
@@ -152,4 +153,16 @@ def run_report_check(investigation_dir: str | Path) -> ReportCheckResult:
     ledger = EvidenceLedger(**{k: v for k, v in ledger_dict.items()
                                if k in EvidenceLedger.__dataclass_fields__})
 
-    return validate_rendered_report(report_text, ledger)
+    result = validate_rendered_report(report_text, ledger)
+
+    # Add completeness info from ledger
+    result.completeness_info = {
+        "depth": ledger.investigation_depth,
+        "total": ledger.total_stoppage_cases,
+        "target": ledger.target_stoppage_coverage_count,
+        "actual": ledger.actual_stoppage_coverage_count,
+        "status": ledger.completeness_status,
+        "message": ledger.completeness_reason,
+    }
+
+    return result

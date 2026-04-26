@@ -624,7 +624,14 @@ def analyze_stoppage_cases(file_path: str, state: Any = None) -> dict[str, Any]:
     if state is not None:
         state.stoppage_cases[file_path] = case_objects
 
-    top_cases = case_objects[:3]
+    # Initial classification scope — depth-aware
+    depth = getattr(state, "investigation_depth", "standard") if state else "standard"
+    if depth in ("deep", "exhaustive"):
+        top_cases = case_objects[:20]
+    elif depth == "standard":
+        top_cases = case_objects[:10]
+    else:
+        top_cases = case_objects[:3]
     case_summaries = []
     for c in top_cases:
         if state is not None:
@@ -1473,11 +1480,14 @@ def validate_final_conclusion(state: Any) -> None:
         warnings.append("Top 停机案例均为待确认/未分类，分类证据不足")
 
     # ── 4. drilldown 覆盖不足时不能泛化 ──
-    top_n = min(3, total_cases)
-    if total_cases > 0 and sc_drilldown_count < top_n:
+    from tbm_diag.investigation.investigation_depth import compute_stoppage_coverage_target
+    depth = getattr(state, "investigation_depth", "standard") or "standard"
+    cov_target = compute_stoppage_coverage_target(total_cases, depth)
+    min_n = cov_target.target_count
+    if total_cases > 0 and sc_drilldown_count < min_n:
         if "本次停机" in fc.primary_conclusion_zh and ("由" in fc.primary_conclusion_zh or "主导" in fc.primary_conclusion_zh):
             warnings.append(
-                f"仅 drilldown {sc_drilldown_count}/{top_n} 个停机案例，"
+                f"仅 drilldown {sc_drilldown_count}/{min_n} 个停机案例，"
                 f"结论不能泛化到全部 {total_cases} 个停机"
             )
             if fc.convergence_status == "converged" and sc_drilldown_count < 2:

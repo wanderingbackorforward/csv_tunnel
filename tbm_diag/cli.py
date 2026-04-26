@@ -840,7 +840,32 @@ def _cmd_report_check(args: argparse.Namespace) -> int:
         print(f"  {line}")
     if result.forbidden_found:
         print(f"\n  Forbidden claims: {', '.join(result.forbidden_found)}")
+
+    # Completeness display
+    comp = result.completeness_info
+    if comp:
+        print(f"\n  调查深度: {comp.get('depth', '?')}")
+        print(f"  停机案例: {comp.get('total', 0)}")
+        print(f"  目标覆盖: {comp.get('target', 0)}")
+        print(f"  实际覆盖: {comp.get('actual', 0)}")
+        print(f"  调查充分性: {comp.get('status', '?')}")
+        if comp.get('message'):
+            print(f"  说明: {comp['message']}")
+
     print(f"\n  Ledger validation: {'PASS' if result.ledger_validation_passed else 'FAIL'}")
+    print(f"  Report quality: {'PASS' if result.passed else 'FAIL'}")
+
+    require_complete = getattr(args, "require_complete", False)
+    completeness_ok = comp.get("status", "") == "complete_for_depth" or comp.get("status", "") == "not_applicable_no_stoppage"
+
+    if require_complete and not completeness_ok:
+        print(f"  Completeness (--require-complete): FAIL")
+        print(f"  Final: FAIL")
+        print("=" * 70)
+        return 1
+    elif not completeness_ok:
+        print(f"  Completeness: WARNING (investigation incomplete)")
+
     print(f"  Final: {'PASS' if result.passed else 'FAIL'}")
     print("=" * 70)
     return 0 if result.passed else 1
@@ -1128,6 +1153,7 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         planner_audit=getattr(args, "planner_audit", False),
         focus=getattr(args, "mode", "auto"),
         planner_mode=getattr(args, "planner", "rule"),
+        depth=getattr(args, "depth", "standard"),
     )
 
     if result.report_text:
@@ -1476,6 +1502,9 @@ def main(argv: list[str] | None = None) -> int:
                        help="（已废弃，请用 --planner llm）使用 LLM planner")
     p_inv.add_argument("--max-iterations", type=int, default=50, metavar="N",
                        help="最大迭代轮数（默认 50）")
+    p_inv.add_argument("--depth", default="standard",
+                       choices=["quick", "standard", "deep", "exhaustive"],
+                       help="调查深度：quick=Top3初筛 standard=60%%最多10 deep=全部 exhaustive=全部+SER（默认 standard）")
     p_inv.add_argument("--config", default=None, metavar="PATH",
                        help="配置文件路径")
     p_inv.add_argument("--verbose", "-v", action="store_true",
@@ -1530,6 +1559,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_check.add_argument("--investigation-dir", required=True, metavar="DIR",
                          help="调查输出目录（包含 investigation_report.md 和 investigation_state.json）")
+    p_check.add_argument("--require-complete", action="store_true",
+                         help="要求调查充分性达到当前深度目标，否则 FAIL")
 
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)

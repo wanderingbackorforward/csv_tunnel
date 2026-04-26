@@ -49,6 +49,13 @@ class EvidenceLedger:
     validation_errors: list[str] = field(default_factory=list)
     validation_passed: bool = False
 
+    # ── D. 调查充分性 ──
+    investigation_depth: str = "standard"
+    target_stoppage_coverage_count: int = 0
+    actual_stoppage_coverage_count: int = 0
+    completeness_status: str = ""
+    completeness_reason: str = ""
+
 
 def build_evidence_ledger(state: InvestigationState) -> EvidenceLedger:
     """从调查状态构建证据账本。只记录事实，不做推断。"""
@@ -135,6 +142,22 @@ def build_evidence_ledger(state: InvestigationState) -> EvidenceLedger:
             else:
                 ledger.hyd_status = "insufficient_evidence"
 
+    # ── D. Completeness ──
+    from tbm_diag.investigation.investigation_depth import (
+        compute_stoppage_coverage_target,
+        compute_completeness_status,
+    )
+    depth = getattr(state, "investigation_depth", "standard") or "standard"
+    ledger.investigation_depth = depth
+    ledger.actual_stoppage_coverage_count = ledger.drilled_stoppage_cases
+    cov_target = compute_stoppage_coverage_target(ledger.total_stoppage_cases, depth)
+    ledger.target_stoppage_coverage_count = cov_target.target_count
+    comp_status, comp_msg = compute_completeness_status(
+        ledger.actual_stoppage_coverage_count, cov_target, remaining_rounds=0,
+    )
+    ledger.completeness_status = comp_status
+    ledger.completeness_reason = comp_msg
+
     return ledger
 
 
@@ -205,6 +228,14 @@ def validate_evidence_ledger(ledger: EvidenceLedger) -> list[str]:
     # 7. SER not drilled → cannot be proven
     if not ledger.ser_drilldown_completed and ledger.ser_causality_status == "proven":
         errors.append("ser_causality_status cannot be proven when ser_drilldown_completed=false")
+
+    # 8. Completeness consistency
+    if ledger.completeness_status == "complete_for_depth":
+        if ledger.actual_stoppage_coverage_count < ledger.target_stoppage_coverage_count:
+            errors.append(
+                f"completeness_status=complete_for_depth but actual("
+                f"{ledger.actual_stoppage_coverage_count}) < target({ledger.target_stoppage_coverage_count})"
+            )
 
     ledger.validation_errors = errors
     ledger.validation_passed = len(errors) == 0

@@ -631,16 +631,26 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         _reject("analyze_stoppage_cases",
                 f"focus={focus}" if not run_stoppage else f"stoppage={stoppage_count}<3, stopped={stopped_pct:.0f}%<30")
 
-    # 停机 drilldown
+    # 停机 drilldown — depth-aware target selection
     if run_stoppage and "analyze_stoppage_cases" in file_analyses_done:
+        from tbm_diag.investigation.investigation_depth import (
+            compute_stoppage_coverage_target,
+            select_stoppage_drilldown_batch,
+        )
         cases = state.stoppage_cases.get(fp, [])
-        for c in cases[:3]:
-            if c.case_id not in drilldown_targets_done:
-                return _select("drilldown_time_window",
-                               f"对停机案例 {c.case_id} ({c.duration_seconds/60:.0f}min) 做窗口钻取",
-                               {"file_path": fp, "target_id": c.case_id})
+        depth = getattr(state, "investigation_depth", "standard") or "standard"
+        cov_target = compute_stoppage_coverage_target(len(cases), depth)
+        drilled_sc = {tid for tid in drilldown_targets_done if tid.startswith("SC_")}
+        batch_ids = select_stoppage_drilldown_batch(drilled_sc, cases, cov_target)
+        if batch_ids:
+            target_id = batch_ids[0]
+            dur = next((c.duration_seconds / 60 for c in cases if c.case_id == target_id), 0)
+            return _select("drilldown_time_window",
+                           f"对停机案例 {target_id} ({dur:.0f}min) 做窗口钻取",
+                           {"file_path": fp, "target_id": target_id})
         if cases:
-            _reject("drilldown_time_window(stoppage)", f"top {min(3,len(cases))} cases 已钻取")
+            _reject("drilldown_time_window(stoppage)",
+                    f"stoppage coverage target met ({len(drilled_sc)}/{cov_target.target_count})")
 
     # ★ 停机 observation-reactive: drilldown 发现停机前有 SER/HYD → 追加分析
     if (run_stoppage and "analyze_stoppage_cases" in file_analyses_done

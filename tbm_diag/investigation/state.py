@@ -257,6 +257,8 @@ class InvestigationState:
     compiled_claims: Any = None  # CompiledClaims dataclass
     planner_runtime_status: str = ""  # "" / llm_ok / llm_unstable / llm_unavailable
     report_quality_status: str = ""  # passed / warning / failed
+    investigation_depth: str = "standard"  # quick / standard / deep / exhaustive
+    investigation_completeness_status: str = ""  # complete_for_depth / incomplete_due_to_budget / ...
     report_quality_issues: list[ReportQualityIssue] = field(default_factory=list)
 
 

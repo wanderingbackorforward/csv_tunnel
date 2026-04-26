@@ -87,13 +87,26 @@ def run_cli(parts: list[str], waiting_text: str) -> dict[str, Any]:
     }
 
 
-def render_cli_output(result: dict[str, Any]) -> None:
-    with st.expander("查看命令行输出", expanded=False):
+def render_cli_output(
+    result: dict[str, Any],
+    *,
+    use_expander: bool = True,
+    title: str = "查看命令行输出",
+) -> None:
+    def _render_body():
         st.code(quote_command(result["command"]), language="bash")
         st.caption("标准输出")
         st.code(result.get("stdout") or "（无输出）", language="text")
-        st.caption("错误输出")
-        st.code(result.get("stderr") or "（无输出）", language="text")
+        if result.get("stderr"):
+            st.caption("错误输出")
+            st.code(result.get("stderr"), language="text")
+
+    if use_expander:
+        with st.expander(title, expanded=False):
+            _render_body()
+    else:
+        st.caption(title)
+        _render_body()
 
 
 def read_json(path: Path) -> Any:
@@ -827,7 +840,7 @@ def render_review_tab() -> None:
                                 ],
                                 f"正在运行{_MODE_LABELS.get(mode, mode)}，请稍候",
                             )
-                            render_cli_output(inv_result)
+                            render_cli_output(inv_result, use_expander=False)
                             if inv_result["returncode"] == 0:
                                 st.success(f"{_MODE_LABELS.get(mode, mode)}完成")
                                 render_investigation_audit(inv_out)

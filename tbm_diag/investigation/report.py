@@ -41,6 +41,65 @@ _PLAN_STATUS_ZH = {
 }
 
 
+def _sanitize_rationale(action_rec, observations: list) -> str:
+    """清理 LLM 原始 reason：修正 target 不一致 + 清理越界措辞。"""
+    import re as _re
+    raw = action_rec.rationale or ""
+    action = action_rec.action
+    args = action_rec.arguments or {}
+
+    # Evidence Gate override 的 reason 已经是修正过的
+    if action_rec.evidence_gate_override:
+        text = raw
+    else:
+        text = raw
+
+    # ── 通用措辞清理（所有 action 都适用）──
+    # "电阻/SER" → "掘进阻力异常 SER"
+    text = _re.sub(r"电阻\s*/\s*SER", "掘进阻力异常 SER", text)
+    text = _re.sub(r"电阻/SER", "掘进阻力异常 SER", text)
+    # "揭示停机主因" → "分析 SER 线索"
+    text = _re.sub(r"揭示停机主因", "分析异常线索", text)
+    # "主因" → "线索"（除非是 "未证明为主因" / "不作为主因"）
+    if "未证明为主因" not in text and "不作为主因" not in text and "未确认为主因" not in text:
+        text = _re.sub(r"停机主因", "停机线索", text)
+        text = _re.sub(r"主因应", "线索应", text)
+
+    # ── Target mismatch 检查（仅 drilldown action）──
+    if action in ("drilldown_time_window", "drilldown_time_windows_batch") and not action_rec.evidence_gate_override:
+        mentioned = set(_re.findall(r"\bSC_\d+\b", raw))
+        executed: set[str] = set()
+        if action == "drilldown_time_window":
+            tid = args.get("target_id", "")
+            if tid:
+                executed.add(tid)
+        elif action == "drilldown_time_windows_batch":
+            for tid in args.get("target_ids", []):
+                if isinstance(tid, str):
+                    executed.add(tid)
+        if mentioned and executed and mentioned != executed:
+            resolved_ids = ", ".join(sorted(executed))
+            text = f"[已修正] → {resolved_ids}"
+
+    return text.replace("|", "/")[:50]
+
+
+def _sanitize_findings_text(text: str) -> str:
+    """清理调查问题 findings 中的越界措辞，特别是 HYD 0.0h 因果判断。"""
+    import re as _re
+    # HYD 0.0h 因果语言替换
+    hyd_causal = [
+        (r"可能为启停伴随", "需先核查统计口径"),
+        (r"HYD与SER同步", "HYD 与 SER 时间有重叠，需核查统计口径"),
+        (r"与\s*SER\s*同步", "与 SER 时间有重叠，需核查统计口径"),
+        (r"靠近停机边界[，,]\s*多为孤立短时波动", "多为孤立短时波动，需先核查统计口径"),
+        (r"靠近停机边界", "时间靠近停机，需核查统计口径"),
+    ]
+    for pat, repl in hyd_causal:
+        text = _re.sub(pat, repl, text)
+    return text
+
+
 def _build_react_trace_table(state: InvestigationState) -> list[str]:
     """构建 ReAct 调查轨迹表。"""
     has_overrides = any(a.evidence_gate_override for a in state.actions_taken)
@@ -64,7 +123,8 @@ def _build_react_trace_table(state: InvestigationState) -> list[str]:
                 obs = o
                 break
         obs_text = (obs.result_summary[:60] if obs else "无").replace("|", "/")
-        rationale = (action_rec.rationale or "").replace("|", "/")[:50]
+        obs_text = _sanitize_findings_text(obs_text)
+        rationale = _sanitize_rationale(action_rec, state.observations)
         ar = audit_map.get(action_rec.round_num)
         trigger = (ar.triggered_by_field if ar and ar.triggered_by_field else "—").replace("|", "/")
         pt = _PT.get(action_rec.planner_type, action_rec.planner_type)
@@ -264,13 +324,15 @@ def _collect_report_data(state: InvestigationState) -> dict[str, Any]:
     hydraulic_obs = [o for o in state.observations if o.action == "analyze_hydraulic_pattern"]
     fragmentation_obs = [o for o in state.observations if o.action == "analyze_event_fragmentation"]
     drilldown_obs = [o for o in state.observations if o.action == "drilldown_time_window"]
+    batch_drilldown_obs = [o for o in state.observations if o.action == "drilldown_time_windows_batch"]
     return {
         "cov": cov, "all_cases": all_cases,
         "total_original": total_original, "total_merged": total_merged,
         "abnormal": abnormal, "unverified": unverified,
         "planned": planned, "uncertain": uncertain,
         "resistance_obs": resistance_obs, "hydraulic_obs": hydraulic_obs,
-        "fragmentation_obs": fragmentation_obs, "drilldown_obs": drilldown_obs,
+        "fragmentation_obs": fragmentation_obs,
+        "drilldown_obs": drilldown_obs, "batch_drilldown_obs": batch_drilldown_obs,
     }
 
 
@@ -463,7 +525,7 @@ def _build_section_4_clarified(lines: list[str], state: InvestigationState, d: d
             lines.append(f"- HYD 事件数：{hyd_count} 次")
             lines.append(f"- HYD 总时长：{hyd_dur}h")
             if hyd_dur == 0.0 and hyd_count > 0:
-                lines.append("> 提示：HYD 有记录但时长统计为 0.0h，可能是统计精度或聚合口径问题，建议核查原始数据。")
+                lines.append("- 当前判断：指标口径需核查，不作为主因或伴随因果判断")
             else:
                 near_b = data.get("near_stoppage_boundary", False)
                 isolated = data.get("isolated_short_fluctuation", False)
@@ -641,8 +703,16 @@ def _build_section_6_next_steps(lines: list[str], state: InvestigationState, d: 
 def _build_drilldown_detail(lines: list[str], obs, state: InvestigationState) -> None:
     """单个 drilldown 目标的详细审计信息。"""
     data = obs.data or {}
-    tid = data.get("target_id", "?")
-    lines.append(f"#### 钻取详情：{tid}\n")
+    _render_drilldown_detail_data(lines, data)
+
+
+def _build_drilldown_detail_from_dict(lines: list[str], data: dict, state: InvestigationState) -> None:
+    """从 dict 渲染 drilldown 详情（batch drilldown per_target 使用）。"""
+    _render_drilldown_detail_data(lines, data)
+
+
+def _render_drilldown_detail_data(lines: list[str], data: dict) -> None:
+    """渲染单个 drilldown 目标的详细审计信息（共用逻辑）。"""
     tei = data.get("target_event_info", {})
     if tei.get("source") == "event":
         lines.append(f"- 目标事件类型：{tei.get('semantic_event_type', '')}")
@@ -732,12 +802,15 @@ def _build_section_7_audit(
             )
         if eg_overrides:
             lines.append("")
-    # 5.4 drilldown 明细
+    # 5.4 drilldown 明细（单次 + batch）
     dd_obs = d["drilldown_obs"]
-    if dd_obs:
+    batch_dd_obs = d["batch_drilldown_obs"]
+    if dd_obs or batch_dd_obs:
         lines.append("### drilldown 明细\n")
+        # 汇总表
         lines.append("| 目标 | 前窗口观察 | 事件期间观察 | 后窗口观察 | 初步解释 |")
         lines.append("|------|-----------|-------------|-----------|----------|")
+        # 单次 drilldown
         for obs in dd_obs:
             data = obs.data or {}
             tid = data.get("target_id", "?")
@@ -746,9 +819,38 @@ def _build_section_7_audit(
             cpost = (data.get("compact_post", "") or "").replace("|", "/")[:40]
             hint = (data.get("interpretation_hint", "") or "").replace("|", "/")[:40]
             lines.append(f"| {tid} | {cpre} | {cdur} | {cpost} | {hint} |")
+        # batch drilldown 的 per_target
+        for obs in batch_dd_obs:
+            data = obs.data or {}
+            for pt in data.get("per_target", []):
+                tid = pt.get("target_id", "?")
+                cpre = (pt.get("compact_pre", "") or "").replace("|", "/")[:40]
+                cdur = (pt.get("compact_during", "") or "").replace("|", "/")[:40]
+                cpost = (pt.get("compact_post", "") or "").replace("|", "/")[:40]
+                hint = (pt.get("interpretation_hint", "") or "").replace("|", "/")[:40]
+                lines.append(f"| {tid} | {cpre} | {cdur} | {cpost} | {hint} |")
         lines.append("")
+        # 详细信息
         for obs in dd_obs:
             _build_drilldown_detail(lines, obs, state)
+        # batch drilldown per_target 详细信息
+        for obs in batch_dd_obs:
+            data = obs.data or {}
+            for pt in data.get("per_target", []):
+                # 构造一个与 drilldown obs 兼容的 dict，复用 _build_drilldown_detail
+                pseudo_obs_data = {
+                    "target_id": pt.get("target_id", "?"),
+                    "pre_summary": pt.get("pre_summary", {}),
+                    "during_summary": pt.get("during_summary", {}),
+                    "post_summary": pt.get("post_summary", {}),
+                    "interpretation_hint": pt.get("interpretation_hint", ""),
+                    "transition_findings": pt.get("transition_findings", []),
+                    "divergence_notes": pt.get("divergence_notes", []),
+                    "target_event_info": pt.get("target_event_info", {}),
+                    "semantic_overlap": pt.get("semantic_overlap", {}),
+                }
+                lines.append(f"#### 钻取详情：{pt.get('target_id', '?')}\n")
+                _build_drilldown_detail_from_dict(lines, pseudo_obs_data, state)
     # 5.5 Top 停机案例
     if d["all_cases"]:
         lines.append("### Top 停机案例\n")
@@ -807,7 +909,7 @@ def _build_section_7_audit(
             ts = ", ".join(q.tools_called) if q.tools_called else "—"
             fs = (q.findings[-1][:40] if q.findings else
                   (q.reason_if_unanswered[:40] if q.reason_if_unanswered else "—"))
-            fs = fs.replace("|", "/")
+            fs = _sanitize_findings_text(fs).replace("|", "/")
             m = "是" if q.needs_manual_check else "否"
             lines.append(f"| {q.qid}: {q.text[:20]} | {sz} | {ts} | {fs} | {m} |")
         lines.append("")

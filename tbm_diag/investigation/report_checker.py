@@ -48,6 +48,9 @@ class ReportCheckResult:
     uncovered_claim_issue: str = ""
     first_screen_issue: str = ""
     terminology_issue: str = ""
+    reason_target_mismatch: str = ""
+    hyd_causal_language_issue: str = ""
+    drilldown_detail_incomplete: str = ""
     details: list[str] = field(default_factory=list)
 
 
@@ -191,6 +194,57 @@ def validate_rendered_report(
         result.terminology_issue += f"; 前 60 行含 planner ({len(planner_in_60)} 次)"
         result.details.append(result.terminology_issue)
 
+    # 11. Reason target vs executed target mismatch (audit section only)
+    audit_text = report_text.split("## 7.")[1] if "## 7." in report_text else ""
+    trace_lines = [l for l in audit_text.split("\n") if l.startswith("|") and "drilldown_time_window" in l]
+    for tl in trace_lines:
+        # Extract mentioned SC_* from reason column (4th column)
+        cols = [c.strip() for c in tl.split("|")]
+        if len(cols) < 6:
+            continue
+        reason_col = cols[4] if len(cols) > 4 else ""
+        action_col = cols[5] if len(cols) > 5 else ""
+        obs_col = cols[6] if len(cols) > 6 else ""
+        reason_targets = set(re.findall(r"\bSC_\d+\b", reason_col))
+        # Only flag if reason mentions a specific target that differs from observation
+        if reason_targets and "[已修正]" not in reason_col:
+            obs_targets = set(re.findall(r"\bSC_\d+\b", obs_col))
+            if obs_targets and reason_targets != obs_targets:
+                mismatch_ids = reason_targets - obs_targets
+                result.reason_target_mismatch = (
+                    f"ReAct 轨迹中 reason 提到 {mismatch_ids} 但 observation 实际执行不同目标"
+                )
+                result.details.append(result.reason_target_mismatch)
+                break
+
+    # 12. HYD 0.0h causal language — anywhere in report
+    # Only flag specific causal phrases that assert causation without qualification
+    if ledger.hyd_status == "metric_warning":
+        hyd_causal_patterns = [
+            (r"启停伴随", "启停伴随"),
+            (r"与\s*SER\s*同步(?!构成证据)", "与 SER 同步"),
+            (r"靠近停机边界[，,]\s*(?:可能|可)?(?:是|为)(?:诱因|主因|原因)", "靠近停机边界+因果判断"),
+        ]
+        for pat, label in hyd_causal_patterns:
+            m = re.search(pat, report_text)
+            if m:
+                result.hyd_causal_language_issue = (
+                    f"HYD 0.0h (metric_warning) 出现因果判断: '{m.group()}'"
+                )
+                result.details.append(result.hyd_causal_language_issue)
+                break
+
+    # 13. Drilldown detail completeness
+    if full_coverage and complete:
+        detail_section = audit_text.split("### drilldown 明细")[1] if "### drilldown 明细" in audit_text else ""
+        detail_targets = set(re.findall(r"\|\s*(SC_\d+)\s*\|", detail_section))
+        if len(detail_targets) < ledger.total_stoppage_cases:
+            result.drilldown_detail_incomplete = (
+                f"报告声称 {ledger.actual_stoppage_coverage_count}/{ledger.total_stoppage_cases} 覆盖，"
+                f"但 drilldown 明细表只有 {len(detail_targets)} 个目标"
+            )
+            result.details.append(result.drilldown_detail_incomplete)
+
     # Final pass/fail
     has_error = (
         bool(result.forbidden_found)
@@ -200,6 +254,7 @@ def validate_rendered_report(
         or bool(result.hyd_conclusion_issue)
         or bool(result.stale_ratio_issue)
         or bool(result.uncovered_claim_issue)
+        or bool(result.hyd_causal_language_issue)
     )
     result.passed = not has_error
     if result.passed:

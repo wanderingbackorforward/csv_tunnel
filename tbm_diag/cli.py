@@ -872,6 +872,12 @@ def _cmd_report_check(args: argparse.Namespace) -> int:
         print(f"  First screen: {result.first_screen_issue}")
     if result.terminology_issue:
         print(f"  Terminology: {result.terminology_issue}")
+    if result.reason_target_mismatch:
+        print(f"  Reason target mismatch: {result.reason_target_mismatch}")
+    if result.hyd_causal_language_issue:
+        print(f"  HYD zero wording: {result.hyd_causal_language_issue}")
+    if result.drilldown_detail_incomplete:
+        print(f"  Drilldown detail coverage: {result.drilldown_detail_incomplete}")
 
     print(f"\n  Ledger validation: {'PASS' if result.ledger_validation_passed else 'FAIL'}")
     print(f"  Report quality: {'PASS' if result.passed else 'FAIL'}")

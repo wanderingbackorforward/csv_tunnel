@@ -1,4 +1,12 @@
-"""report_checker.py — 校验已生成的调查报告是否符合证据账本约束。"""
+"""report_checker.py — 校验已生成的调查报告是否符合证据账本约束。
+
+扫描全文（包括技术附录），确保：
+1. 无禁止措辞
+2. HYD 口径一致
+3. 已钻取案例不出现 "未运行 drilldown 验证"
+4. 无 unsafe reason 文案
+5. 全覆盖时不出现"未覆盖/未逐案检查"
+"""
 
 from __future__ import annotations
 
@@ -30,6 +38,21 @@ _FORBIDDEN_PATTERNS = [
     (r"待确认停机", "待确认停机 — 应为'性质待施工日志确认'"),
 ]
 
+_UNSAFE_REASON_PATTERNS = [
+    (r"电阻\s*/\s*SER", "电阻/SER"),
+    (r"SER[^，。；]*?触发停机[^，。；]*?机制", "SER触发停机机制"),
+    (r"SER是主因", "SER是主因"),
+    (r"找出触发机制", "找出触发机制"),
+    (r"揭示停机主因", "揭示停机主因"),
+    (r"(\d+)个案例有掘进阻力异常", "N个案例有掘进阻力异常"),
+]
+
+_HYD_CAUSAL_PATTERNS = [
+    (r"启停伴随", "启停伴随"),
+    (r"与\s*SER\s*同步(?!构成证据)", "与 SER 同步"),
+    (r"靠近停机边界[，,]\s*(?:可能|可)?(?:是|为)(?:诱因|主因|原因)", "靠近停机边界+因果判断"),
+]
+
 
 @dataclass
 class ReportCheckResult:
@@ -51,6 +74,11 @@ class ReportCheckResult:
     reason_target_mismatch: str = ""
     hyd_causal_language_issue: str = ""
     drilldown_detail_incomplete: str = ""
+    hyd_unanswered_conflict: str = ""
+    drilled_case_stale_issue: str = ""
+    unsafe_reason_text_issue: str = ""
+    hyd_zero_duration_issue: str = ""
+    complete_coverage_no_uncovered_issue: str = ""
     details: list[str] = field(default_factory=list)
 
 
@@ -58,7 +86,7 @@ def validate_rendered_report(
     report_text: str,
     ledger: EvidenceLedger,
 ) -> ReportCheckResult:
-    """校验已渲染的报告文本是否符合证据账本约束。"""
+    """校验已渲染的报告文本是否符合证据账本约束。扫描全文。"""
     result = ReportCheckResult()
 
     # 1. Ledger validation
@@ -68,20 +96,19 @@ def validate_rendered_report(
         result.details.append(f"Ledger 校验失败: {'; '.join(result.ledger_errors)}")
         result.passed = False
         return result
-
     result.details.append("Ledger 校验通过")
 
-    # Only check business sections (1-6), skip section 7 (audit appendix)
-    business_text = report_text.split("## 7.")[0] if "## 7." in report_text else report_text
+    full_text = report_text
+    business_text = full_text.split("## 7.")[0] if "## 7." in full_text else full_text
 
-    # 2. Forbidden patterns
+    # 2. Forbidden patterns (full text)
     for pattern, label in _FORBIDDEN_PATTERNS:
-        if re.search(pattern, business_text):
+        if re.search(pattern, full_text):
             result.forbidden_found.append(label)
     if result.forbidden_found:
         result.details.append(f"发现禁止措辞: {', '.join(result.forbidden_found)}")
 
-    # 3. Coverage numbers match ledger
+    # 3. Coverage numbers match ledger (business sections)
     total_match = re.search(r"停机案例总数[：:]\s*(\d+)", business_text)
     if total_match:
         report_total = int(total_match.group(1))
@@ -91,8 +118,8 @@ def validate_rendered_report(
             )
             result.details.append(result.coverage_mismatch)
 
-    # 4. P1 status (check full report since plan table is in section 7)
-    p1_done_match = re.search(r"\|\s*P1[^|]*\|[^|]*\|\s*已完成\s*\|", report_text)
+    # 4. P1 status
+    p1_done_match = re.search(r"\|\s*P1[^|]*\|[^|]*\|\s*已完成\s*\|", full_text)
     if p1_done_match and ledger.drilled_stoppage_cases < ledger.total_stoppage_cases:
         result.p1_status_issue = (
             f"P1 显示已完成但 coverage {ledger.drilled_stoppage_cases}/"
@@ -117,7 +144,7 @@ def validate_rendered_report(
             result.hyd_conclusion_issue = f"HYD metric_warning 被当成业务结论: '{hyd_causal.group()}'"
             result.details.append(result.hyd_conclusion_issue)
 
-    # 7. Stale sample ratio check — ratio in report must match ledger
+    # 7. Stale sample ratio
     full_coverage = (
         ledger.total_stoppage_cases > 0
         and ledger.actual_stoppage_coverage_count >= ledger.total_stoppage_cases
@@ -134,7 +161,7 @@ def validate_rendered_report(
             result.details.append(result.stale_ratio_issue)
             break
 
-    # 8. No uncovered claim when complete
+    # 8. No uncovered claim when complete (business sections)
     if full_coverage and complete:
         uncovered_patterns = [
             (r"样本量仅", "样本量仅"),
@@ -152,8 +179,8 @@ def validate_rendered_report(
                 result.details.append(result.uncovered_claim_issue)
                 break
 
-    # 9. First screen business-first check (first 30 lines)
-    first_screen_lines = report_text.split("\n")[:30]
+    # 9. First screen business-first check
+    first_screen_lines = full_text.split("\n")[:30]
     first_screen = "\n".join(first_screen_lines)
     tech_terms = [
         (r"\bplanner\b", "planner"),
@@ -163,7 +190,6 @@ def validate_rendered_report(
         (r"\bJSON\b", "JSON"),
         (r"planner\s*audit", "planner audit"),
     ]
-    # Check if conclusion appears before tech terms
     conclusion_line = None
     tech_line = None
     for i, line in enumerate(first_screen_lines):
@@ -178,13 +204,11 @@ def validate_rendered_report(
                     tech_line = i
                     break
     if tech_line is not None and (conclusion_line is None or tech_line < conclusion_line):
-        result.first_screen_issue = (
-            f"技术术语出现在业务结论之前（第 {tech_line + 1} 行）"
-        )
+        result.first_screen_issue = f"技术术语出现在业务结论之前（第 {tech_line + 1} 行）"
         result.details.append(result.first_screen_issue)
 
     # 10. Terminology check (first 60 lines)
-    first_60 = "\n".join(report_text.split("\n")[:60])
+    first_60 = "\n".join(full_text.split("\n")[:60])
     dd_count = len(re.findall(r"\bdrilldown\b", first_60))
     if dd_count > 1:
         result.terminology_issue = f"前 60 行 drilldown 出现 {dd_count} 次（限 1 次）"
@@ -194,19 +218,16 @@ def validate_rendered_report(
         result.terminology_issue += f"; 前 60 行含 planner ({len(planner_in_60)} 次)"
         result.details.append(result.terminology_issue)
 
-    # 11. Reason target vs executed target mismatch (audit section only)
-    audit_text = report_text.split("## 7.")[1] if "## 7." in report_text else ""
+    # 11. Reason target vs executed target mismatch (audit section)
+    audit_text = full_text.split("## 7.")[1] if "## 7." in full_text else ""
     trace_lines = [l for l in audit_text.split("\n") if l.startswith("|") and "drilldown_time_window" in l]
     for tl in trace_lines:
-        # Extract mentioned SC_* from reason column (4th column)
         cols = [c.strip() for c in tl.split("|")]
         if len(cols) < 6:
             continue
         reason_col = cols[4] if len(cols) > 4 else ""
-        action_col = cols[5] if len(cols) > 5 else ""
         obs_col = cols[6] if len(cols) > 6 else ""
         reason_targets = set(re.findall(r"\bSC_\d+\b", reason_col))
-        # Only flag if reason mentions a specific target that differs from observation
         if reason_targets and "[已修正]" not in reason_col:
             obs_targets = set(re.findall(r"\bSC_\d+\b", obs_col))
             if obs_targets and reason_targets != obs_targets:
@@ -217,20 +238,12 @@ def validate_rendered_report(
                 result.details.append(result.reason_target_mismatch)
                 break
 
-    # 12. HYD 0.0h causal language — anywhere in report
-    # Only flag specific causal phrases that assert causation without qualification
+    # 12. HYD causal language (full text)
     if ledger.hyd_status == "metric_warning":
-        hyd_causal_patterns = [
-            (r"启停伴随", "启停伴随"),
-            (r"与\s*SER\s*同步(?!构成证据)", "与 SER 同步"),
-            (r"靠近停机边界[，,]\s*(?:可能|可)?(?:是|为)(?:诱因|主因|原因)", "靠近停机边界+因果判断"),
-        ]
-        for pat, label in hyd_causal_patterns:
-            m = re.search(pat, report_text)
+        for pat, label in _HYD_CAUSAL_PATTERNS:
+            m = re.search(pat, full_text)
             if m:
-                result.hyd_causal_language_issue = (
-                    f"HYD 0.0h (metric_warning) 出现因果判断: '{m.group()}'"
-                )
+                result.hyd_causal_language_issue = f"HYD 0.0h (metric_warning) 出现因果判断: '{m.group()}'"
                 result.details.append(result.hyd_causal_language_issue)
                 break
 
@@ -245,7 +258,70 @@ def validate_rendered_report(
             )
             result.details.append(result.drilldown_detail_incomplete)
 
-    # Final pass/fail
+    # ── NEW: Full-text consistency checks ──
+
+    # 14. HYD unanswered conflict: if HYD analysis not executed, must not assert HYD causation
+    if not ledger.hyd_analysis_executed:
+        hyd_assert_patterns = [
+            r"不支持\s*HYD\s*直接触发停机",
+            r"不支持\s*SER/HYD\s*直接触发停机",
+            r"不支持\s*SER.*HYD\s*直接触发",
+        ]
+        for pat in hyd_assert_patterns:
+            m = re.search(pat, full_text)
+            if m:
+                result.hyd_unanswered_conflict = (
+                    f"HYD 分析未执行但报告断言 HYD 因果: '{m.group()}'"
+                )
+                result.details.append(result.hyd_unanswered_conflict)
+                break
+
+    # 15. HYD zero-duration check: if duration=0.0 and count>0, must mention 统计口径
+    if ledger.hyd_duration_hours == 0.0 and ledger.hyd_event_count > 0 and ledger.hyd_analysis_executed:
+        hyd_section = full_text.split("### 4.3")[1].split("###")[0] if "### 4.3" in full_text else ""
+        if "统计口径" not in hyd_section and "口径" not in hyd_section:
+            result.hyd_zero_duration_issue = "HYD 0.0h 但 4.3 节未提及统计口径"
+            result.details.append(result.hyd_zero_duration_issue)
+
+    # 16. Drilled case stale claim: if case in drilldown detail, must not say "未运行 drilldown 验证"
+    detail_section = full_text.split("### drilldown 明细")[1] if "### drilldown 明细" in full_text else ""
+    detail_targets = set(re.findall(r"\|\s*(SC_\d+)\s*\|", detail_section))
+    for cid in sorted(detail_targets):
+        stale_pat = re.compile(rf"{re.escape(cid)}[^。\n]*未运行\s*drilldown\s*验证")
+        if stale_pat.search(full_text):
+            result.drilled_case_stale_issue = (
+                f"{cid} 已在 drilldown 明细中出现，但报告仍称'未运行 drilldown 验证'"
+            )
+            result.details.append(result.drilled_case_stale_issue)
+            break
+
+    # 17. Unsafe reason text (full text, including audit)
+    for pat, label in _UNSAFE_REASON_PATTERNS:
+        m = re.search(pat, full_text)
+        if m:
+            result.unsafe_reason_text_issue = f"报告含越界文案: '{m.group()}' ({label})"
+            result.details.append(result.unsafe_reason_text_issue)
+            break
+
+    # 18. Complete coverage no uncovered check (full text)
+    if full_coverage and complete:
+        full_uncovered_patterns = [
+            r"未覆盖案例",
+            r"未逐案检查",
+            r"未\s*drilldown",
+            r"增加调查轮数",
+            r"样本量不足",
+        ]
+        for pat in full_uncovered_patterns:
+            m = re.search(pat, full_text)
+            if m:
+                result.complete_coverage_no_uncovered_issue = (
+                    f"10/10 全覆盖但报告含: '{m.group()}'"
+                )
+                result.details.append(result.complete_coverage_no_uncovered_issue)
+                break
+
+    # ── Final pass/fail ──
     has_error = (
         bool(result.forbidden_found)
         or bool(result.coverage_mismatch)
@@ -255,6 +331,11 @@ def validate_rendered_report(
         or bool(result.stale_ratio_issue)
         or bool(result.uncovered_claim_issue)
         or bool(result.hyd_causal_language_issue)
+        or bool(result.hyd_unanswered_conflict)
+        or bool(result.drilled_case_stale_issue)
+        or bool(result.unsafe_reason_text_issue)
+        or bool(result.hyd_zero_duration_issue)
+        or bool(result.complete_coverage_no_uncovered_issue)
     )
     result.passed = not has_error
     if result.passed:
@@ -280,13 +361,8 @@ def run_report_check(investigation_dir: str | Path) -> ReportCheckResult:
     report_text = report_path.read_text(encoding="utf-8")
     state_dict = json.loads(state_path.read_text(encoding="utf-8"))
 
-    # Reconstruct ledger from state
     ledger_dict = state_dict.get("evidence_ledger")
     if not ledger_dict:
-        # Build ledger from state if not stored
-        from tbm_diag.investigation.evidence_ledger import build_evidence_ledger
-        from tbm_diag.investigation.state import InvestigationState
-        # Fallback: rebuild from observations stored in state
         result = ReportCheckResult()
         result.details.append("state.json 中无 evidence_ledger，跳过报告校验")
         result.passed = True
@@ -297,7 +373,7 @@ def run_report_check(investigation_dir: str | Path) -> ReportCheckResult:
 
     result = validate_rendered_report(report_text, ledger)
 
-    # Add completeness info from ledger
+    # Add completeness info
     result.completeness_info = {
         "depth": ledger.investigation_depth,
         "total": ledger.total_stoppage_cases,
@@ -306,15 +382,13 @@ def run_report_check(investigation_dir: str | Path) -> ReportCheckResult:
         "status": ledger.completeness_status,
         "message": ledger.completeness_reason,
     }
-
-    # Add exhaustive SER info
     if ledger.ser_extra_required:
         result.completeness_info["ser_extra_required"] = True
         result.completeness_info["target_ser"] = ledger.target_ser_drilldown_count
         result.completeness_info["actual_ser"] = ledger.actual_ser_drilldown_count
         result.completeness_info["ser_status"] = ledger.ser_extra_completeness_status
 
-    # Detect duplicate stoppage drilldowns from actions
+    # Detect duplicate stoppage drilldowns
     from collections import Counter
     sc_ids: list[str] = []
     for a_data in state_dict.get("actions_taken", []):

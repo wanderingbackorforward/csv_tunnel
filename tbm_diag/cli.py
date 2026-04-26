@@ -878,6 +878,16 @@ def _cmd_report_check(args: argparse.Namespace) -> int:
         print(f"  HYD zero wording: {result.hyd_causal_language_issue}")
     if result.drilldown_detail_incomplete:
         print(f"  Drilldown detail coverage: {result.drilldown_detail_incomplete}")
+    if result.hyd_unanswered_conflict:
+        print(f"  HYD unanswered conflict: {result.hyd_unanswered_conflict}")
+    if result.drilled_case_stale_issue:
+        print(f"  Drilled case stale claim: {result.drilled_case_stale_issue}")
+    if result.unsafe_reason_text_issue:
+        print(f"  Unsafe reason text: {result.unsafe_reason_text_issue}")
+    if result.hyd_zero_duration_issue:
+        print(f"  HYD zero duration check: {result.hyd_zero_duration_issue}")
+    if result.complete_coverage_no_uncovered_issue:
+        print(f"  Complete coverage no uncovered: {result.complete_coverage_no_uncovered_issue}")
 
     print(f"\n  Ledger validation: {'PASS' if result.ledger_validation_passed else 'FAIL'}")
     print(f"  Report quality: {'PASS' if result.passed else 'FAIL'}")

@@ -62,6 +62,8 @@ def _build_allowed_claims(ledger: EvidenceLedger, claims: CompiledClaims) -> Non
         claims.allowed_claims.append("停机性质仍需施工日志确认")
     if ledger.hyd_status == "metric_warning":
         claims.allowed_claims.append("HYD 时长统计存在口径问题，需先核查")
+    if not ledger.hyd_analysis_executed:
+        claims.allowed_claims.append("本轮未执行独立 HYD 模式分析，暂不作为主因判断")
 
 
 def _build_blocked_claims(ledger: EvidenceLedger, claims: CompiledClaims) -> None:
@@ -102,7 +104,18 @@ def _build_blocked_claims(ledger: EvidenceLedger, claims: CompiledClaims) -> Non
 
 
 def _build_conclusion(ledger: EvidenceLedger, claims: CompiledClaims) -> None:
-    parts = ["当前 CSV 证据不支持 SER/HYD 直接触发停机"]
+    # SER 部分：始终可说"不支持 SER 直接触发停机"
+    ser_part = "当前 CSV 证据不支持 SER 直接触发停机"
+    # HYD 部分：取决于是否执行了独立分析
+    if ledger.hyd_analysis_executed:
+        if ledger.hyd_status == "metric_warning":
+            hyd_part = "HYD 有记录但总时长显示为 0.0h，需核查统计口径；暂不作为主因或伴随因果判断"
+        else:
+            hyd_part = "停机窗口中未见明显 HYD 行级异常"
+    else:
+        hyd_part = "停机窗口中未见明显 HYD 行级命中，但本轮未执行独立 HYD 模式分析，暂不作为主因判断"
+
+    parts = [f"{ser_part}；{hyd_part}"]
     if ledger.drilled_cases_no_pre_ser_hyd > 0:
         parts.append(
             f"已逐案检查的 {ledger.drilled_stoppage_cases} 个停机案例中 "
@@ -134,8 +147,10 @@ def _build_key_findings(ledger: EvidenceLedger, claims: CompiledClaims) -> None:
             f"HYD 事件 {ledger.hyd_event_count} 个，时长统计为 0.0h，"
             f"属于指标口径 warning，不作为业务主因。"
         )
-    elif ledger.hyd_event_count > 0:
+    elif ledger.hyd_analysis_executed and ledger.hyd_event_count > 0:
         findings.append(f"HYD 事件 {ledger.hyd_event_count} 个，需进一步核查。")
+    elif not ledger.hyd_analysis_executed:
+        findings.append("本轮未执行独立 HYD 模式分析，暂不对 HYD 作主因判断。")
     claims.key_findings = findings
 
 

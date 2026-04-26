@@ -44,6 +44,7 @@ class EvidenceLedger:
     hyd_event_count: int = 0
     hyd_duration_hours: float = 0.0
     hyd_status: str = "insufficient_evidence"
+    hyd_analysis_executed: bool = False
 
     # ── 校验结果 ──
     validation_errors: list[str] = field(default_factory=list)
@@ -141,6 +142,7 @@ def build_evidence_ledger(state: InvestigationState) -> EvidenceLedger:
     # ── HYD ──
     for obs in state.observations:
         if obs.action == "analyze_hydraulic_pattern":
+            ledger.hyd_analysis_executed = True
             data = obs.data or {}
             ledger.hyd_event_count = data.get("hyd_count", 0)
             ledger.hyd_duration_hours = data.get("hyd_total_duration_h", 0.0)

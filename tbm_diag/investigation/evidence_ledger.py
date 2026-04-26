@@ -62,7 +62,8 @@ def build_evidence_ledger(state: InvestigationState) -> EvidenceLedger:
     ledger.drilled_case_ids = sorted(cov["covered_case_ids"])
     ledger.undrilled_case_ids = sorted(cov["uncovered_case_ids"])
 
-    # Count drilldown outcomes — deduplicate by case_id
+    # Count drilldown outcomes — only for stoppage case IDs
+    stoppage_id_set = set(cov["covered_case_ids"])
     no_pre_ids: set[str] = set()
     recovered_ids: set[str] = set()
 
@@ -70,6 +71,8 @@ def build_evidence_ledger(state: InvestigationState) -> EvidenceLedger:
         if obs.action == "drilldown_time_window":
             tid = obs.data.get("target_id", "")
             if not tid or obs.data.get("status") == "error":
+                continue
+            if tid not in stoppage_id_set:
                 continue
             hint = obs.data.get("interpretation_hint", "")
             if "停机前未见明显异常" in hint:
@@ -82,6 +85,8 @@ def build_evidence_ledger(state: InvestigationState) -> EvidenceLedger:
             for pt in obs.data.get("per_target", []):
                 tid = pt.get("target_id", "")
                 if not tid or pt.get("status") == "error":
+                    continue
+                if tid not in stoppage_id_set:
                     continue
                 hint = pt.get("interpretation_hint", "")
                 if "停机前未见明显异常" in hint:

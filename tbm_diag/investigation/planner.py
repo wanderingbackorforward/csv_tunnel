@@ -260,21 +260,14 @@ def _compress_state(state: InvestigationState) -> dict[str, Any]:
     actions_done = [a.action for a in state.actions_taken]
 
     stoppage_case_count = sum(len(v) for v in state.stoppage_cases.values())
-    drilldown_sc_count = sum(
-        1 for a in state.actions_taken
-        if a.action == "drilldown_time_window"
-        and (a.arguments or {}).get("target_id", "").startswith("SC_")
-    )
+    from tbm_diag.investigation.investigation_depth import get_drilled_stoppage_case_ids
+    _drilled_set = get_drilled_stoppage_case_ids(state)
+    drilldown_sc_count = len(_drilled_set)
     unverified_cases = [
         cid for cid, cls in state.case_classifications.items()
         if cls.case_type == "event_level_abnormal_unverified"
     ]
-    drilldown_done_ids = {
-        (a.arguments or {}).get("target_id", "")
-        for a in state.actions_taken
-        if a.action == "drilldown_time_window"
-    }
-    unverified_not_drilled = [cid for cid in unverified_cases if cid not in drilldown_done_ids]
+    unverified_not_drilled = [cid for cid in unverified_cases if cid not in _drilled_set]
 
     return {
         "mode": state.mode,
@@ -323,11 +316,14 @@ def build_planner_decision_context(state: InvestigationState) -> dict[str, Any]:
     recent_actions = actions_done[-5:]
 
     stoppage_case_count = sum(len(v) for v in state.stoppage_cases.values())
-    drilldown_sc_count = sum(
-        1 for a in state.actions_taken
-        if a.action == "drilldown_time_window"
-        and (a.arguments or {}).get("target_id", "").startswith("SC_")
-    )
+    from tbm_diag.investigation.investigation_depth import get_drilled_stoppage_case_ids
+    drilled_sc_ids = sorted(get_drilled_stoppage_case_ids(state))
+    drilldown_sc_count = len(drilled_sc_ids)
+    # Build remaining SC case IDs
+    all_sc_ids: list[str] = []
+    for cases in state.stoppage_cases.values():
+        all_sc_ids.extend(c.case_id for c in cases)
+    remaining_sc_ids = sorted(set(all_sc_ids) - set(drilled_sc_ids))[:20]
     ser_count = (sem_dist.get("suspected_excavation_resistance", 0)
                  + sem_dist.get("excavation_resistance_under_load", 0))
     hyd_count = sem_dist.get("hydraulic_instability", 0)
@@ -373,7 +369,9 @@ def build_planner_decision_context(state: InvestigationState) -> dict[str, Any]:
         "recent_actions": recent_actions,
         "last_obs": last_obs,
         "stoppage_cases": stoppage_case_count,
-        "drilldown_done": drilldown_sc_count,
+        "drilldown_done_count": drilldown_sc_count,
+        "already_drilled_sc_ids": drilled_sc_ids[:20],
+        "remaining_sc_ids": remaining_sc_ids,
         "ser_count": ser_count,
         "hyd_count": hyd_count,
         "stopped_pct": round(stopped_pct),
@@ -389,6 +387,10 @@ def build_planner_decision_context(state: InvestigationState) -> dict[str, Any]:
 
 _LLM_SYSTEM_PROMPT_MINIMAL = """你是 TBM 调查决策器。从 allowed_actions 中选一个动作。
 rule_recommended 是规则系统推荐的动作，没有充分理由请选择它。
+
+硬约束：
+- 不得选择 already_drilled_sc_ids 中的 case 做 drilldown
+- 如需继续停机 drilldown，只能从 remaining_sc_ids 中选择
 
 只输出 JSON: {"selected_action": "动作名", "selected_reason": "理由", "stop": false}
 
@@ -597,6 +599,7 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
     run_stoppage = focus in ("auto", "stoppage")
     run_resistance = focus in ("auto", "resistance")
     run_hydraulic = focus in ("auto", "hydraulic")
+    depth = getattr(state, "investigation_depth", "standard") or "standard"
     run_fragmentation = focus in ("auto", "fragmentation")
 
     # ── 读取已有 observation 数据 ──
@@ -638,7 +641,6 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
             select_stoppage_drilldown_batch,
         )
         cases = state.stoppage_cases.get(fp, [])
-        depth = getattr(state, "investigation_depth", "standard") or "standard"
         cov_target = compute_stoppage_coverage_target(len(cases), depth)
         drilled_sc = {tid for tid in drilldown_targets_done if tid.startswith("SC_")}
         batch_ids = select_stoppage_drilldown_batch(drilled_sc, cases, cov_target)
@@ -686,10 +688,11 @@ def _fallback_plan(state: InvestigationState, audit: bool = False) -> dict[str, 
         _reject("analyze_resistance_pattern",
                 f"focus={focus}" if not run_resistance else f"SER={ser_count}<3")
 
-    # SER drilldown — 使用 analyze_resistance_pattern 返回的 top_ser_event_ids
+    # SER drilldown — depth-aware target count
     if run_resistance and "analyze_resistance_pattern" in file_analyses_done:
         ser_targets = res_obs.get("top_ser_event_ids", [])
-        for eid in ser_targets[:2]:
+        ser_max = 3 if depth == "exhaustive" else 2
+        for eid in ser_targets[:ser_max]:
             if eid and eid not in drilldown_targets_done:
                 return _select("drilldown_time_window",
                                f"对 SER 事件 {eid} 做窗口钻取（来自 resistance 分析 top 目标）",

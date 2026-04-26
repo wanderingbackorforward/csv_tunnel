@@ -39,6 +39,8 @@ class ReportCheckResult:
     p1_status_issue: str = ""
     generalization_issue: str = ""
     hyd_conclusion_issue: str = ""
+    duplicate_stoppage_drilldown_count: int = 0
+    duplicate_stoppage_drilldown_ids: list[str] = field(default_factory=list)
     completeness_info: dict = field(default_factory=dict)
     details: list[str] = field(default_factory=list)
 
@@ -164,5 +166,33 @@ def run_report_check(investigation_dir: str | Path) -> ReportCheckResult:
         "status": ledger.completeness_status,
         "message": ledger.completeness_reason,
     }
+
+    # Add exhaustive SER info
+    if ledger.ser_extra_required:
+        result.completeness_info["ser_extra_required"] = True
+        result.completeness_info["target_ser"] = ledger.target_ser_drilldown_count
+        result.completeness_info["actual_ser"] = ledger.actual_ser_drilldown_count
+        result.completeness_info["ser_status"] = ledger.ser_extra_completeness_status
+
+    # Detect duplicate stoppage drilldowns from actions
+    from collections import Counter
+    sc_ids: list[str] = []
+    for a_data in state_dict.get("actions_taken", []):
+        args = a_data.get("arguments", {})
+        if a_data.get("action") == "drilldown_time_window":
+            tid = args.get("target_id", "")
+            if tid.startswith("SC_"):
+                sc_ids.append(tid)
+        elif a_data.get("action") == "drilldown_time_windows_batch":
+            for tid in args.get("target_ids", []):
+                if isinstance(tid, str) and tid.startswith("SC_"):
+                    sc_ids.append(tid)
+    dups = {k: v for k, v in Counter(sc_ids).items() if v > 1}
+    result.duplicate_stoppage_drilldown_count = sum(v - 1 for v in dups.values())
+    result.duplicate_stoppage_drilldown_ids = sorted(dups.keys())
+    if dups:
+        result.details.append(
+            f"重复 drilldown: {', '.join(f'{k}×{v}' for k, v in sorted(dups.items()))}"
+        )
 
     return result

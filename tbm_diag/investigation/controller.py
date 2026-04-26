@@ -520,58 +520,100 @@ def _resolve_tool_arguments(
     state: InvestigationState,
 ) -> tuple[dict[str, Any], str]:
     """解析并修正 LLM 提供的工具参数。返回 (resolved_args, resolution_note)。"""
-    drilldown_done = set()
-    for a in state.actions_taken:
-        if a.action in ("drilldown_time_window", "drilldown_time_windows_batch"):
-            tid = (a.arguments or {}).get("target_id", "")
-            if tid:
-                drilldown_done.add(tid)
-            for t in (a.arguments or {}).get("target_ids", []):
-                drilldown_done.add(t)
+    from tbm_diag.investigation.investigation_depth import (
+        get_drilled_stoppage_case_ids,
+        compute_stoppage_coverage_target,
+        select_stoppage_drilldown_batch,
+    )
+    drilled_sc = get_drilled_stoppage_case_ids(state)
+
+    def _pick_next_sc_target() -> str:
+        all_cases = []
+        for cases in state.stoppage_cases.values():
+            all_cases.extend(cases)
+        depth = state.investigation_depth or "standard"
+        target = compute_stoppage_coverage_target(len(all_cases), depth)
+        batch = select_stoppage_drilldown_batch(drilled_sc, all_cases, target, batch_size=1)
+        return batch[0] if batch else ""
 
     if action == "drilldown_time_windows_batch":
         target_ids = arguments.get("target_ids")
+        # Filter out already-drilled SC targets
+        if target_ids and isinstance(target_ids, list):
+            filtered = [t for t in target_ids if t.startswith("SC_") and t not in drilled_sc]
+            dropped = [t for t in target_ids if t.startswith("SC_") and t in drilled_sc]
+            if dropped:
+                # Replace dropped with fresh targets
+                all_cases = []
+                for cases in state.stoppage_cases.values():
+                    all_cases.extend(cases)
+                depth = state.investigation_depth or "standard"
+                target = compute_stoppage_coverage_target(len(all_cases), depth)
+                replacements = select_stoppage_drilldown_batch(
+                    drilled_sc | set(filtered), all_cases, target,
+                    batch_size=len(dropped),
+                )
+                filtered.extend(replacements)
+                if filtered != target_ids:
+                    resolved = dict(arguments)
+                    resolved["target_ids"] = filtered[:5]
+                    resolved["file_path"] = arguments.get("file_path", state.current_file)
+                    return resolved, (
+                        f"controller 去重：丢弃 {dropped}，补充 {replacements}"
+                    )
+            target_ids = filtered or None
+
         if not target_ids or not isinstance(target_ids, list) or not all(isinstance(t, str) and t.startswith(("SC_", "SER_")) for t in target_ids):
             candidates: list[str] = []
             for cid, cls in state.case_classifications.items():
-                if cls.case_type == "event_level_abnormal_unverified" and cid not in drilldown_done:
+                if cls.case_type == "event_level_abnormal_unverified" and cid not in drilled_sc:
                     candidates.append(cid)
             all_cases = []
             for cases in state.stoppage_cases.values():
                 all_cases.extend(cases)
             all_cases.sort(key=lambda c: -c.duration_seconds)
             for c in all_cases:
-                if c.case_id not in drilldown_done and c.case_id not in candidates:
+                if c.case_id not in drilled_sc and c.case_id not in candidates:
                     candidates.append(c.case_id)
             candidates = candidates[:5]
             if candidates:
                 resolved = dict(arguments)
                 resolved["target_ids"] = candidates
                 resolved["file_path"] = arguments.get("file_path", state.current_file)
-                note = f"controller 解析 target_ids={candidates}（LLM 原始参数无效）"
-                return resolved, note
+                return resolved, f"controller 解析 target_ids={candidates}（LLM 原始参数无效）"
             return arguments, "无可用 drilldown 目标"
 
     elif action == "drilldown_time_window":
         target_id = arguments.get("target_id", "")
+        # Check if already drilled (dedup)
+        if target_id and target_id.startswith("SC_") and target_id in drilled_sc:
+            replacement = _pick_next_sc_target()
+            if replacement:
+                resolved = dict(arguments)
+                resolved["target_id"] = replacement
+                resolved["file_path"] = arguments.get("file_path", state.current_file)
+                return resolved, (
+                    f"controller 去重：{target_id} 已 drilldown，替换为 {replacement}"
+                )
+            return arguments, f"target {target_id} 已 drilldown，无剩余目标"
+
         if not target_id or not target_id.startswith(("SC_", "SER_", "HYD_", "LEE_")):
             candidates = []
             for cid, cls in state.case_classifications.items():
-                if cls.case_type == "event_level_abnormal_unverified" and cid not in drilldown_done:
+                if cls.case_type == "event_level_abnormal_unverified" and cid not in drilled_sc:
                     candidates.append(cid)
             all_cases = []
             for cases in state.stoppage_cases.values():
                 all_cases.extend(cases)
             all_cases.sort(key=lambda c: -c.duration_seconds)
             for c in all_cases:
-                if c.case_id not in drilldown_done and c.case_id not in candidates:
+                if c.case_id not in drilled_sc and c.case_id not in candidates:
                     candidates.append(c.case_id)
             if candidates:
                 resolved = dict(arguments)
                 resolved["target_id"] = candidates[0]
                 resolved["file_path"] = arguments.get("file_path", state.current_file)
-                note = f"controller 解析 target_id={candidates[0]}（LLM 原始参数无效）"
-                return resolved, note
+                return resolved, f"controller 解析 target_id={candidates[0]}（LLM 原始参数无效）"
             return arguments, "无可用 drilldown 目标"
 
     return arguments, ""
@@ -794,6 +836,7 @@ def _check_evidence_gate(
     from tbm_diag.investigation.investigation_depth import (
         compute_stoppage_coverage_target,
         select_stoppage_drilldown_batch,
+        get_drilled_stoppage_case_ids,
     )
 
     remaining = max_iterations - state.iteration_count
@@ -807,17 +850,7 @@ def _check_evidence_gate(
     if total_cases > 0:
         depth = getattr(state, "investigation_depth", "standard") or "standard"
         cov_target = compute_stoppage_coverage_target(total_cases, depth)
-
-        # 收集已 drilldown 的 SC case IDs
-        drilldown_done = set()
-        for a in state.actions_taken:
-            if a.action in ("drilldown_time_window", "drilldown_time_windows_batch"):
-                tid = (a.arguments or {}).get("target_id", "")
-                if tid and tid.startswith("SC_"):
-                    drilldown_done.add(tid)
-                for t in (a.arguments or {}).get("target_ids", []):
-                    if t.startswith("SC_"):
-                        drilldown_done.add(t)
+        drilldown_done = get_drilled_stoppage_case_ids(state)
 
         if len(drilldown_done) < cov_target.target_count and remaining > 1:
             # 选择下一批待 drilldown 目标
@@ -840,17 +873,41 @@ def _check_evidence_gate(
                         "target_id": batch_ids[0],
                     }, f"stoppage coverage 不足，需 drilldown {batch_ids[0]}"
 
+    # ── 规则 1.5: exhaustive SER extra ──
+    depth = getattr(state, "investigation_depth", "standard") or "standard"
+    if depth == "exhaustive" and remaining > 1:
+        # Check if SER extra targets are met
+        ser_drilled: set[str] = set()
+        for a in state.actions_taken:
+            if a.action == "drilldown_time_window":
+                tid = (a.arguments or {}).get("target_id", "")
+                if tid.startswith("SER_"):
+                    ser_drilled.add(tid)
+        # Get top SER targets from resistance analysis
+        ser_target_count = 0
+        ser_candidates: list[str] = []
+        for obs in state.observations:
+            if obs.action == "analyze_resistance_pattern":
+                data = obs.data or {}
+                ser_target_count = min(3, data.get("ser_count", 0))
+                ser_candidates = data.get("top_ser_event_ids", []) or []
+                break
+        if ser_target_count > 0 and len(ser_drilled) < ser_target_count:
+            remaining_ser = [sid for sid in ser_candidates if sid not in ser_drilled]
+            if remaining_ser:
+                next_ser = remaining_ser[0]
+                return True, "drilldown_time_window", {
+                    "file_path": state.current_file,
+                    "target_id": next_ser,
+                }, (f"exhaustive SER extra: {len(ser_drilled)}/{ser_target_count}，"
+                    f"需 drilldown {next_ser}")
+
     # 规则 2: 存在事件级异常线索但未 drilldown
     unverified = [
         cid for cid, cls in state.case_classifications.items()
         if cls.case_type == "event_level_abnormal_unverified"
     ]
-    drilldown_done = set()
-    for a in state.actions_taken:
-        if a.action == "drilldown_time_window":
-            tid = (a.arguments or {}).get("target_id", "")
-            if tid:
-                drilldown_done.add(tid)
+    drilldown_done = get_drilled_stoppage_case_ids(state)
     unverified_not_drilled = [cid for cid in unverified if cid not in drilldown_done]
     if unverified_not_drilled:
         target_id = unverified_not_drilled[0]

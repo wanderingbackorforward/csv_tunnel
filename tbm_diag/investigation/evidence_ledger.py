@@ -56,6 +56,13 @@ class EvidenceLedger:
     completeness_status: str = ""
     completeness_reason: str = ""
 
+    # ── E. Exhaustive SER extra ──
+    ser_extra_required: bool = False
+    target_ser_drilldown_count: int = 0
+    actual_ser_drilldown_count: int = 0
+    ser_drilldown_ids: list[str] = field(default_factory=list)
+    ser_extra_completeness_status: str = ""  # complete / incomplete / not_applicable_no_ser
+
 
 def build_evidence_ledger(state: InvestigationState) -> EvidenceLedger:
     """从调查状态构建证据账本。只记录事实，不做推断。"""
@@ -157,6 +164,36 @@ def build_evidence_ledger(state: InvestigationState) -> EvidenceLedger:
     )
     ledger.completeness_status = comp_status
     ledger.completeness_reason = comp_msg
+
+    # ── E. Exhaustive SER extra ──
+    if depth == "exhaustive":
+        ledger.ser_extra_required = True
+        ser_target_count = min(3, ledger.ser_event_count) if ledger.ser_event_count > 0 else 0
+        ledger.target_ser_drilldown_count = ser_target_count
+        # Count actual SER drilldowns from observations
+        ser_drilled: list[str] = []
+        for obs in state.observations:
+            if obs.action == "drilldown_time_window":
+                tid = obs.data.get("target_id", "")
+                if tid.startswith("SER_") and obs.data.get("status") != "error":
+                    ser_drilled.append(tid)
+        ser_drilled_unique = sorted(set(ser_drilled))
+        ledger.actual_ser_drilldown_count = len(ser_drilled_unique)
+        ledger.ser_drilldown_ids = ser_drilled_unique
+        if ser_target_count == 0:
+            ledger.ser_extra_completeness_status = "not_applicable_no_ser"
+        elif len(ser_drilled_unique) >= ser_target_count:
+            ledger.ser_extra_completeness_status = "complete"
+        else:
+            ledger.ser_extra_completeness_status = "incomplete"
+        # Downgrade completeness if SER incomplete
+        if ledger.ser_extra_completeness_status == "incomplete":
+            if ledger.completeness_status == "complete_for_depth":
+                ledger.completeness_status = "incomplete_due_to_budget"
+                ledger.completeness_reason = (
+                    f"停机 coverage 已完成，但 SER extra 未完成 "
+                    f"({len(ser_drilled_unique)}/{ser_target_count})"
+                )
 
     return ledger
 

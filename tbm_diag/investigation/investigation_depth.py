@@ -102,6 +102,24 @@ def get_depth_batch_size() -> int:
     return _DEPTH_BATCH_SIZE
 
 
+def get_drilled_stoppage_case_ids(state: Any) -> set[str]:
+    """统一获取已 drilldown 的停机案例 ID 集合（仅 SC_*）。
+
+    统计单次 drilldown + batch drilldown 中的 SC_* 目标。
+    """
+    drilled: set[str] = set()
+    for a in state.actions_taken:
+        if a.action == "drilldown_time_window":
+            tid = (a.arguments or {}).get("target_id", "")
+            if tid and tid.startswith("SC_"):
+                drilled.add(tid)
+        elif a.action == "drilldown_time_windows_batch":
+            for tid in (a.arguments or {}).get("target_ids", []):
+                if isinstance(tid, str) and tid.startswith("SC_"):
+                    drilled.add(tid)
+    return drilled
+
+
 def compute_completeness_status(
     actual_count: int,
     target: CoverageTarget,

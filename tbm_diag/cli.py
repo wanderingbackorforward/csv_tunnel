@@ -851,11 +851,23 @@ def _cmd_report_check(args: argparse.Namespace) -> int:
         print(f"  调查充分性: {comp.get('status', '?')}")
         if comp.get('message'):
             print(f"  说明: {comp['message']}")
+        # Exhaustive SER info
+        if comp.get('ser_extra_required'):
+            print(f"  SER extra 目标: {comp.get('target_ser', 0)}")
+            print(f"  SER extra 实际: {comp.get('actual_ser', 0)}")
+            print(f"  SER extra 状态: {comp.get('ser_status', '?')}")
+
+    # Duplicate display
+    if result.duplicate_stoppage_drilldown_count > 0:
+        ids_str = ', '.join(result.duplicate_stoppage_drilldown_ids)
+        print(f"\n  重复 drilldown: {result.duplicate_stoppage_drilldown_count} 次，"
+              f"涉及 {ids_str}")
 
     print(f"\n  Ledger validation: {'PASS' if result.ledger_validation_passed else 'FAIL'}")
     print(f"  Report quality: {'PASS' if result.passed else 'FAIL'}")
 
     require_complete = getattr(args, "require_complete", False)
+    fail_on_dup = getattr(args, "fail_on_duplicate_drilldown", False)
     completeness_ok = comp.get("status", "") == "complete_for_depth" or comp.get("status", "") == "not_applicable_no_stoppage"
 
     if require_complete and not completeness_ok:
@@ -865,6 +877,12 @@ def _cmd_report_check(args: argparse.Namespace) -> int:
         return 1
     elif not completeness_ok:
         print(f"  Completeness: WARNING (investigation incomplete)")
+
+    if fail_on_dup and result.duplicate_stoppage_drilldown_count > 0:
+        print(f"  Duplicate (--fail-on-duplicate-drilldown): FAIL")
+        print(f"  Final: FAIL")
+        print("=" * 70)
+        return 1
 
     print(f"  Final: {'PASS' if result.passed else 'FAIL'}")
     print("=" * 70)
@@ -1561,6 +1579,8 @@ def main(argv: list[str] | None = None) -> int:
                          help="调查输出目录（包含 investigation_report.md 和 investigation_state.json）")
     p_check.add_argument("--require-complete", action="store_true",
                          help="要求调查充分性达到当前深度目标，否则 FAIL")
+    p_check.add_argument("--fail-on-duplicate-drilldown", action="store_true",
+                         help="如果存在重复 drilldown 则 FAIL")
 
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)

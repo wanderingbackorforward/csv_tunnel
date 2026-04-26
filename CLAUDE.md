@@ -223,6 +223,18 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 - 如果没有 LLM 调用，只能称为"rule-based investigation"或"ReAct-style workflow"。
 - investigate 默认 --planner rule，演示 LLM ReAct 需显式 --planner llm。
 
+## Investigation 产品化规则
+
+- 不要把所有内部 mode（stoppage/resistance/hydraulic/fragmentation）暴露到 GUI 主界面。
+- GUI 默认主流程必须少而清晰：快速初筛 / 标准调查（推荐）/ 深度复核。
+- 技术审计（ReAct 轨迹、LLM 明细、fallback、arg_resolver）不能放在报告第一屏。
+- 报告先给结论，再给证据，最后给轨迹。
+- LLM planner 的 raw 摘要只能放审计附录，不能当业务结论。
+- 如果某个 mode 在当前模型能力下不稳定，不要作为推荐入口。
+- 半路中断后继续任务时，必须先 git status / git diff，不能直接重写。
+- executive_summary 是面向业务用户的结论摘要，禁止包含 fallback/arg_resolver/action_sequence 等技术术语。
+- coverage 统计必须使用 compute_drilldown_coverage() 统一函数，报告和 GUI 不能出现口径不一致。
+
 ## Change Output Format
 
 After completing a task, output:

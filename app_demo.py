@@ -269,8 +269,99 @@ _MODE_LABELS = {
 }
 
 
+def _render_technical_audit(state_doc: dict) -> None:
+    """技术审计折叠区内容：ReAct 轨迹、LLM 统计、Evidence Gate。"""
+    _PT = {"rule": "规则", "llm": "LLM", "hybrid": "混合"}
+    planner_type = state_doc.get("planner_type", "rule")
+    rounds = state_doc.get("iteration_count", 0)
+    action_names = [a.get("action", "") for a in state_doc.get("actions_taken", [])]
+    action_seq = " → ".join(action_names) if action_names else "未记录"
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Planner", _PT.get(planner_type, planner_type))
+    col2.metric("轮次", rounds)
+    col3.metric("工具调用数", len(action_names))
+
+    llm_success = state_doc.get("llm_success_count", 0)
+    llm_fallback = state_doc.get("llm_fallback_count", 0)
+    llm_attempted = sum(1 for c in state_doc.get("llm_calls", []) if c.get("status") != "skipped")
+    if llm_attempted > 0 or planner_type in ("llm", "hybrid"):
+        col_a, col_b, col_c, col_d = st.columns(4)
+        col_a.metric("LLM 调用", llm_attempted)
+        col_b.metric("LLM 成功", llm_success)
+        col_c.metric("fallback", llm_fallback)
+        col_d.metric("模型", state_doc.get("llm_model", "—") or "—")
+
+    st.caption(f"action_sequence: {action_seq}")
+
+    eg_overrides = state_doc.get("evidence_gate_overrides", [])
+    stoppage_cases_all = state_doc.get("stoppage_cases", {})
+    total_sc = sum(len(v) for v in stoppage_cases_all.values()) if isinstance(stoppage_cases_all, dict) else 0
+    sc_drilled: set[str] = set()
+    for o in state_doc.get("observations", []):
+        if not isinstance(o, dict):
+            continue
+        data = o.get("data", {})
+        if o.get("action") == "drilldown_time_window":
+            tid = data.get("target_id", "")
+            if tid.startswith("SC_") and data.get("status") != "error":
+                sc_drilled.add(tid)
+        elif o.get("action") == "drilldown_time_windows_batch" and data.get("status") != "error":
+            for pt in data.get("per_target", []):
+                tid = pt.get("target_id", "")
+                if tid.startswith("SC_") and pt.get("status") != "error":
+                    sc_drilled.add(tid)
+    if eg_overrides or total_sc > 0:
+        st.markdown("**Evidence Gate**")
+        col_eg1, col_eg2 = st.columns(2)
+        col_eg1.metric("Gate 触发", len(eg_overrides))
+        col_eg2.metric("drilldown 覆盖", f"{len(sc_drilled)}/{total_sc}")
+        if eg_overrides:
+            for eg in eg_overrides:
+                st.markdown(
+                    f"- 第 {eg.get('round_num')} 轮：`{eg.get('llm_selected_action')}`"
+                    f" → `{eg.get('final_selected_action')}({eg.get('target_id', '')})`"
+                )
+
+    actions = state_doc.get("actions_taken", [])
+    audit_map = {a.get("round_num"): a for a in state_doc.get("audit_log", [])}
+    if actions:
+        st.markdown("**ReAct 调查轨迹**")
+        _PT_L = {"rule": "规则", "llm": "LLM", "hybrid_rule": "混合/规则", "hybrid_llm": "混合/LLM"}
+        rows = []
+        for a in actions:
+            rn = a.get("round_num", "")
+            au = audit_map.get(rn, {})
+            rows.append({
+                "轮次": rn,
+                "Planner": _PT_L.get(a.get("planner_type", "rule"), a.get("planner_type", "")),
+                "LLM": a.get("llm_status", "") if a.get("llm_called") else "—",
+                "决策理由": (au.get("selected_reason", "") or a.get("rationale", "") or "")[:50],
+                "工具": a.get("action", ""),
+                "观察": (a.get("observation_summary", "") or "")[:60],
+                "fallback": "是" if a.get("fallback_used") else "—",
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    inv_qs = state_doc.get("investigation_questions", [])
+    if inv_qs:
+        _QS = {"unanswered": "未回答", "partially_answered": "部分回答",
+               "answered": "已回答", "blocked_by_missing_data": "缺少数据"}
+        st.markdown("**调查问题完成情况**")
+        q_rows = []
+        for q in inv_qs:
+            findings = q.get("findings", [])
+            q_rows.append({
+                "问题": f"{q.get('qid', '')}: {q.get('text', '')[:20]}",
+                "状态": _QS.get(q.get("status", ""), q.get("status", "")),
+                "关键发现": (findings[-1][:40] if findings else (q.get("reason_if_unanswered", "") or "—")[:40]),
+                "人工核查": "是" if q.get("needs_manual_check") else "否",
+            })
+        st.dataframe(pd.DataFrame(q_rows), use_container_width=True, hide_index=True)
+
+
 def render_investigation_audit(output_dir: Path) -> None:
-    """通用展示函数：读取 investigation 输出并展示 ReAct 调查轨迹。"""
+    """读取 investigation 输出，按产品化顺序展示结果。"""
     state_path = output_dir / "investigation_state.json"
     report_path = output_dir / "investigation_report.md"
     case_memory_path = output_dir / "case_memory.json"
@@ -285,187 +376,66 @@ def render_investigation_audit(output_dir: Path) -> None:
         st.error(f"读取 investigation_state.json 失败：{exc}")
         return
 
-    # ReAct 调查摘要
-    st.markdown("#### ReAct 调查摘要")
-    focus = state_doc.get("focus", "auto")
-    focus_label = _MODE_LABELS.get(focus, focus)
-    action_names = [a.get("action", "") for a in state_doc.get("actions_taken", [])]
-    action_seq = " → ".join(action_names) if action_names else "未记录"
-    stop_reason = state_doc.get("stop_reason", "未记录")
-    rounds = state_doc.get("iteration_count", 0)
-    planner_type = state_doc.get("planner_type", "rule")
-    _PT = {"rule": "规则", "llm": "LLM", "hybrid": "混合"}
+    # ── 1. 最终调查结论卡片（executive_summary 优先）──
+    es = state_doc.get("executive_summary")
+    fc = state_doc.get("final_conclusion")
+    if es and isinstance(es, dict) and es.get("one_sentence_conclusion"):
+        st.markdown("#### 调查结论")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("调查状态", es.get("status_label_zh", "—"))
+        col2.metric("置信度", es.get("confidence_label_zh", "—"))
+        col3.metric("主要问题", es.get("main_problem_type", "—"))
+        st.info(es.get("one_sentence_conclusion", ""))
+        if es.get("key_findings"):
+            st.markdown("**关键发现：**")
+            for f in es["key_findings"]:
+                st.markdown(f"- {f}")
+        if es.get("unresolved_items"):
+            st.markdown("**仍不确定：**")
+            for u in es["unresolved_items"]:
+                st.markdown(f"- {u}")
+        if es.get("next_manual_checks"):
+            with st.expander("下一步人工核查建议"):
+                for c in es["next_manual_checks"]:
+                    st.markdown(f"- {c}")
+        if es.get("coverage_summary"):
+            st.caption(f"覆盖情况：{es['coverage_summary']}")
+        if es.get("recommendation_for_user"):
+            st.caption(f"建议：{es['recommendation_for_user']}")
+    elif fc and isinstance(fc, dict):
+        _CONV = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
+        st.markdown("#### 调查结论")
+        col1, col2 = st.columns(2)
+        col1.metric("收敛状态", _CONV.get(fc.get("convergence_status", ""), "—"))
+        col2.metric("置信度", fc.get("confidence_label", "—"))
+        st.info(fc.get("primary_conclusion_zh", ""))
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("调查模式", focus_label)
-    col2.metric("Planner", _PT.get(planner_type, planner_type))
-    col3.metric("轮次", rounds)
-    col4.metric("工具调用数", len(action_names))
-
-    # LLM 调用统计
-    llm_call_count = state_doc.get("llm_call_count", 0)
-    llm_success = state_doc.get("llm_success_count", 0)
-    llm_fallback = state_doc.get("llm_fallback_count", 0)
-    llm_attempted = sum(1 for c in state_doc.get("llm_calls", []) if c.get("status") != "skipped")
-    if llm_attempted > 0 or planner_type in ("llm", "hybrid"):
-        col_a, col_b, col_c, col_d = st.columns(4)
-        col_a.metric("LLM 调用", llm_attempted)
-        col_b.metric("LLM 成功", llm_success)
-        col_c.metric("fallback", llm_fallback)
-        col_d.metric("模型", state_doc.get("llm_model", "—") or "—")
-
-    st.markdown(f"**action_sequence:** `{action_seq}`")
-
-    # Evidence Gate 状态
-    eg_overrides = state_doc.get("evidence_gate_overrides", [])
-    stoppage_cases_all = state_doc.get("stoppage_cases", {})
-    total_sc = sum(len(v) for v in stoppage_cases_all.values()) if isinstance(stoppage_cases_all, dict) else 0
-    # 统一 coverage: 含单次 + batch drilldown
-    sc_drilled_gui: set[str] = set()
-    for o in state_doc.get("observations", []):
-        if not isinstance(o, dict):
-            continue
-        data = o.get("data", {})
-        if o.get("action") == "drilldown_time_window":
-            tid = data.get("target_id", "")
-            if tid.startswith("SC_") and data.get("status") != "error":
-                sc_drilled_gui.add(tid)
-        elif o.get("action") == "drilldown_time_windows_batch" and data.get("status") != "error":
-            for pt in data.get("per_target", []):
-                tid = pt.get("target_id", "")
-                if tid.startswith("SC_") and pt.get("status") != "error":
-                    sc_drilled_gui.add(tid)
-    dd_sc = len(sc_drilled_gui)
-    if eg_overrides or total_sc > 0:
-        st.markdown("#### Evidence Gate")
-        col_eg1, col_eg2, col_eg3 = st.columns(3)
-        col_eg1.metric("Gate 触发次数", len(eg_overrides))
-        col_eg2.metric("drilldown 覆盖", f"{dd_sc}/{total_sc}")
-        unverified_eg = [
-            cid for cid, cls in (state_doc.get("case_classifications") or {}).items()
-            if isinstance(cls, dict) and cls.get("case_type") == "event_level_abnormal_unverified"
-        ]
-        col_eg3.metric("未验证异常线索", len(unverified_eg))
-        if eg_overrides:
-            st.warning("系统阻止了过早生成报告，先补充关键 drilldown。")
-            with st.expander(f"Evidence Gate 详情（{len(eg_overrides)} 次 override）"):
-                for eg in eg_overrides:
-                    st.markdown(
-                        f"- 第 {eg.get('round_num')} 轮：LLM 选择 `{eg.get('llm_selected_action')}`，"
-                        f"改为 `{eg.get('final_selected_action')}({eg.get('target_id', '')})`"
-                        f" — {eg.get('override_reason', '')}"
-                    )
-
-    # 调查计划执行情况
+    # ── 2. 调查计划执行情况 ──
     inv_plan = state_doc.get("investigation_plan")
     if inv_plan and isinstance(inv_plan, dict):
         plan_items = inv_plan.get("plan_items", [])
         if plan_items:
+            _PLAN_ZH = {"P1": "P1 停机验证", "P2": "P2 掘进阻力验证", "P3": "P3 液压验证", "P4": "P4 碎片化验证"}
+            _PS_ZH = {"pending": "待执行", "in_progress": "进行中",
+                      "completed": "已完成", "skipped_due_to_budget": "轮数不足跳过"}
             st.markdown("#### 调查计划执行情况")
-            _PS_ZH = {
-                "pending": "待执行", "in_progress": "进行中",
-                "completed": "已完成", "skipped_due_to_budget": "轮数不足跳过",
-            }
             plan_rows = []
             for item in plan_items:
+                pid = item.get("plan_id", "")
                 plan_rows.append({
-                    "计划项": f"{item.get('plan_id', '')}: {item.get('question', '')[:18]}",
-                    "优先级": item.get("priority", ""),
+                    "计划": _PLAN_ZH.get(pid, pid),
+                    "要回答的问题": item.get("question", "")[:30],
                     "状态": _PS_ZH.get(item.get("status", ""), item.get("status", "")),
-                    "所需工具": ", ".join(item.get("required_tools", [])),
+                    "已用工具": ", ".join(item.get("required_tools", [])),
                 })
             st.dataframe(pd.DataFrame(plan_rows), use_container_width=True, hide_index=True)
             budget_warning = inv_plan.get("budget_warning", "")
             if budget_warning:
                 st.warning(budget_warning)
 
-    # 最终调查结论（优先展示）
-    fc = state_doc.get("final_conclusion")
-    if fc and isinstance(fc, dict):
-        _CONV = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
-        _FT = {"rule": "规则", "llm": "LLM", "fallback": "LLM→规则"}
-        conv = _CONV.get(fc.get("convergence_status", ""), fc.get("convergence_status", ""))
-        validated = fc.get("validator_applied", False)
-        n_downgrades = len(fc.get("downgraded_fields", []))
-
-        st.markdown("#### 最终调查结论")
-        col_c1, col_c2, col_c3, col_c4 = st.columns(4)
-        col_c1.metric("收敛状态", conv)
-        col_c2.metric("置信度", fc.get("confidence_label", "—"))
-        col_c3.metric("Finalizer", _FT.get(fc.get("finalizer_type", ""), "—"))
-        col_c4.metric("Validator", f"已修正({n_downgrades}项)" if n_downgrades else ("通过" if validated else "—"))
-        st.info(fc.get("primary_conclusion_zh", ""))
-
-        downgrades = fc.get("downgraded_fields", [])
-        v_warnings = fc.get("validation_warnings", [])
-        if downgrades or v_warnings:
-            with st.expander(f"Validator 降级详情（{len(downgrades)} 项降级，{len(v_warnings)} 项警告）"):
-                for d in downgrades:
-                    st.markdown(f"- 降级：{d}")
-                for w in v_warnings:
-                    st.markdown(f"- 警告：{w}")
-
-        ruled_out = fc.get("ruled_out_zh", [])
-        unresolved = fc.get("unresolved_questions_zh", [])
-        checks = fc.get("next_manual_checks", [])
-        if ruled_out:
-            st.markdown("**当前未支持/已排除：**" + "；".join(ruled_out))
-        if unresolved:
-            st.markdown("**仍不确定：**" + "；".join(unresolved))
-        if checks:
-            with st.expander("下一步人工核查建议"):
-                for c in checks:
-                    st.markdown(f"- {c}")
-
-    # ReAct 调查轨迹表
-    actions = state_doc.get("actions_taken", [])
-    audit_log = state_doc.get("audit_log", [])
-    audit_map = {a.get("round_num"): a for a in audit_log}
-
-    if actions:
-        st.markdown("#### ReAct 调查轨迹")
-        _PT_LABELS = {"rule": "规则", "llm": "LLM", "hybrid_rule": "混合/规则", "hybrid_llm": "混合/LLM"}
-        trace_rows = []
-        for a in actions:
-            rnum = a.get("round_num", "")
-            audit = audit_map.get(rnum, {})
-            trace_rows.append({
-                "轮次": rnum,
-                "Planner": _PT_LABELS.get(a.get("planner_type", "rule"), a.get("planner_type", "")),
-                "LLM": a.get("llm_status", "") if a.get("llm_called") else "—",
-                "决策理由": (audit.get("selected_reason", "") or a.get("rationale", "") or "未记录")[:50],
-                "调用工具": a.get("action", "未记录"),
-                "观察结果": (a.get("observation_summary", "") or "未记录")[:60],
-                "fallback": "是" if a.get("fallback_used") else "—",
-            })
-        st.dataframe(pd.DataFrame(trace_rows), use_container_width=True, hide_index=True)
-
-    # 调查问题完成情况
-    inv_questions = state_doc.get("investigation_questions", [])
-    if inv_questions:
-        st.markdown("#### 调查问题完成情况")
-        _QS_ZH = {
-            "unanswered": "未回答",
-            "partially_answered": "部分回答",
-            "answered": "已回答",
-            "blocked_by_missing_data": "缺少数据",
-        }
-        q_rows = []
-        for q in inv_questions:
-            findings = q.get("findings", [])
-            q_rows.append({
-                "问题": f"{q.get('qid', '')}: {q.get('text', '')[:20]}",
-                "优先级": q.get("priority", ""),
-                "状态": _QS_ZH.get(q.get("status", ""), q.get("status", "")),
-                "关键发现": (findings[-1][:40] if findings else
-                           (q.get("reason_if_unanswered", "") or "—")[:40]),
-                "人工核查": "是" if q.get("needs_manual_check") else "否",
-            })
-        st.dataframe(pd.DataFrame(q_rows), use_container_width=True, hide_index=True)
-
-        unanswered = [q for q in inv_questions if q.get("status") in ("unanswered", "blocked_by_missing_data")]
-        if unanswered:
-            st.warning(f"仍有 {len(unanswered)} 个问题未回答。")
+    # ── 3. 技术审计（默认折叠）──
+    with st.expander("技术审计（ReAct 轨迹、LLM 明细、Evidence Gate）"):
+        _render_technical_audit(state_doc)
 
     # 报告预览
     if report_path.exists():
@@ -881,7 +851,7 @@ def render_review_tab() -> None:
 
 def render_investigation_tab() -> None:
     st.subheader("ReAct 调查")
-    st.markdown("这一部分用于对高风险文件进行真正的 ReAct 工具调用调查。系统根据文件特征动态选择调查路径：停机追查、掘进阻力分析、液压异常分析或碎片化检查。")
+    st.markdown("选择调查档位后点击运行，系统会自动选择调查路径并生成结论报告。")
 
     latest_scan_df = st.session_state.get("latest_scan_df")
     select_options: list[str] = []
@@ -895,26 +865,44 @@ def render_investigation_tab() -> None:
         value=selected_file or str(default_path if default_path.exists() else ""),
     )
     output_dir_text = st.text_input("输入输出目录", value=str(INVESTIGATION_DEMO_DIR))
-    col_mode, col_depth = st.columns(2)
-    with col_mode:
-        focus_mode = st.selectbox("调查聚焦模式", ["auto", "stoppage", "resistance", "hydraulic", "fragmentation"])
-    with col_depth:
-        depth_options = {"快速演示（12轮）": 12, "标准调查（20轮）": 20, "深度调查（40轮）": 40}
-        depth_label = st.selectbox("调查深度", list(depth_options.keys()), index=1)
-        max_iterations = depth_options[depth_label]
-    custom_iter = st.number_input("自定义轮数（覆盖上方选择）", min_value=0, max_value=50, value=0, step=1,
-                                  help="设为 0 则使用上方调查深度")
-    if custom_iter > 0:
-        max_iterations = int(custom_iter)
-    col_planner, col_audit = st.columns(2)
-    with col_planner:
-        planner_mode = st.selectbox("Planner 模式", ["rule", "llm", "hybrid"],
-                                    help="rule=纯规则 | llm=每轮调LLM | hybrid=混合")
-    with col_audit:
-        planner_audit = st.checkbox("启用 planner 审计日志", value=True)
+
+    # ── 三档主入口 ──
+    _PRESETS = {
+        "快速初筛": {"mode": "auto", "planner": "rule", "max_iterations": 12,
+                     "desc": "稳定、便宜、适合快速看一眼"},
+        "标准调查（推荐）": {"mode": "auto", "planner": "hybrid", "max_iterations": 20,
+                           "desc": "推荐默认，兼顾稳定和智能"},
+        "深度复核": {"mode": "auto", "planner": "llm", "max_iterations": 40,
+                     "desc": "调用更多 LLM，速度较慢，适合深入调查"},
+    }
+    preset_label = st.radio("调查档位", list(_PRESETS.keys()), index=1, horizontal=True,
+                            help="选择调查深度，高级设置可覆盖")
+    preset = _PRESETS[preset_label]
+    st.caption(preset["desc"])
+
+    focus_mode = preset["mode"]
+    planner_mode = preset["planner"]
+    max_iterations = preset["max_iterations"]
+    planner_audit = True
+
+    # ── 高级设置（默认折叠）──
+    with st.expander("高级设置（开发者/调试用）"):
+        adv_mode = st.selectbox("调查聚焦模式", ["auto", "stoppage", "resistance", "hydraulic", "fragmentation"],
+                                help="auto=自动选择 | 其他=专项调查")
+        adv_planner = st.selectbox("Planner 模式", ["rule", "llm", "hybrid"],
+                                   help="rule=纯规则 | llm=每轮调LLM | hybrid=混合")
+        adv_iter = st.number_input("自定义轮数", min_value=1, max_value=50,
+                                   value=preset["max_iterations"], step=1)
+        adv_audit = st.checkbox("启用 planner 审计日志", value=True)
+        if adv_mode != "auto" or adv_planner != preset["planner"] or adv_iter != preset["max_iterations"] or not adv_audit:
+            focus_mode = adv_mode
+            planner_mode = adv_planner
+            max_iterations = adv_iter
+            planner_audit = adv_audit
+            st.info(f"高级设置已覆盖：mode={focus_mode}, planner={planner_mode}, iterations={max_iterations}")
 
     if planner_mode in ("llm", "hybrid") and not has_openai_compatible_config():
-        st.warning("未检测到 API Key，LLM planner 无法运行，将 fallback 到 rule 或终止。请检查 .env。")
+        st.warning("未检测到 API Key，LLM planner 无法运行，将 fallback 到 rule。请检查 .env。")
 
     if st.button("运行 ReAct 调查", type="primary", use_container_width=True):
         input_path = normalize_path(selected_file or input_path_text)

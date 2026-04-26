@@ -26,6 +26,8 @@ from tbm_diag.investigation.state import (
     OpenQuestion,
     PlanItem,
     InvestigationPlan,
+    ExecutiveSummary,
+    compute_drilldown_coverage,
 )
 from tbm_diag.investigation.tools import TOOL_REGISTRY
 from tbm_diag.investigation.planner import plan_next_action
@@ -880,6 +882,76 @@ def _check_evidence_gate(
     return False, "", {}, ""
 
 
+def _build_executive_summary(state: InvestigationState) -> None:
+    """从 final_conclusion 和 state 构建面向业务用户的 executive_summary。"""
+    fc = state.final_conclusion
+    if not fc:
+        return
+
+    _CONV_ZH = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
+    _CL_ZH = {"high": "高", "medium": "中", "low": "低"}
+
+    cov = compute_drilldown_coverage(state)
+    total_cases = cov["total_count"]
+    dd_count = cov["covered_count"]
+
+    # 主要问题类型
+    resistance_obs = [o for o in state.observations if o.action == "analyze_resistance_pattern"]
+    hydraulic_obs = [o for o in state.observations if o.action == "analyze_hydraulic_pattern"]
+    problem_parts = []
+    if total_cases > 0:
+        abnormal = sum(1 for cls in state.case_classifications.values()
+                       if cls.case_type == "abnormal_like_stoppage")
+        if abnormal > 0:
+            problem_parts.append(f"异常停机({abnormal}例)")
+        elif total_cases > 0:
+            problem_parts.append("停机分析")
+    if resistance_obs:
+        problem_parts.append("掘进阻力")
+    if hydraulic_obs:
+        problem_parts.append("液压异常")
+    main_problem = "、".join(problem_parts) if problem_parts else "无明显异常"
+
+    # key_findings: 从 fc 和 observations 中提取
+    key_findings: list[str] = []
+    if fc.primary_conclusion_zh:
+        key_findings.append(fc.primary_conclusion_zh)
+    for sf in fc.secondary_findings_zh[:3]:
+        key_findings.append(sf)
+
+    # unresolved
+    unresolved: list[str] = list(fc.unresolved_questions_zh[:4])
+    uncovered_ids = cov["uncovered_case_ids"]
+    if uncovered_ids:
+        unresolved.append(f"未钻取验证的停机案例：{', '.join(uncovered_ids[:3])}")
+
+    # coverage
+    if total_cases > 0:
+        cov_text = f"drilldown 覆盖 {dd_count}/{total_cases}"
+    else:
+        cov_text = "无停机案例"
+
+    # recommendation
+    if fc.convergence_status == "converged":
+        rec = "结论已收敛，建议对比施工日志确认疑似结论"
+    elif fc.convergence_status == "partially_converged":
+        rec = "部分问题未查清，建议增加调查轮数或针对未覆盖案例做专项调查"
+    else:
+        rec = "调查未收敛，建议使用'深度复核'模式或检查数据质量"
+
+    state.executive_summary = ExecutiveSummary(
+        status_label_zh=_CONV_ZH.get(fc.convergence_status, fc.convergence_status),
+        confidence_label_zh=_CL_ZH.get(fc.confidence_label, fc.confidence_label),
+        one_sentence_conclusion=fc.primary_conclusion_zh,
+        main_problem_type=main_problem,
+        key_findings=key_findings[:5],
+        unresolved_items=unresolved[:4],
+        next_manual_checks=list(fc.next_manual_checks[:4]),
+        coverage_summary=cov_text,
+        recommendation_for_user=rec,
+    )
+
+
 def run_investigation(
     input_files: list[str],
     mode: str = "single_file",
@@ -1080,6 +1152,7 @@ def run_investigation(
     # ── 最终结论（必须在报告生成之前调用）──
     from tbm_diag.investigation.tools import finalize_investigation
     finalize_investigation(state, planner_mode=planner_mode)
+    _build_executive_summary(state)
     if state.final_conclusion:
         fc = state.final_conclusion
         print(f"[investigate] conclusion: {fc.convergence_status} ({fc.finalizer_type})")

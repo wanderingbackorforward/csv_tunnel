@@ -163,6 +163,19 @@ class PlannerAuditRecord:
 
 
 @dataclass
+class ExecutiveSummary:
+    status_label_zh: str = ""
+    confidence_label_zh: str = ""
+    one_sentence_conclusion: str = ""
+    main_problem_type: str = ""
+    key_findings: list[str] = field(default_factory=list)
+    unresolved_items: list[str] = field(default_factory=list)
+    next_manual_checks: list[str] = field(default_factory=list)
+    coverage_summary: str = ""
+    recommendation_for_user: str = ""
+
+
+@dataclass
 class FinalConclusion:
     convergence_status: str = "not_converged"  # converged / partially_converged / not_converged
     stop_reason: str = ""
@@ -215,6 +228,7 @@ class InvestigationState:
     evidence_gate_overrides: list[EvidenceGateOverride] = field(default_factory=list)
     investigation_questions: list[OpenQuestion] = field(default_factory=list)
     investigation_plan: Optional[InvestigationPlan] = None
+    executive_summary: Optional[ExecutiveSummary] = None
 
 
 def compute_drilldown_coverage(state: InvestigationState) -> dict[str, Any]:

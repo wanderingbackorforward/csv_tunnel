@@ -230,9 +230,31 @@ python -m tbm_diag.cli investigate --input data.xls --planner hybrid --planner-a
 
 | 深度 | 轮数 | 适用场景 |
 |------|------|---------|
-| 快速演示 | 12 | 演示/初筛，可能跳过 HYD/碎片化 |
-| 标准调查 | 20 | 日常分析，完成所有计划项 |
-| 深度调查 | 40 | 多文件/多 drilldown 场景 |
+| 快速初筛 | 12 | 稳定、便宜、适合快速看一眼 |
+| 标准调查（推荐） | 20 | 日常分析，兼顾稳定和智能 |
+| 深度复核 | 40 | 调用更多 LLM，适合深入调查 |
+
+#### GUI 主流程
+
+GUI（`streamlit run app_demo.py`）的 ReAct 调查页面提供三档主入口：
+
+- 快速初筛：mode=auto, planner=rule, 12 轮
+- 标准调查（推荐）：mode=auto, planner=hybrid, 20 轮
+- 深度复核：mode=auto, planner=llm, 40 轮
+
+stoppage/resistance/hydraulic/fragmentation 等专项模式、rule/llm/hybrid planner 选择、自定义轮数等仍可用，但放在"高级设置"折叠区中，默认不展示。
+
+#### 报告结构
+
+investigation_report.md 按以下顺序组织：
+
+1. 调查结论总览 — 非技术人员可读的业务结论
+2. 本次查清了什么 — 停机/SER/HYD/碎片化各维度结论
+3. 本次没有查清什么 — 未覆盖案例、需施工日志确认的缺口
+4. 调查计划执行情况 — P1~P4 中文表格
+5. 技术审计附录 — ReAct 轨迹、LLM 明细、drilldown 详情等
+
+GUI 结果页同样先展示结论卡片，技术审计默认折叠。
 
 系统会根据文件特征自动计算推荐轮数，如果实际轮数不足会在报告中标注。
 批量钻取工具（`drilldown_time_windows_batch`）可一轮内验证多个停机案例，减少轮数消耗。
@@ -317,8 +339,8 @@ investigation 输出目录包含：
 
 | 文件 | 内容 |
 |------|------|
-| `investigation_report.md` | case-level 追查报告：核心结论、Top 停机案例、异常/计划/待确认分类、建议核查时间段 |
-| `investigation_state.json` | 完整调查状态：actions_taken、observations、stoppage_cases、classifications |
+| `investigation_report.md` | 产品化报告：结论总览 → 查清了什么 → 没查清什么 → 计划执行 → 技术审计附录 |
+| `investigation_state.json` | 完整调查状态：actions_taken、observations、stoppage_cases、classifications、executive_summary |
 | `case_memory.json` | 每个 case 的结构化记录：时间、时长、分类、置信度、判定依据 |
 
 ---

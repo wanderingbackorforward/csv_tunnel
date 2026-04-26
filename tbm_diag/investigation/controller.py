@@ -997,19 +997,36 @@ def _build_executive_summary(state: InvestigationState) -> None:
 
     # coverage
     if total_cases > 0:
-        cov_text = f"drilldown 覆盖 {dd_count}/{total_cases}"
+        cov_text = f"逐案钻取覆盖 {dd_count}/{total_cases}"
     else:
         cov_text = "无停机案例"
 
-    # recommendation
+    # recommendation — 基于 completeness_status 和 convergence_status 双重判断
+    comp_status = state.investigation_completeness_status or ""
     if state.report_quality_status == "failed":
         rec = "调查质量未通过门禁，建议运行 llm-planner-check 或切换标准调查 hybrid"
-    elif fc.convergence_status == "converged":
-        rec = "结论已收敛，建议对比施工日志确认疑似结论"
-    elif fc.convergence_status == "partially_converged":
-        rec = "部分问题未查清，建议增加调查轮数或针对未覆盖案例做专项调查"
+    elif comp_status == "complete_for_depth":
+        # 覆盖已达标，无论 convergence 如何，都不建议增加轮数/未覆盖案例
+        if fc.convergence_status == "converged":
+            rec = "调查结论已收敛，建议对比施工日志确认疑似结论"
+        else:
+            rec_parts = ["部分问题需外部证据确认："]
+            if not state.evidence_ledger or not state.evidence_ledger.external_log_available:
+                rec_parts.append("核查施工日志")
+            if state.evidence_ledger and state.evidence_ledger.ser_event_count > 0:
+                rec_parts.append("核查 SER 高发时段对应地质/操作记录")
+            if state.evidence_ledger and state.evidence_ledger.hyd_status == "metric_warning":
+                rec_parts.append("核查 HYD 指标口径")
+            rec_parts.append("核查检修/换刀/班次记录")
+            rec = "；".join(rec_parts)
     else:
-        rec = "调查未收敛，建议使用'深度复核'模式或检查数据质量"
+        # 覆盖未达标
+        if fc.convergence_status == "converged":
+            rec = "结论已收敛，建议对比施工日志确认疑似结论"
+        elif fc.convergence_status == "partially_converged":
+            rec = "部分问题未查清，建议增加调查轮数或针对未覆盖案例做专项调查"
+        else:
+            rec = "调查未收敛，建议使用'深度复核'模式或检查数据质量"
 
     # 运行质量字段
     llm_attempted = state.llm_call_count

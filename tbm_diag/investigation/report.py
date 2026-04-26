@@ -273,45 +273,14 @@ def _collect_report_data(state: InvestigationState) -> dict[str, Any]:
 
 
 def _build_section_1_executive(lines: list[str], state: InvestigationState) -> None:
-    """第 1 节：调查结论总览（纯业务语言，禁止技术术语）。"""
+    """第 1 节：调查结论总览 — 业务优先，技术指标后移。"""
     es = state.executive_summary
     fc = state.final_conclusion
     if not es and not fc:
         return
-    lines.append("## 1. 调查结论总览\n")
+    lines.append("## 1. 结论摘要\n")
 
-    # 运行质量卡片（首屏最上方）
-    lines.append("### 运行质量\n")
-    _RUN_ZH = {"success": "成功", "partial": "部分成功", "failed_degraded": "失败/降级"}
-    _Q_ZH = {"passed": "通过", "warning": "有警告", "failed": "未通过"}
-    run_label = _RUN_ZH.get(es.run_status, es.run_status) if es else "未知"
-    q_label = _Q_ZH.get(es.report_quality_status, es.report_quality_status) if es else "未知"
-    lines.append(f"- 调查运行状态：**{run_label}**")
-    if es:
-        lines.append(f"- 实际 planner：{es.actual_planner_label}")
-        lines.append(f"- LLM 成功率：{es.llm_success_ratio_text}")
-    lines.append(f"- 报告质量门禁：**{q_label}**")
-    lines.append("")
-
-    # LLM 0 成功醒目告警
-    if state.planner_runtime_status == "llm_unavailable":
-        lines.append("> **警告：本次 LLM planner 0 次成功，所有决策均由规则 fallback 完成。"
-                     "本报告不能视为 LLM ReAct 结果。**")
-        lines.append("")
-    elif state.planner_runtime_status == "llm_unstable":
-        lines.append("> **注意：LLM planner 不稳定，部分决策由规则 fallback 接管。**")
-        lines.append("")
-
-    # 质量门禁失败时追加提示
-    if state.report_quality_status == "failed":
-        lines.append("> **质量门禁未通过。** 建议运行 `python -m tbm_diag.cli llm-planner-check` "
-                     "检查 LLM planner 可用性，或切换标准调查 `--planner hybrid`。")
-        for issue in state.report_quality_issues:
-            if issue.severity == "critical":
-                lines.append(f"> - {issue.message}")
-        lines.append("")
-
-    # 调查充分性卡片
+    # ── 调查对象（第一屏第一块）──
     from tbm_diag.investigation.investigation_depth import (
         get_depth_label, compute_stoppage_coverage_target,
     )
@@ -320,73 +289,134 @@ def _build_section_1_executive(lines: list[str], state: InvestigationState) -> N
     actual_sc = cov["covered_count"]
     depth = state.investigation_depth or "standard"
     cov_target = compute_stoppage_coverage_target(total_sc, depth)
+
+    lines.append("### 调查对象\n")
+    file_name = state.current_file or ""
+    lines.append(f"- 文件：{file_name}")
+    overview = state.file_overviews.get(file_name) if file_name else None
+    if overview:
+        lines.append(f"- 时间范围：{overview.time_start} ~ {overview.time_end}")
+    lines.append(f"- 调查深度：{get_depth_label(depth)}")
+    if total_sc > 0:
+        total_duration = 0.0
+        for cases in state.stoppage_cases.values():
+            for c in cases:
+                total_duration += c.duration_seconds
+        lines.append(f"- 停机案例：{total_sc} 个，总时长 {total_duration/3600:.1f}h")
+        lines.append(f"- 逐案钻取（drilldown）：{actual_sc}/{total_sc}")
+    lines.append("")
+
+    # ── 一句话结论（第一屏第二块）──
+    claims = state.compiled_claims
+    one_sentence = ""
+    if claims and claims.one_sentence_conclusion:
+        one_sentence = claims.one_sentence_conclusion
+    elif es and es.one_sentence_conclusion:
+        one_sentence = es.one_sentence_conclusion
+    elif fc and fc.primary_conclusion_zh:
+        one_sentence = fc.primary_conclusion_zh
+
+    if one_sentence:
+        lines.append(f"**结论：** {one_sentence}")
+        lines.append("")
+
+    # ── 关键发现（第一屏第三块）──
+    key_findings = []
+    if claims and claims.key_findings:
+        key_findings = claims.key_findings
+    elif es and es.key_findings:
+        key_findings = es.key_findings
+
+    if key_findings:
+        lines.append("**关键发现：**")
+        for f in key_findings:
+            lines.append(f"- {f}")
+        lines.append("")
+
+    # ── 仍不确定（第一屏第四块）──
+    unresolved = []
+    if claims and claims.unresolved_items:
+        unresolved = claims.unresolved_items
+    elif es and es.unresolved_items:
+        unresolved = es.unresolved_items
+
+    if unresolved:
+        lines.append("**仍不确定：**")
+        for u in unresolved:
+            lines.append(f"- {u}")
+        lines.append("")
+
+    # ── 下一步人工核查（第一屏第五块）──
+    next_checks = []
+    if claims and claims.next_manual_checks:
+        next_checks = claims.next_manual_checks
+    elif es and es.next_manual_checks:
+        next_checks = es.next_manual_checks
+
+    if next_checks:
+        lines.append("**下一步人工核查：**")
+        for c in next_checks:
+            lines.append(f"- {c}")
+        lines.append("")
+
+    # ── 建议（基于 completeness_status）──
+    recommendation = ""
+    if es and es.recommendation_for_user:
+        recommendation = es.recommendation_for_user
+    if recommendation:
+        lines.append(f"**建议：** {recommendation}")
+        lines.append("")
+
+    # ── 质量门禁失败时的业务提示 ──
+    if state.report_quality_status == "failed":
+        lines.append("> **质量门禁未通过。** 建议运行 `python -m tbm_diag.cli llm-planner-check` "
+                     "检查 LLM planner 可用性，或切换标准调查 `--planner hybrid`。")
+        for issue in state.report_quality_issues:
+            if issue.severity == "critical":
+                lines.append(f"> - {issue.message}")
+        lines.append("")
+
+    # ── LLM 不可用/不稳定的业务提示 ──
+    if state.planner_runtime_status == "llm_unavailable":
+        lines.append("> **警告：本次 LLM planner 0 次成功，所有决策均由规则 fallback 完成。"
+                     "本报告不能视为 LLM ReAct 结果。**")
+        lines.append("")
+    elif state.planner_runtime_status == "llm_unstable":
+        lines.append("> **注意：LLM planner 不稳定，部分决策由规则 fallback 接管。**")
+        lines.append("")
+
+    # ── 调查充分性 ──
     comp_status = state.investigation_completeness_status or ""
     lines.append("### 调查充分性\n")
     lines.append(f"- 调查深度：{get_depth_label(depth)}")
     lines.append(f"- 停机案例总数：{total_sc}")
     lines.append(f"- 当前深度目标：{cov_target.target_count}/{total_sc}")
-    lines.append(f"- 实际 drilldown 覆盖：{actual_sc}/{total_sc}")
+    lines.append(f"- 实际逐案钻取覆盖：{actual_sc}/{total_sc}")
     if comp_status == "complete_for_depth":
         lines.append("- 调查充分性：**已达到当前深度目标**")
     elif comp_status == "not_applicable_no_stoppage":
         lines.append("- 调查充分性：无停机案例，不适用")
     elif comp_status == "incomplete_due_to_budget":
         lines.append("- 调查充分性：**因预算不足未完成**")
-        lines.append(f"> 本次报告为部分调查结果，不代表全部停机案例均已完成 drilldown。")
+        lines.append("> 本次报告为部分调查结果，不代表全部停机案例均已完成逐案钻取。")
     elif comp_status == "incomplete_due_to_cap":
         lines.append("- 调查充分性：**已达到上限，但未覆盖全部**")
     else:
         lines.append(f"- 调查充分性：{comp_status or '未知'}")
     lines.append("")
 
+    # ── 技术状态摘要（开发者参考，后移）──
+    _RUN_ZH = {"success": "成功", "partial": "部分成功", "failed_degraded": "失败/降级"}
+    _Q_ZH = {"passed": "通过", "warning": "有警告", "failed": "未通过"}
+    run_label = _RUN_ZH.get(es.run_status, es.run_status) if es else "未知"
+    q_label = _Q_ZH.get(es.report_quality_status, es.report_quality_status) if es else "未知"
+    lines.append("### 技术状态摘要（开发者参考）\n")
+    lines.append(f"- 调查运行状态：**{run_label}**")
     if es:
-        lines.append("### 调查结论\n")
-        lines.append(f"- 调查状态：{es.status_label_zh}")
-        lines.append(f"- 置信度：{es.confidence_label_zh}")
-        lines.append(f"- 主要问题类型：{es.main_problem_type}")
-        lines.append(f"- 覆盖情况：{es.coverage_summary}")
-        lines.append("")
-        if es.one_sentence_conclusion:
-            lines.append(f"**结论：** {es.one_sentence_conclusion}")
-            lines.append("")
-        if es.key_findings:
-            lines.append("**关键发现：**")
-            for f in es.key_findings:
-                lines.append(f"- {f}")
-            lines.append("")
-        if es.unresolved_items:
-            lines.append("**仍不确定：**")
-            for u in es.unresolved_items:
-                lines.append(f"- {u}")
-            lines.append("")
-        if es.next_manual_checks:
-            lines.append("**下一步人工核查：**")
-            for c in es.next_manual_checks:
-                lines.append(f"- {c}")
-            lines.append("")
-        if es.recommendation_for_user:
-            lines.append(f"**建议：** {es.recommendation_for_user}")
-            lines.append("")
-    else:
-        lines.append("### 调查结论\n")
-        _CONV = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
-        _CL = {"high": "高", "medium": "中", "low": "低"}
-        lines.append(f"- 调查状态：{_CONV.get(fc.convergence_status, fc.convergence_status)}")
-        lines.append(f"- 置信度：{_CL.get(fc.confidence_label, fc.confidence_label)}")
-        lines.append("")
-        if fc.primary_conclusion_zh:
-            lines.append(f"**结论：** {fc.primary_conclusion_zh}")
-            lines.append("")
-        if fc.unresolved_questions_zh:
-            lines.append("**仍不确定：**")
-            for q in fc.unresolved_questions_zh:
-                lines.append(f"- {q}")
-            lines.append("")
-        if fc.next_manual_checks:
-            lines.append("**下一步人工核查：**")
-            for c in fc.next_manual_checks:
-                lines.append(f"- {c}")
-            lines.append("")
+        lines.append(f"- 实际 planner：{es.actual_planner_label}")
+        lines.append(f"- LLM 成功率：{es.llm_success_ratio_text}")
+    lines.append(f"- 报告质量门禁：**{q_label}**")
+    lines.append("")
 
 def _build_section_2_clarified(lines: list[str], state: InvestigationState, d: dict) -> None:
     """第 2 节：本次查清了什么（按业务维度）。"""
@@ -397,12 +427,12 @@ def _build_section_2_clarified(lines: list[str], state: InvestigationState, d: d
     lines.append("### 停机问题\n")
     if d["total_merged"] > 0:
         lines.append(f"- 停机案例总数：{d['total_merged']}")
-        lines.append(f"- 已 drilldown：{ledger.drilled_stoppage_cases if ledger else cov['covered_count']}")
-        lines.append(f"- 未 drilldown：{ledger.undrilled_stoppage_cases if ledger else len(cov['uncovered_case_ids'])}")
+        lines.append(f"- 已逐案钻取：{ledger.drilled_stoppage_cases if ledger else cov['covered_count']}")
+        lines.append(f"- 未逐案钻取：{ledger.undrilled_stoppage_cases if ledger else len(cov['uncovered_case_ids'])}")
         lines.append("")
-        # 已 drilldown 案例分类（从 ledger）
+        # 已逐案钻取案例分类（从 ledger）
         if ledger and ledger.drilled_stoppage_cases > 0:
-            lines.append("**已 drilldown 案例中：**")
+            lines.append("**已逐案钻取案例中：**")
             lines.append(f"- 停机前后未见明显行级异常：{ledger.drilled_cases_no_pre_ser_hyd}")
             if ledger.drilled_cases_with_pre_ser_or_hyd > 0:
                 lines.append(f"- 停机前存在异常前兆：{ledger.drilled_cases_with_pre_ser_or_hyd}")
@@ -417,7 +447,7 @@ def _build_section_2_clarified(lines: list[str], state: InvestigationState, d: d
         # 未 drilldown 案例
         if ledger and ledger.undrilled_stoppage_cases > 0:
             lines.append("")
-            lines.append(f"**未 drilldown 案例（{ledger.undrilled_stoppage_cases} 个）：**")
+            lines.append(f"**未逐案钻取案例（{ledger.undrilled_stoppage_cases} 个）：**")
             lines.append(f"- {', '.join(ledger.undrilled_case_ids)}")
     else:
         lines.append("未检测到停机案例。")
@@ -481,35 +511,88 @@ def _build_section_2_clarified(lines: list[str], state: InvestigationState, d: d
     lines.append("")
 
 
+def _is_stale_finalizer_claim(text: str, ledger: Any) -> bool:
+    """判断 LLM finalizer 的一条结论是否与 evidence_ledger 冲突。"""
+    if not ledger or ledger.total_stoppage_cases <= 0:
+        return False
+    import re
+    full_coverage = ledger.actual_stoppage_coverage_count >= ledger.total_stoppage_cases
+    complete = ledger.completeness_status == "complete_for_depth"
+    if full_coverage and complete:
+        stale_patterns = [
+            r"样本量仅\s*\d+/\d+",
+            r"仅\s*\d+/\d+",
+            r"\d+个[^\s]*案例能否代表全部\d+个",
+            r"已钻取\s*\d+/\d+",
+            r"已[^\s]*钻取.*?(\d+)/(\d+)",
+            r"覆盖\s*\d+/\d+",
+            r"未覆盖案例",
+            r"未\s*drilldown\s*案例",
+            r"增加调查轮数",
+            r"针对未覆盖案例",
+            r"样本量不足",
+            r"未钻取验证",
+        ]
+        for pat in stale_patterns:
+            if re.search(pat, text):
+                return True
+    ratio_match = re.search(r"(\d+)/(\d+)", text)
+    if ratio_match and ledger.total_stoppage_cases > 0:
+        reported_actual = int(ratio_match.group(1))
+        reported_total = int(ratio_match.group(2))
+        if reported_total == ledger.total_stoppage_cases:
+            if reported_actual != ledger.actual_stoppage_coverage_count:
+                return True
+    return False
+
+
 def _build_section_3_unclarified(
     lines: list[str], state: InvestigationState, d: dict,
     corrections: list[str], consistency_warnings: list[str],
 ) -> None:
-    """第 3 节：本次没有查清什么。"""
+    """第 3 节：本次没有查清什么。优先使用 compiled_claims，fc 仅作 fallback 并校验。"""
     lines.append("## 3. 本次没有查清什么\n")
     items: list[str] = []
-    cov = d["cov"]
-    if cov["uncovered_case_ids"]:
-        items.append(f"未 drilldown 的停机案例：{', '.join(cov['uncovered_case_ids'])}")
+    ledger = state.evidence_ledger
+    claims = state.compiled_claims
+
+    # 主来源：compiled_claims.unresolved_items（从 evidence_ledger 生成）
+    if claims and claims.unresolved_items:
+        items.extend(claims.unresolved_items)
+    else:
+        # Fallback：从 coverage 直接生成（仅在 compiled_claims 缺失时）
+        cov = d["cov"]
+        if cov["uncovered_case_ids"]:
+            items.append(f"未逐案钻取的停机案例：{', '.join(cov['uncovered_case_ids'])}")
+
+    # 补充：未验证的事件级异常线索
     if d["unverified"]:
         items.append(f"事件级异常线索待验证：{', '.join(cid for cid, _ in d['unverified'])}")
+
+    # LLM finalizer 的 unresolved_questions_zh：仅当 compiled_claims 缺失时作为 fallback，
+    # 且每条必须通过 ledger 校验
     fc = state.final_conclusion
-    if fc and fc.unresolved_questions_zh:
+    if fc and fc.unresolved_questions_zh and not (claims and claims.unresolved_items):
         for q in fc.unresolved_questions_zh:
-            items.append(q)
-    if state.open_questions:
-        for q in state.open_questions:
-            items.append(q)
+            if _is_stale_finalizer_claim(q, ledger):
+                continue
+            if q not in items:
+                items.append(q)
+
+    # consistency_warnings 和 corrections
     if consistency_warnings:
         for w in consistency_warnings:
             items.append(w)
     if corrections:
         items.append(f"事件级标签与行级规则口径差异：已修正 {len(corrections)} 项（详见技术审计附录）")
+
+    # 需要施工日志确认的案例时间（从 uncertain/abnormal 分类）
     for cid, _ in list(d["abnormal"]) + list(d["uncertain"]):
         for cases in state.stoppage_cases.values():
             for c in cases:
                 if c.case_id == cid:
                     items.append(f"需要施工日志确认：{c.start_time} ~ {c.end_time}（案例 {cid}）")
+
     if items:
         for item in items:
             lines.append(f"- {item}")

@@ -42,6 +42,10 @@ class ReportCheckResult:
     duplicate_stoppage_drilldown_count: int = 0
     duplicate_stoppage_drilldown_ids: list[str] = field(default_factory=list)
     completeness_info: dict = field(default_factory=dict)
+    stale_ratio_issue: str = ""
+    uncovered_claim_issue: str = ""
+    first_screen_issue: str = ""
+    terminology_issue: str = ""
     details: list[str] = field(default_factory=list)
 
 
@@ -108,6 +112,80 @@ def validate_rendered_report(
             result.hyd_conclusion_issue = f"HYD metric_warning 被当成业务结论: '{hyd_causal.group()}'"
             result.details.append(result.hyd_conclusion_issue)
 
+    # 7. Stale sample ratio check — ratio in report must match ledger
+    full_coverage = (
+        ledger.total_stoppage_cases > 0
+        and ledger.actual_stoppage_coverage_count >= ledger.total_stoppage_cases
+    )
+    complete = ledger.completeness_status == "complete_for_depth"
+    ratio_pattern = re.compile(r"(\d+)\s*/\s*(\d+)")
+    for m in ratio_pattern.finditer(business_text):
+        r_actual, r_total = int(m.group(1)), int(m.group(2))
+        if r_total == ledger.total_stoppage_cases and r_actual != ledger.actual_stoppage_coverage_count:
+            result.stale_ratio_issue = (
+                f"报告含过时比例 {r_actual}/{r_total}，"
+                f"ledger 实际为 {ledger.actual_stoppage_coverage_count}/{ledger.total_stoppage_cases}"
+            )
+            result.details.append(result.stale_ratio_issue)
+            break
+
+    # 8. No uncovered claim when complete
+    if full_coverage and complete:
+        uncovered_patterns = [
+            (r"样本量仅", "样本量仅"),
+            (r"样本量不足", "样本量不足"),
+            (r"未覆盖案例", "未覆盖案例"),
+            (r"未\s*drilldown\s*案例", "未 drilldown 案例"),
+            (r"未逐案钻取的停机案例", "未逐案钻取的停机案例"),
+            (r"增加调查轮数", "增加调查轮数"),
+            (r"针对未覆盖案例", "针对未覆盖案例"),
+            (r"\d+个[^\s]*案例能否代表全部\d+个", "X个案例能否代表全部Y个"),
+        ]
+        for pat, label in uncovered_patterns:
+            if re.search(pat, business_text):
+                result.uncovered_claim_issue = f"coverage 已达标但报告含: '{label}'"
+                result.details.append(result.uncovered_claim_issue)
+                break
+
+    # 9. First screen business-first check (first 30 lines)
+    first_screen_lines = report_text.split("\n")[:30]
+    first_screen = "\n".join(first_screen_lines)
+    tech_terms = [
+        (r"\bplanner\b", "planner"),
+        (r"LLM\s*成功率", "LLM 成功率"),
+        (r"\bfallback\b", "fallback"),
+        (r"\barg_resolver\b", "arg_resolver"),
+        (r"\bJSON\b", "JSON"),
+        (r"planner\s*audit", "planner audit"),
+    ]
+    # Check if conclusion appears before tech terms
+    conclusion_line = None
+    tech_line = None
+    for i, line in enumerate(first_screen_lines):
+        if conclusion_line is None and ("**结论：**" in line or "**结论:**" in line):
+            conclusion_line = i
+        if tech_line is None:
+            for pat, label in tech_terms:
+                if re.search(pat, line):
+                    tech_line = i
+                    break
+    if tech_line is not None and (conclusion_line is None or tech_line < conclusion_line):
+        result.first_screen_issue = (
+            f"技术术语出现在业务结论之前（第 {tech_line + 1} 行）"
+        )
+        result.details.append(result.first_screen_issue)
+
+    # 10. Terminology check (first 60 lines)
+    first_60 = "\n".join(report_text.split("\n")[:60])
+    dd_count = len(re.findall(r"\bdrilldown\b", first_60))
+    if dd_count > 1:
+        result.terminology_issue = f"前 60 行 drilldown 出现 {dd_count} 次（限 1 次）"
+        result.details.append(result.terminology_issue)
+    planner_in_60 = re.findall(r"\bplanner\b", first_60)
+    if planner_in_60:
+        result.terminology_issue += f"; 前 60 行含 planner ({len(planner_in_60)} 次)"
+        result.details.append(result.terminology_issue)
+
     # Final pass/fail
     has_error = (
         bool(result.forbidden_found)
@@ -115,6 +193,8 @@ def validate_rendered_report(
         or bool(result.p1_status_issue)
         or bool(result.generalization_issue)
         or bool(result.hyd_conclusion_issue)
+        or bool(result.stale_ratio_issue)
+        or bool(result.uncovered_claim_issue)
     )
     result.passed = not has_error
     if result.passed:

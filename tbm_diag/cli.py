@@ -863,6 +863,16 @@ def _cmd_report_check(args: argparse.Namespace) -> int:
         print(f"\n  重复 drilldown: {result.duplicate_stoppage_drilldown_count} 次，"
               f"涉及 {ids_str}")
 
+    # Stale ratio / uncovered claim / first screen / terminology
+    if result.stale_ratio_issue:
+        print(f"\n  Stale ratio: {result.stale_ratio_issue}")
+    if result.uncovered_claim_issue:
+        print(f"  Uncovered claim when complete: {result.uncovered_claim_issue}")
+    if result.first_screen_issue:
+        print(f"  First screen: {result.first_screen_issue}")
+    if result.terminology_issue:
+        print(f"  Terminology: {result.terminology_issue}")
+
     print(f"\n  Ledger validation: {'PASS' if result.ledger_validation_passed else 'FAIL'}")
     print(f"  Report quality: {'PASS' if result.passed else 'FAIL'}")
 

@@ -374,7 +374,7 @@ def _render_technical_audit(state_doc: dict) -> None:
 
 
 def render_investigation_audit(output_dir: Path) -> None:
-    """读取 investigation 输出，按产品化顺序展示结果。"""
+    """读取 investigation 输出，按业务优先顺序展示结果。"""
     state_path = output_dir / "investigation_state.json"
     report_path = output_dir / "investigation_report.md"
     case_memory_path = output_dir / "case_memory.json"
@@ -389,44 +389,10 @@ def render_investigation_audit(output_dir: Path) -> None:
         st.error(f"读取 investigation_state.json 失败：{exc}")
         return
 
-    # ── 0. 运行质量卡片（首屏最上方）──
     es = state_doc.get("executive_summary")
     fc = state_doc.get("final_conclusion")
-    _RUN_ZH_GUI = {"success": "成功", "partial": "部分成功", "failed_degraded": "失败/降级"}
-    _Q_ZH_GUI = {"passed": "通过", "warning": "有警告", "failed": "未通过"}
-    run_status = es.get("run_status", "") if isinstance(es, dict) else ""
-    q_status = es.get("report_quality_status", "") if isinstance(es, dict) else ""
-    planner_label = es.get("actual_planner_label", "") if isinstance(es, dict) else ""
-    llm_ratio = es.get("llm_success_ratio_text", "") if isinstance(es, dict) else ""
 
-    if run_status or q_status:
-        st.markdown("#### 运行质量")
-        qc1, qc2, qc3, qc4 = st.columns(4)
-        qc1.metric("调查运行状态", _RUN_ZH_GUI.get(run_status, run_status or "—"))
-        qc2.metric("实际 planner", planner_label or "—")
-        qc3.metric("LLM 成功率", llm_ratio or "—")
-        qc4.metric("报告质量门禁", _Q_ZH_GUI.get(q_status, q_status or "—"))
-
-        if q_status == "failed" or run_status == "failed_degraded":
-            st.error("调查质量未通过门禁。建议：①运行 `llm-planner-check` 检查 LLM 可用性 "
-                     "②切换标准调查 `--planner hybrid` ③检查 MiniMax 输出格式")
-            quality_issues = state_doc.get("report_quality_issues", [])
-            if quality_issues:
-                for qi in quality_issues:
-                    if qi.get("severity") == "critical":
-                        st.warning(f"质量问题：{qi.get('message', '')}")
-        elif q_status == "warning":
-            st.warning("报告质量有警告，结论请参考下方技术审计。")
-
-    # LLM 0 成功醒目提示
-    planner_runtime = state_doc.get("planner_runtime_status", "")
-    if planner_runtime == "llm_unavailable":
-        st.error("本次 LLM planner 0 次成功，所有决策由规则 fallback 完成。"
-                 "本报告不能视为 LLM ReAct 结果。")
-    elif planner_runtime == "llm_unstable":
-        st.warning("LLM planner 不稳定，部分决策由规则 fallback 接管。")
-
-    # ── 1. 最终调查结论卡片（executive_summary 优先）──
+    # ── 1. 业务结论卡片（首屏第一块）──
     if es and isinstance(es, dict) and es.get("one_sentence_conclusion"):
         st.markdown("#### 调查结论")
         col1, col2, col3 = st.columns(3)
@@ -443,9 +409,9 @@ def render_investigation_audit(output_dir: Path) -> None:
             for u in es["unresolved_items"]:
                 st.markdown(f"- {u}")
         if es.get("next_manual_checks"):
-            with st.expander("下一步人工核查建议"):
-                for c in es["next_manual_checks"]:
-                    st.markdown(f"- {c}")
+            st.markdown("**下一步人工核查：**")
+            for c in es["next_manual_checks"]:
+                st.markdown(f"- {c}")
         if es.get("coverage_summary"):
             st.caption(f"覆盖情况：{es['coverage_summary']}")
         if es.get("recommendation_for_user"):
@@ -458,7 +424,24 @@ def render_investigation_audit(output_dir: Path) -> None:
         col2.metric("置信度", fc.get("confidence_label", "—"))
         st.info(fc.get("primary_conclusion_zh", ""))
 
-    # ── 2. 调查计划执行情况 ──
+    # ── 2. 调查充分性 ──
+    ledger = state_doc.get("evidence_ledger")
+    if ledger and isinstance(ledger, dict):
+        total_sc = ledger.get("total_stoppage_cases", 0)
+        actual_sc = ledger.get("actual_stoppage_coverage_count", 0)
+        target_sc = ledger.get("target_stoppage_coverage_count", 0)
+        comp_status = ledger.get("completeness_status", "")
+        depth = state_doc.get("investigation_depth", "standard")
+        if total_sc > 0:
+            st.markdown("#### 调查充分性")
+            dc1, dc2, dc3 = st.columns(3)
+            dc1.metric("调查深度", {"quick": "快速初筛", "standard": "标准调查",
+                                    "deep": "深度复核", "exhaustive": "穷尽调查"}.get(depth, depth))
+            dc2.metric("逐案钻取", f"{actual_sc}/{total_sc}")
+            comp_label = "已达标" if comp_status == "complete_for_depth" else comp_status
+            dc3.metric("充分性", comp_label)
+
+    # ── 3. 调查计划执行情况 ──
     inv_plan = state_doc.get("investigation_plan")
     if inv_plan and isinstance(inv_plan, dict):
         plan_items = inv_plan.get("plan_items", [])
@@ -481,8 +464,42 @@ def render_investigation_audit(output_dir: Path) -> None:
             if budget_warning:
                 st.warning(budget_warning)
 
-    # ── 3. 技术审计（默认折叠）──
-    with st.expander("技术审计（ReAct 轨迹、LLM 明细、Evidence Gate）"):
+    # ── 4. 运行质量（业务结论之后）──
+    _RUN_ZH_GUI = {"success": "成功", "partial": "部分成功", "failed_degraded": "失败/降级"}
+    _Q_ZH_GUI = {"passed": "通过", "warning": "有警告", "failed": "未通过"}
+    run_status = es.get("run_status", "") if isinstance(es, dict) else ""
+    q_status = es.get("report_quality_status", "") if isinstance(es, dict) else ""
+    planner_label = es.get("actual_planner_label", "") if isinstance(es, dict) else ""
+    llm_ratio = es.get("llm_success_ratio_text", "") if isinstance(es, dict) else ""
+
+    with st.expander("技术状态摘要（开发者参考）"):
+        if run_status or q_status:
+            qc1, qc2, qc3, qc4 = st.columns(4)
+            qc1.metric("调查运行状态", _RUN_ZH_GUI.get(run_status, run_status or "—"))
+            qc2.metric("实际 planner", planner_label or "—")
+            qc3.metric("LLM 成功率", llm_ratio or "—")
+            qc4.metric("报告质量门禁", _Q_ZH_GUI.get(q_status, q_status or "—"))
+
+            if q_status == "failed" or run_status == "failed_degraded":
+                st.error("调查质量未通过门禁。建议：①运行 `llm-planner-check` 检查 LLM 可用性 "
+                         "②切换标准调查 `--planner hybrid` ③检查 MiniMax 输出格式")
+                quality_issues = state_doc.get("report_quality_issues", [])
+                if quality_issues:
+                    for qi in quality_issues:
+                        if qi.get("severity") == "critical":
+                            st.warning(f"质量问题：{qi.get('message', '')}")
+            elif q_status == "warning":
+                st.warning("报告质量有警告，结论请参考下方技术审计。")
+
+        # LLM 0 成功醒目提示
+        planner_runtime = state_doc.get("planner_runtime_status", "")
+        if planner_runtime == "llm_unavailable":
+            st.error("本次 LLM planner 0 次成功，所有决策由规则 fallback 完成。"
+                     "本报告不能视为 LLM ReAct 结果。")
+        elif planner_runtime == "llm_unstable":
+            st.warning("LLM planner 不稳定，部分决策由规则 fallback 接管。")
+
+        # ── 5. 技术审计（ReAct 轨迹、LLM 明细、Evidence Gate）──
         _render_technical_audit(state_doc)
 
     # 报告预览

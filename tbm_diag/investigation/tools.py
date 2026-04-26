@@ -1503,7 +1503,9 @@ def validate_final_conclusion(state: Any) -> None:
 
     # ── 6b. 禁止在结论和发现中写"确认计划停机"等确定性措辞 ──
     import re as _re
-    _confirm_pattern = _re.compile(r"(?:确认为?|\d+\s*(?:个|例)\s*为)\s*计划停机")
+    _confirm_pattern = _re.compile(
+        r"(?:确认为?|\d+\s*(?:个|例)\s*为|原因[^，。；\n]{0,8}为)\s*计划停机"
+    )
     if fc.primary_conclusion_zh and _confirm_pattern.search(fc.primary_conclusion_zh):
         fc.primary_conclusion_zh = _confirm_pattern.sub("疑似计划性/管理性停机（需施工日志确认）", fc.primary_conclusion_zh)
         downgrades.append("primary_conclusion 修正：确认/为计划停机→疑似")

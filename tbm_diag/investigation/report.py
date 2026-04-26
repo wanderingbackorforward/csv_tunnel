@@ -194,15 +194,17 @@ def _build_section_6(lines: list[str], vm: ReportViewModel) -> None:
     lines.append("")
 
 
-# ── Drilldown detail rendering (safe: structured data) ──
+# ── Drilldown detail rendering (reads from DrilldownView, no raw data) ──
 
-def _render_drilldown_detail_data(lines: list[str], data: dict) -> None:
-    tei = data.get("target_event_info", {})
+def _render_drilldown_view_detail(lines: list[str], dv) -> None:
+    """Render a DrilldownView's structured detail — all text pre-sanitized."""
+    from tbm_diag.investigation.report_view_model import DrilldownView
+    tei = dv.target_event_info
     if tei.get("source") == "event":
         lines.append(f"- 目标事件类型：{tei.get('semantic_event_type', '')}")
         lines.append(f"- 主导工况：{tei.get('dominant_state', '')}")
         lines.append(f"- 持续时长：{tei.get('duration_seconds', 0)}s")
-    sem_ol = data.get("semantic_overlap", {})
+    sem_ol = dv.semantic_overlap
     during_ol = sem_ol.get("during", {})
     if during_ol.get("total", 0) > 0:
         lines.append(f"- 事件期间重叠事件数：{during_ol['total']}")
@@ -214,8 +216,7 @@ def _render_drilldown_detail_data(lines: list[str], data: dict) -> None:
             lines.append(f"- 重叠停机：{during_ol['stoppage']}")
     lines.append("")
     lines.append("**行级规则命中：**")
-    for label, key in [("前窗口", "pre_summary"), ("事件期间", "during_summary"), ("后窗口", "post_summary")]:
-        s = data.get(key, {})
+    for label, s in [("前窗口", dv.pre_summary), ("事件期间", dv.during_summary), ("后窗口", dv.post_summary)]:
         if isinstance(s, dict) and not s.get("empty", True):
             lines.append(
                 f"- {label}：{s.get('rows', 0)}行，"
@@ -225,8 +226,7 @@ def _render_drilldown_detail_data(lines: list[str], data: dict) -> None:
             )
     lines.append("")
     lines.append("**工况统计：**")
-    for label, key in [("前窗口", "pre_summary"), ("事件期间", "during_summary"), ("后窗口", "post_summary")]:
-        s = data.get(key, {})
+    for label, s in [("前窗口", dv.pre_summary), ("事件期间", dv.during_summary), ("后窗口", dv.post_summary)]:
         if isinstance(s, dict) and not s.get("empty", True):
             sd = s.get("state_distribution", {})
             sp = [f"{k}={v:.0f}%" for k, v in sorted(sd.items(), key=lambda x: -x[1]) if v > 0]
@@ -234,18 +234,15 @@ def _render_drilldown_detail_data(lines: list[str], data: dict) -> None:
                 f"- {label}：速度={s.get('avg_advance_speed', 0)}，"
                 f"转矩={s.get('avg_cutter_torque', 0)}，{'，'.join(sp)}"
             )
-    div_notes = data.get("divergence_notes", [])
-    if div_notes:
+    if dv.safe_divergence_notes:
         lines.append("")
         lines.append("**证据口径一致性提示：**")
-        for note in div_notes:
+        for note in dv.safe_divergence_notes:
             lines.append(f"- {note}")
-    hint = data.get("interpretation_hint", "")
-    if hint:
-        lines.append(f"\n- 初步解释: {hint}")
-    tf = data.get("transition_findings", [])
-    if tf:
-        lines.append(f"- 转变发现: {'，'.join(tf)}")
+    if dv.safe_hint:
+        lines.append(f"\n- 初步解释: {dv.safe_hint}")
+    if dv.safe_transition_findings:
+        lines.append(f"- 转变发现: {'，'.join(dv.safe_transition_findings)}")
     lines.append("")
 
 
@@ -322,50 +319,20 @@ def _build_section_7(lines: list[str], state: InvestigationState, d: dict, vm: R
         if eg_overrides:
             lines.append("")
 
-    # 7.4 drilldown detail (safe: structured data from observations)
-    drilldown_obs = [o for o in state.observations if o.action == "drilldown_time_window"]
-    batch_obs = [o for o in state.observations if o.action == "drilldown_time_windows_batch"]
-    if drilldown_obs or batch_obs:
+    # 7.4 drilldown detail (from DrilldownView — all text sanitized)
+    if vm.drilldown_views:
         lines.append("### drilldown 明细\n")
         lines.append("| 目标 | 前窗口观察 | 事件期间观察 | 后窗口观察 | 初步解释 |")
         lines.append("|------|-----------|-------------|-----------|----------|")
-        for obs in drilldown_obs:
-            data = obs.data or {}
-            tid = data.get("target_id", "?")
-            cpre = (data.get("compact_pre", "") or "").replace("|", "/")[:40]
-            cdur = (data.get("compact_during", "") or "").replace("|", "/")[:40]
-            cpost = (data.get("compact_post", "") or "").replace("|", "/")[:40]
-            hint = (data.get("interpretation_hint", "") or "").replace("|", "/")[:40]
-            lines.append(f"| {tid} | {cpre} | {cdur} | {cpost} | {hint} |")
-        for obs in batch_obs:
-            data = obs.data or {}
-            for pt in data.get("per_target", []):
-                tid = pt.get("target_id", "?")
-                cpre = (pt.get("compact_pre", "") or "").replace("|", "/")[:40]
-                cdur = (pt.get("compact_during", "") or "").replace("|", "/")[:40]
-                cpost = (pt.get("compact_post", "") or "").replace("|", "/")[:40]
-                hint = (pt.get("interpretation_hint", "") or "").replace("|", "/")[:40]
-                lines.append(f"| {tid} | {cpre} | {cdur} | {cpost} | {hint} |")
+        for dv in vm.drilldown_views:
+            lines.append(
+                f"| {dv.target_id} | {dv.compact_pre} | {dv.compact_during} "
+                f"| {dv.compact_post} | {dv.safe_hint} |"
+            )
         lines.append("")
-        for obs in drilldown_obs:
-            lines.append(f"#### 钻取详情：{obs.data.get('target_id', '?')}\n")
-            _render_drilldown_detail_data(lines, obs.data or {})
-        for obs in batch_obs:
-            data = obs.data or {}
-            for pt in data.get("per_target", []):
-                pseudo = {
-                    "target_id": pt.get("target_id", "?"),
-                    "pre_summary": pt.get("pre_summary", {}),
-                    "during_summary": pt.get("during_summary", {}),
-                    "post_summary": pt.get("post_summary", {}),
-                    "interpretation_hint": pt.get("interpretation_hint", ""),
-                    "transition_findings": pt.get("transition_findings", []),
-                    "divergence_notes": pt.get("divergence_notes", []),
-                    "target_event_info": pt.get("target_event_info", {}),
-                    "semantic_overlap": pt.get("semantic_overlap", {}),
-                }
-                lines.append(f"#### 钻取详情：{pt.get('target_id', '?')}\n")
-                _render_drilldown_detail_data(lines, pseudo)
+        for dv in vm.drilldown_views:
+            lines.append(f"#### 钻取详情：{dv.target_id}\n")
+            _render_drilldown_view_detail(lines, dv)
 
     # 7.5 Top cases audit table
     if vm.audit_top_cases:
@@ -437,9 +404,9 @@ def _build_section_7(lines: list[str], state: InvestigationState, d: dict, vm: R
         lines.append("")
 
     # 7.9 Cross-file patterns
-    if state.cross_file_patterns:
+    if vm.cross_file_patterns_safe:
         lines.append("### 跨文件模式\n")
-        for p in state.cross_file_patterns:
+        for p in vm.cross_file_patterns_safe:
             lines.append(f"- {p}")
         lines.append("")
 

@@ -80,6 +80,26 @@ class QuestionView:
 
 
 @dataclass
+class DrilldownView:
+    """Sanitized drilldown result for report rendering."""
+    target_id: str
+    # Compact table fields (sanitized)
+    compact_pre: str
+    compact_during: str
+    compact_post: str
+    safe_hint: str  # sanitized interpretation_hint
+    # Structured data for detail rendering (numbers only, no free text)
+    target_event_info: dict = field(default_factory=dict)
+    semantic_overlap: dict = field(default_factory=dict)
+    pre_summary: dict = field(default_factory=dict)
+    during_summary: dict = field(default_factory=dict)
+    post_summary: dict = field(default_factory=dict)
+    # Sanitized text fields
+    safe_divergence_notes: list[str] = field(default_factory=list)
+    safe_transition_findings: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ReportViewModel:
     """Single source of truth for all visible report text."""
 
@@ -110,6 +130,9 @@ class ReportViewModel:
     trace_rows: list[ReactTraceRow] = field(default_factory=list)
     llm_call_rows: list[LlmCallRow] = field(default_factory=list)
 
+    # Section 7.4 drilldown (sanitized)
+    drilldown_views: list[DrilldownView] = field(default_factory=list)
+
     # Section 7 consistency
     consistency_items: list[ConsistencyItem] = field(default_factory=list)
 
@@ -123,6 +146,9 @@ class ReportViewModel:
     llm_success_count: int = 0
     llm_fallback_count: int = 0
     llm_model: str = ""
+
+    # Section 7.9 cross-file
+    cross_file_patterns_safe: list[str] = field(default_factory=list)
 
     # For report_checker
     drilled_case_ids: set[str] = field(default_factory=set)
@@ -257,6 +283,59 @@ def _build_drilldown_map(state: InvestigationState) -> dict[str, dict]:
     return m
 
 
+def _build_drilldown_views(state: InvestigationState) -> list[DrilldownView]:
+    """Build sanitized drilldown views from observations — no raw free-text leaks."""
+    views: list[DrilldownView] = []
+    for obs in state.observations:
+        if obs.action == "drilldown_time_window":
+            dv = _make_drilldown_view(obs.data or {})
+            if dv:
+                views.append(dv)
+        elif obs.action == "drilldown_time_windows_batch":
+            for pt in (obs.data.get("per_target") or []):
+                dv = _make_drilldown_view(pt)
+                if dv:
+                    views.append(dv)
+    return views
+
+
+def _make_drilldown_view(data: dict) -> DrilldownView | None:
+    """Sanitize a single drilldown result into a safe view."""
+    tid = data.get("target_id", "")
+    if not tid:
+        return None
+
+    def _compact(field: str) -> str:
+        return (data.get(field, "") or "").replace("|", "/")[:40]
+
+    def _sanitize_hint(raw: str) -> str:
+        text = sanitize_findings(raw).replace("|", "/")
+        for bad in _FORBIDDEN_NATURE_LABELS:
+            text = text.replace(bad, "")
+        return text.strip("，、, ")[:80]
+
+    return DrilldownView(
+        target_id=tid,
+        compact_pre=_compact("compact_pre"),
+        compact_during=_compact("compact_during"),
+        compact_post=_compact("compact_post"),
+        safe_hint=_sanitize_hint(data.get("interpretation_hint", "") or ""),
+        target_event_info=data.get("target_event_info", {}) or {},
+        semantic_overlap=data.get("semantic_overlap", {}) or {},
+        pre_summary=data.get("pre_summary", {}) or {},
+        during_summary=data.get("during_summary", {}) or {},
+        post_summary=data.get("post_summary", {}) or {},
+        safe_divergence_notes=[
+            sanitize_findings(n).replace("|", "/")
+            for n in (data.get("divergence_notes") or [])
+        ],
+        safe_transition_findings=[
+            sanitize_findings(f).replace("|", "/")
+            for f in (data.get("transition_findings") or [])
+        ],
+    )
+
+
 def _safe_csv_observation(hint: str, case_type: str) -> str:
     """Extract CSV-visible facts only. No nature/classification labels."""
     facts: list[str] = []
@@ -333,7 +412,7 @@ def _build_ser_text(state: InvestigationState) -> list[str]:
         if data.get("all_stopped_overlap"):
             lines.append("- 当前判断：SER 事件多出现在停机期间，暂不能证明是推进中真实阻力异常")
         elif in_adv > 0.5 and data.get("near_stoppage"):
-            lines.append("- 当前判断：推进中存在 SER，且与停机时段相邻，可能是停机诱因")
+            lines.append("- 当前判断：推进中存在 SER，且与停机时段相邻，当前未证明为停机原因，需结合地质/操作记录核查")
         elif in_adv > 0.5:
             lines.append("- 当前判断：推进中存在 SER，但与停机的关联不明确")
         else:
@@ -624,21 +703,73 @@ def _build_consistency(state, drilled_ids) -> tuple[list[ConsistencyItem], dict[
     return items, corrected_types
 
 
-def _build_questions(state) -> list[QuestionView]:
-    """Section 7: sanitized investigation questions."""
+def _build_questions(state, ledger) -> list[QuestionView]:
+    """Section 7: all question findings regenerated from rules, not from raw findings."""
     views: list[QuestionView] = []
     for q in state.investigation_questions:
-        fs = (q.findings[-1][:40] if q.findings else
-              (q.reason_if_unanswered[:40] if q.reason_if_unanswered else "—"))
-        fs = sanitize_findings(fs).replace("|", "/")
+        safe_fs = _safe_question_finding(q, state, ledger)
         views.append(QuestionView(
             qid=q.qid, text=q.text,
             status_label=_Q_STATUS_LABELS.get(q.status, q.status),
             tools_called=", ".join(q.tools_called) if q.tools_called else "—",
-            safe_findings=fs,
+            safe_findings=safe_fs,
             needs_manual_check=q.needs_manual_check,
         ))
     return views
+
+
+def _safe_question_finding(q, state, ledger) -> str:
+    """Generate safe findings text per question based on rules, never raw findings."""
+    text_lower = q.text.lower()
+
+    # HYD-related questions
+    if any(kw in text_lower for kw in ("hyd", "液压", "hydraulic")):
+        if ledger is None or not ledger.hyd_analysis_executed:
+            return "本轮未执行独立 HYD 模式分析；暂不作为主因判断。"
+        if ledger.hyd_duration_hours == 0.0 and ledger.hyd_event_count > 0:
+            return "HYD 有记录但总时长为 0.0h，需核查统计口径；暂不作为主因判断。"
+        if ledger.hyd_event_count > 0:
+            return f"HYD 事件 {ledger.hyd_event_count} 个，需进一步核查。"
+        return "液压分析已执行，未发现明显异常。"
+
+    # SER-related questions
+    if any(kw in text_lower for kw in ("ser", "掘进阻力", "resistance")):
+        for obs in state.observations:
+            if obs.action == "analyze_resistance_pattern":
+                data = obs.data or {}
+                ratio = data.get("in_advancing_ratio", 0)
+                return f"SER 推进中占比 {ratio:.0%}，当前未证明为停机原因。"
+        return "未执行掘进阻力分析。"
+
+    # Stoppage-related questions
+    if any(kw in text_lower for kw in ("停机", "stoppage")):
+        cov = compute_drilldown_coverage(state)
+        total = cov["total_count"]
+        covered = cov["covered_count"]
+        if total > 0:
+            return f"共识别 {total} 段停机，已逐案检查 {covered}/{total}。"
+        return "未检测到停机事件。"
+
+    # Fragmentation-related questions
+    if any(kw in text_lower for kw in ("碎片化", "fragmentation")):
+        for obs in state.observations:
+            if obs.action == "analyze_event_fragmentation":
+                data = obs.data or {}
+                short_r = data.get("short_event_ratio", 0)
+                frag = data.get("fragmentation_risk", False)
+                risk = "高" if frag else "低"
+                return f"短事件占比 {short_r:.0%}，碎片化风险{risk}。"
+        return "未执行碎片化分析。"
+
+    # Default: answer from tools_called + status, never raw findings
+    if q.status == "unanswered":
+        return "未获得足够证据回答此问题。"
+    if q.status == "blocked_by_missing_data":
+        return "缺少必要数据，无法回答。"
+    # For answered/partially_answered: summarize from tools called, not raw text
+    if q.tools_called:
+        return f"已调用 {', '.join(q.tools_called[:3])} 分析，详见报告正文。"
+    return "—".replace("|", "/")
 
 
 def _build_planner_audit(state) -> dict:
@@ -720,8 +851,11 @@ def build_report_view_model(state: InvestigationState) -> ReportViewModel:
     # Section 7 trace
     vm.trace_rows, vm.llm_call_rows = _build_trace(state)
 
+    # Section 7.4 drilldown (sanitized)
+    vm.drilldown_views = _build_drilldown_views(state)
+
     # Section 7 questions
-    vm.question_views = _build_questions(state)
+    vm.question_views = _build_questions(state, ledger)
 
     # Planner audit
     pa = _build_planner_audit(state)
@@ -731,5 +865,10 @@ def build_report_view_model(state: InvestigationState) -> ReportViewModel:
     vm.llm_success_count = pa["success_count"]
     vm.llm_fallback_count = pa["fallback_count"]
     vm.llm_model = pa["model"]
+
+    # Cross-file patterns (sanitized)
+    vm.cross_file_patterns_safe = [
+        sanitize_findings(p) for p in (state.cross_file_patterns or [])
+    ]
 
     return vm

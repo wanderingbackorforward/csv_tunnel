@@ -835,6 +835,7 @@ def _cmd_llm_planner_check(args: argparse.Namespace) -> int:
     import json
 
     cfg = load_config(getattr(args, "config", None))
+    use_complex = getattr(args, "complex", False)
 
     api_key = os.environ.get(cfg.llm.api_key_env, "").strip()
     base_url = os.environ.get(cfg.llm.base_url_env, "").strip() or None
@@ -842,7 +843,8 @@ def _cmd_llm_planner_check(args: argparse.Namespace) -> int:
 
     use_reasoning_split = os.environ.get("LLM_REASONING_SPLIT", "").strip().lower() in ("true", "1", "yes")
 
-    print("[llm-planner-check] LLM Planner 可用性测试")
+    mode_label = "复杂真实 context" if use_complex else "简单固定 prompt"
+    print(f"[llm-planner-check] LLM Planner 可用性测试（{mode_label}）")
     print(f"  Provider        : {base_url or 'api.openai.com'}")
     print(f"  Model           : {model}")
     print(f"  reasoning_split : {use_reasoning_split}")
@@ -858,60 +860,130 @@ def _cmd_llm_planner_check(args: argparse.Namespace) -> int:
         print("\n✗ 状态: no_sdk — openai SDK 未安装")
         return 1
 
-    from tbm_diag.investigation.planner import parse_planner_response, LLM_TOOL_WHITELIST, _LLM_SYSTEM_PROMPT, _TBM_GLOSSARY
+    from tbm_diag.investigation.planner import (
+        parse_planner_response, LLM_TOOL_WHITELIST, _LLM_SYSTEM_PROMPT_MINIMAL,
+    )
 
-    scenarios = [
-        {
-            "name": "场景1: 初始状态，应选 inspect_file_overview",
-            "state": {
-                "mode": "single_file", "focus": "auto", "current_file": "test.csv",
-                "round": 1, "max_iterations": 15,
-                "actions_done": [],
-                "last_observation": "尚未检查文件概览",
-                "indicators": {"event_count": 0, "stoppage_segment_count": 0,
-                               "stopped_ratio_pct": 0, "ser_count": 0, "hyd_count": 0},
-                "evidence_status": {"stoppage_case_count": 0, "drilldown_sc_count": 0, "unverified_not_drilled": []},
-                "open_questions": [],
-                "available_tools": list(LLM_TOOL_WHITELIST),
-                "completed_tools": [],
+    if use_complex:
+        scenarios = [
+            {
+                "name": "场景A: 有停机case，coverage=0/11，不允许report",
+                "ctx": {
+                    "round": 5,
+                    "recent_actions": ["inspect_file_overview", "load_event_summary", "analyze_stoppage_cases"],
+                    "last_obs": "10个停机案例，共17.4h，尚未drilldown",
+                    "stoppage_cases": 11, "drilldown_done": 0,
+                    "ser_count": 195, "hyd_count": 27,
+                    "stopped_pct": 71, "event_count": 297,
+                    "unverified_count": 5,
+                    "plan_status": {"P1": "in_progress", "P2": "pending", "P3": "pending", "P4": "pending"},
+                    "questions": ["Q1:unanswered", "Q2:unanswered", "Q3:unanswered"],
+                    "allowed_actions": ["drilldown_time_window", "drilldown_time_windows_batch",
+                                        "analyze_resistance_pattern", "analyze_hydraulic_pattern",
+                                        "analyze_event_fragmentation", "generate_investigation_report"],
+                    "rule_recommended": "drilldown_time_windows_batch",
+                    "rule_reason": "11个停机案例drilldown覆盖0个，需批量钻取",
+                },
+                "expected_actions": ["drilldown_time_window", "drilldown_time_windows_batch", "analyze_stoppage_cases"],
             },
-            "expected_actions": ["inspect_file_overview"],
-        },
-        {
-            "name": "场景2: 11个停机案例未drilldown，应选停机分析",
-            "state": {
-                "mode": "single_file", "focus": "auto", "current_file": "test.csv",
-                "round": 4, "max_iterations": 15,
-                "actions_done": ["inspect_file_overview", "load_event_summary"],
-                "last_observation": "已有 11 个停机案例，drilldown_count=0，存在未验证停机线索",
-                "indicators": {"event_count": 25, "stoppage_segment_count": 11,
-                               "stopped_ratio_pct": 45, "ser_count": 3, "hyd_count": 2},
-                "evidence_status": {"stoppage_case_count": 11, "drilldown_sc_count": 0,
-                                    "unverified_not_drilled": ["SC_001", "SC_002", "SC_003"]},
-                "open_questions": [{"qid": "Q1", "text": "停机原因是什么", "priority": "high", "status": "unanswered"}],
-                "available_tools": [t for t in LLM_TOOL_WHITELIST if t not in ("inspect_file_overview", "load_event_summary")],
-                "completed_tools": ["inspect_file_overview", "load_event_summary"],
+            {
+                "name": "场景B: P1完成，P2未完成，SER高",
+                "ctx": {
+                    "round": 8,
+                    "recent_actions": ["analyze_stoppage_cases", "drilldown_time_window", "drilldown_time_window", "analyze_resistance_pattern"],
+                    "last_obs": "SER事件39个，共18.5h，推进中占比8%，时间集中，靠近停机",
+                    "stoppage_cases": 11, "drilldown_done": 3,
+                    "ser_count": 195, "hyd_count": 27,
+                    "stopped_pct": 71, "event_count": 297,
+                    "unverified_count": 2,
+                    "plan_status": {"P1": "completed", "P2": "in_progress", "P3": "pending", "P4": "pending"},
+                    "questions": ["Q1:answered", "Q2:partially_answered", "Q3:unanswered"],
+                    "allowed_actions": ["drilldown_time_window", "drilldown_time_windows_batch",
+                                        "analyze_hydraulic_pattern", "analyze_event_fragmentation",
+                                        "generate_investigation_report"],
+                    "rule_recommended": "drilldown_time_window",
+                    "rule_reason": "对SER事件SER_014做窗口钻取（来自resistance分析top目标）",
+                },
+                "expected_actions": ["drilldown_time_window", "analyze_resistance_pattern", "analyze_hydraulic_pattern"],
             },
-            "expected_actions": ["analyze_stoppage_cases", "drilldown_time_window", "drilldown_time_windows_batch"],
-        },
-        {
-            "name": "场景3: 所有分析完成，应选 generate_investigation_report",
-            "state": {
-                "mode": "single_file", "focus": "auto", "current_file": "test.csv",
-                "round": 12, "max_iterations": 15,
-                "actions_done": list(LLM_TOOL_WHITELIST),
-                "last_observation": "P1/P2/P3/P4 已完成，coverage 足够，质量门禁通过",
-                "indicators": {"event_count": 25, "stoppage_segment_count": 11,
-                               "stopped_ratio_pct": 45, "ser_count": 3, "hyd_count": 2},
-                "evidence_status": {"stoppage_case_count": 11, "drilldown_sc_count": 11,
-                                    "unverified_not_drilled": []},
-                "open_questions": [],
-                "available_tools": ["generate_investigation_report"],
-                "completed_tools": [t for t in LLM_TOOL_WHITELIST if t != "generate_investigation_report"],
+            {
+                "name": "场景C: P1-P4完成，quality_gate warning，无critical",
+                "ctx": {
+                    "round": 14,
+                    "recent_actions": ["analyze_stoppage_cases", "analyze_resistance_pattern",
+                                       "analyze_hydraulic_pattern", "analyze_event_fragmentation",
+                                       "drilldown_time_window"],
+                    "last_obs": "事件81个，平均1642s，短事件占比16%，碎片化风险低",
+                    "stoppage_cases": 11, "drilldown_done": 11,
+                    "ser_count": 195, "hyd_count": 27,
+                    "stopped_pct": 71, "event_count": 297,
+                    "unverified_count": 0,
+                    "plan_status": {"P1": "completed", "P2": "completed", "P3": "completed", "P4": "completed"},
+                    "questions": [],
+                    "allowed_actions": ["generate_investigation_report"],
+                    "rule_recommended": "generate_investigation_report",
+                    "rule_reason": "证据收集完成，生成报告",
+                },
+                "expected_actions": ["generate_investigation_report"],
             },
-            "expected_actions": ["generate_investigation_report"],
-        },
-    ]
+        ]
+    else:
+        scenarios = [
+            {
+                "name": "场景1: 初始状态，应选 inspect_file_overview",
+                "ctx": {
+                    "round": 1,
+                    "recent_actions": [],
+                    "last_obs": "尚未检查文件概览",
+                    "stoppage_cases": 0, "drilldown_done": 0,
+                    "ser_count": 0, "hyd_count": 0,
+                    "stopped_pct": 0, "event_count": 0,
+                    "unverified_count": 0,
+                    "plan_status": {},
+                    "questions": [],
+                    "allowed_actions": list(LLM_TOOL_WHITELIST),
+                    "rule_recommended": "inspect_file_overview",
+                    "rule_reason": "尚未检查当前文件概览",
+                },
+                "expected_actions": ["inspect_file_overview"],
+            },
+            {
+                "name": "场景2: 11个停机案例未drilldown，应选停机分析",
+                "ctx": {
+                    "round": 4,
+                    "recent_actions": ["inspect_file_overview", "load_event_summary"],
+                    "last_obs": "已有11个停机案例，drilldown_count=0",
+                    "stoppage_cases": 11, "drilldown_done": 0,
+                    "ser_count": 3, "hyd_count": 2,
+                    "stopped_pct": 45, "event_count": 25,
+                    "unverified_count": 3,
+                    "plan_status": {"P1": "pending", "P2": "pending"},
+                    "questions": ["Q1:unanswered"],
+                    "allowed_actions": [t for t in LLM_TOOL_WHITELIST if t not in ("inspect_file_overview", "load_event_summary")],
+                    "rule_recommended": "analyze_stoppage_cases",
+                    "rule_reason": "11个停机案例尚未分析",
+                },
+                "expected_actions": ["analyze_stoppage_cases", "drilldown_time_window", "drilldown_time_windows_batch"],
+            },
+            {
+                "name": "场景3: 所有分析完成，应选 generate_investigation_report",
+                "ctx": {
+                    "round": 12,
+                    "recent_actions": list(LLM_TOOL_WHITELIST)[-5:],
+                    "last_obs": "P1/P2/P3/P4已完成，coverage足够",
+                    "stoppage_cases": 11, "drilldown_done": 11,
+                    "ser_count": 3, "hyd_count": 2,
+                    "stopped_pct": 45, "event_count": 25,
+                    "unverified_count": 0,
+                    "plan_status": {"P1": "completed", "P2": "completed", "P3": "completed", "P4": "completed"},
+                    "questions": [],
+                    "allowed_actions": ["generate_investigation_report"],
+                    "rule_recommended": "generate_investigation_report",
+                    "rule_reason": "证据收集完成，生成报告",
+                },
+                "expected_actions": ["generate_investigation_report"],
+            },
+        ]
 
     client = OpenAI(api_key=api_key, base_url=base_url)
     success_count = 0
@@ -919,21 +991,20 @@ def _cmd_llm_planner_check(args: argparse.Namespace) -> int:
     schema_invalid_count = 0
     invalid_action_count = 0
 
-    for i, sc in enumerate(scenarios):
+    for sc in scenarios:
         print(f"\n{'='*60}")
         print(f"  {sc['name']}")
-        available = sc["state"].get("available_tools", LLM_TOOL_WHITELIST)
-        system_msg = _LLM_SYSTEM_PROMPT.format(tools=", ".join(available), glossary=_TBM_GLOSSARY)
-        user_msg = json.dumps(sc["state"], ensure_ascii=False)
+        user_msg = json.dumps(sc["ctx"], ensure_ascii=False)
+        print(f"  prompt length   : {len(user_msg)} chars")
 
         create_kwargs: dict = dict(
             model=model,
             messages=[
-                {"role": "system", "content": system_msg},
+                {"role": "system", "content": _LLM_SYSTEM_PROMPT_MINIMAL},
                 {"role": "user", "content": user_msg},
             ],
-            max_tokens=512,
-            temperature=0.2,
+            max_tokens=1024,
+            temperature=0.1,
             timeout=30,
         )
         if use_reasoning_split:
@@ -982,7 +1053,7 @@ def _cmd_llm_planner_check(args: argparse.Namespace) -> int:
             parse_error_count += 1
 
     print(f"\n{'='*60}")
-    print(f"[llm-planner-check] 结果汇总")
+    print(f"[llm-planner-check] 结果汇总（{mode_label}）")
     print(f"  Provider        : {base_url or 'api.openai.com'}")
     print(f"  Model           : {model}")
     print(f"  success_count   : {success_count}/3")
@@ -1432,6 +1503,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_planner.add_argument("--config", default=None, metavar="PATH",
                            help="配置文件路径")
+    p_planner.add_argument("--complex", action="store_true",
+                           help="使用复杂真实 context 测试 planner")
 
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)

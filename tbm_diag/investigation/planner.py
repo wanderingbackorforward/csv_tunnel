@@ -309,41 +309,91 @@ def _compress_state(state: InvestigationState) -> dict[str, Any]:
     }
 
 
-_TBM_GLOSSARY = """TBM 术语表（严格遵守，禁止误翻）：
-- SER = suspected_excavation_resistance = 疑似掘进阻力异常（不是"电阻"）
-- HYD = hydraulic_instability = 液压系统不稳定
-- LEE = low_efficiency_excavation = 低效掘进
-- stoppage_segment = 停机片段
-- normal_excavation = 正常推进
-- heavy_load_excavation = 重载推进
-- low_load_operation = 低负载运行
-- drilldown = 时间窗口钻取"""
+def build_planner_decision_context(state: InvestigationState) -> dict[str, Any]:
+    """构建极简 planner decision context，限制 token 量。
 
-_LLM_SYSTEM_PROMPT = """你是 TBM 停机案例追查 agent 的决策器。根据当前调查状态，从可用工具中选择下一步 action。
+    与 _compress_state 不同，这个函数只返回决策必需的字段，
+    并包含 rule_recommended_action 供 LLM 参考。
+    """
+    overview = state.file_overviews.get(state.current_file)
+    sem_dist = overview.semantic_event_distribution if overview else {}
+    state_dist = overview.state_distribution if overview else {}
 
-{glossary}
+    actions_done = [a.action for a in state.actions_taken]
+    recent_actions = actions_done[-5:]
 
-可用工具白名单: {tools}
+    stoppage_case_count = sum(len(v) for v in state.stoppage_cases.values())
+    drilldown_sc_count = sum(
+        1 for a in state.actions_taken
+        if a.action == "drilldown_time_window"
+        and (a.arguments or {}).get("target_id", "").startswith("SC_")
+    )
+    ser_count = (sem_dist.get("suspected_excavation_resistance", 0)
+                 + sem_dist.get("excavation_resistance_under_load", 0))
+    hyd_count = sem_dist.get("hydraulic_instability", 0)
+    stopped_pct = state_dist.get("stopped", 0)
+    event_count = overview.event_count if overview else 0
 
-【输出格式】严格返回一个 JSON 对象，不要输出任何其他内容：
-- 不要输出 Markdown 代码块（不要写 ```json 或 ```）
-- 不要输出解释文本
-- 不要输出 <think ...> 标签
-- 不要把 JSON 包裹在代码块中
+    unverified_cases = [
+        cid for cid, cls in state.case_classifications.items()
+        if cls.case_type == "event_level_abnormal_unverified"
+    ]
+    drilldown_done_ids = {
+        (a.arguments or {}).get("target_id", "")
+        for a in state.actions_taken
+        if a.action == "drilldown_time_window"
+    }
+    unverified_not_drilled = [cid for cid in unverified_cases if cid not in drilldown_done_ids]
 
-直接输出以下格式的 JSON：
-{{"thought_summary": "不超过80字的中文简述", "selected_action": "tool_name", "arguments": {{}}, "selected_reason": "选择理由", "rejected_actions": [], "stop": false}}
+    available_tools = [t for t in LLM_TOOL_WHITELIST if t not in actions_done]
 
-规则：
-- selected_action 必须在可用工具白名单内
-- 如果所有必要分析已完成，设 selected_action="generate_investigation_report", stop=true
-- arguments 中 file_path 使用 current_file
-- 不要把 SER 翻译为"电阻"
+    last_obs = ""
+    if state.observations:
+        last_obs = (state.observations[-1].result_summary or "")[:200]
 
-硬约束（禁止违反）：
-- 禁止在 stoppage_case_count>0 且 drilldown_count=0 时选择 generate_investigation_report
-- 禁止在存在 event_level_abnormal_unverified 案例且未对其 drilldown 时选择 generate_investigation_report
-- 如果还有明确可执行的 drilldown_time_window 目标，应优先执行 drilldown 再生成报告"""
+    # plan status summary
+    plan_summary = {}
+    if state.investigation_plan:
+        for item in state.investigation_plan.plan_items:
+            plan_summary[item.plan_id] = item.status
+
+    # open questions summary
+    question_summary = []
+    for q in state.investigation_questions:
+        if q.status != "answered":
+            question_summary.append(f"{q.qid}:{q.status}")
+
+    # rule recommendation
+    rule_rec = _fallback_plan(state)
+    rule_recommended = rule_rec.get("action", "")
+    rule_reason = rule_rec.get("rationale", "")[:100]
+
+    return {
+        "round": state.iteration_count,
+        "recent_actions": recent_actions,
+        "last_obs": last_obs,
+        "stoppage_cases": stoppage_case_count,
+        "drilldown_done": drilldown_sc_count,
+        "ser_count": ser_count,
+        "hyd_count": hyd_count,
+        "stopped_pct": round(stopped_pct),
+        "event_count": event_count,
+        "unverified_count": len(unverified_not_drilled),
+        "plan_status": plan_summary,
+        "questions": question_summary,
+        "allowed_actions": available_tools,
+        "rule_recommended": rule_recommended,
+        "rule_reason": rule_reason,
+    }
+
+
+_LLM_SYSTEM_PROMPT_MINIMAL = """你是 TBM 调查决策器。从 allowed_actions 中选一个动作。
+rule_recommended 是规则系统推荐的动作，没有充分理由请选择它。
+
+只输出 JSON: {"selected_action": "动作名", "selected_reason": "理由", "stop": false}
+
+禁止输出 <think ...> 标签。禁止输出 markdown。只输出 JSON。
+SER 是掘进阻力异常，不是电阻。"""
 
 
 def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[dict[str, Any]], LlmCallRecord]:
@@ -376,9 +426,8 @@ def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[
     if base_url:
         client_kwargs["base_url"] = base_url
 
-    compressed = _compress_state(state)
-    available = compressed.get("available_tools", LLM_TOOL_WHITELIST)
-    system_msg = _LLM_SYSTEM_PROMPT.format(tools=", ".join(available), glossary=_TBM_GLOSSARY)
+    # 使用极简 context + rule recommendation
+    ctx = build_planner_decision_context(state)
 
     client = OpenAI(**client_kwargs)
     t0 = time.time()
@@ -390,11 +439,11 @@ def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[
         create_kwargs: dict[str, Any] = dict(
             model=model,
             messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": json.dumps(compressed, ensure_ascii=False)},
+                {"role": "system", "content": _LLM_SYSTEM_PROMPT_MINIMAL},
+                {"role": "user", "content": json.dumps(ctx, ensure_ascii=False)},
             ],
-            max_tokens=512,
-            temperature=0.2,
+            max_tokens=1024,
+            temperature=0.1,
             timeout=30,
         )
         if use_reasoning_split:

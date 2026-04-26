@@ -278,7 +278,40 @@ def _build_section_1_executive(lines: list[str], state: InvestigationState) -> N
     if not es and not fc:
         return
     lines.append("## 1. 调查结论总览\n")
+
+    # 运行质量卡片（首屏最上方）
+    lines.append("### 运行质量\n")
+    _RUN_ZH = {"success": "成功", "partial": "部分成功", "failed_degraded": "失败/降级"}
+    _Q_ZH = {"passed": "通过", "warning": "有警告", "failed": "未通过"}
+    run_label = _RUN_ZH.get(es.run_status, es.run_status) if es else "未知"
+    q_label = _Q_ZH.get(es.report_quality_status, es.report_quality_status) if es else "未知"
+    lines.append(f"- 调查运行状态：**{run_label}**")
     if es:
+        lines.append(f"- 实际 planner：{es.actual_planner_label}")
+        lines.append(f"- LLM 成功率：{es.llm_success_ratio_text}")
+    lines.append(f"- 报告质量门禁：**{q_label}**")
+    lines.append("")
+
+    # LLM 0 成功醒目告警
+    if state.planner_runtime_status == "llm_unavailable":
+        lines.append("> **警告：本次 LLM planner 0 次成功，所有决策均由规则 fallback 完成。"
+                     "本报告不能视为 LLM ReAct 结果。**")
+        lines.append("")
+    elif state.planner_runtime_status == "llm_unstable":
+        lines.append("> **注意：LLM planner 不稳定，部分决策由规则 fallback 接管。**")
+        lines.append("")
+
+    # 质量门禁失败时追加提示
+    if state.report_quality_status == "failed":
+        lines.append("> **质量门禁未通过。** 建议运行 `python -m tbm_diag.cli llm-planner-check` "
+                     "检查 LLM planner 可用性，或切换标准调查 `--planner hybrid`。")
+        for issue in state.report_quality_issues:
+            if issue.severity == "critical":
+                lines.append(f"> - {issue.message}")
+        lines.append("")
+
+    if es:
+        lines.append("### 调查结论\n")
         lines.append(f"- 调查状态：{es.status_label_zh}")
         lines.append(f"- 置信度：{es.confidence_label_zh}")
         lines.append(f"- 主要问题类型：{es.main_problem_type}")
@@ -306,6 +339,7 @@ def _build_section_1_executive(lines: list[str], state: InvestigationState) -> N
             lines.append(f"**建议：** {es.recommendation_for_user}")
             lines.append("")
     else:
+        lines.append("### 调查结论\n")
         _CONV = {"converged": "已收敛", "partially_converged": "部分收敛", "not_converged": "未收敛"}
         _CL = {"high": "高", "medium": "中", "low": "低"}
         lines.append(f"- 调查状态：{_CONV.get(fc.convergence_status, fc.convergence_status)}")
@@ -371,17 +405,21 @@ def _build_section_2_clarified(lines: list[str], state: InvestigationState, d: d
     if d["hydraulic_obs"]:
         for obs in d["hydraulic_obs"]:
             data = obs.data or {}
+            hyd_dur = data.get("hyd_total_duration_h", 0)
             lines.append(f"- HYD 事件数：{data.get('hyd_count', 0)}")
-            lines.append(f"- HYD 总时长：{data.get('hyd_total_duration_h', 0)}h")
-            near_b = data.get("near_stoppage_boundary", False)
-            lines.append(f"- 是否靠近停机边界：{'是' if near_b else '否'}")
-            isolated = data.get("isolated_short_fluctuation", False)
-            if isolated:
-                lines.append("- 是否构成主因：否（孤立短时波动）")
-            elif near_b:
-                lines.append("- 是否构成主因：待确认（靠近停机边界）")
+            lines.append(f"- HYD 总时长：{hyd_dur}h")
+            if hyd_dur == 0.0 and data.get("hyd_count", 0) > 0:
+                lines.append("- HYD 事件时长统计为 0.0h，疑似显示精度或聚合口径问题，需先核查指标口径")
             else:
-                lines.append("- 是否构成主因：未支持")
+                near_b = data.get("near_stoppage_boundary", False)
+                lines.append(f"- 是否靠近停机边界：{'是' if near_b else '否'}")
+                isolated = data.get("isolated_short_fluctuation", False)
+                if isolated:
+                    lines.append("- 是否构成主因：否（孤立短时波动）")
+                elif near_b:
+                    lines.append("- 是否构成主因：待确认（靠近停机边界）")
+                else:
+                    lines.append("- 是否构成主因：未支持")
     else:
         lines.append("未执行液压分析。")
     lines.append("")

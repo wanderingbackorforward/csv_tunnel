@@ -142,6 +142,8 @@ class LlmCallRecord:
     raw_preview: str = ""
     error_message: str = ""
     latency_seconds: float = 0.0
+    parse_strategy: str = ""
+    cleaned_preview: str = ""
 
 
 @dataclass
@@ -163,6 +165,24 @@ class PlannerAuditRecord:
 
 
 @dataclass
+class PlannerParseResult:
+    status: str = ""  # success / empty_content / tool_call_found / json_not_found / json_invalid / schema_invalid
+    parsed: Optional[dict[str, Any]] = None
+    raw_content: str = ""
+    cleaned_content: str = ""
+    raw_preview: str = ""
+    error_message: str = ""
+    parse_strategy: str = ""  # tool_call / direct_json / code_fence / balanced_scan
+
+
+@dataclass
+class ReportQualityIssue:
+    severity: str = ""  # critical / warning / info
+    code: str = ""
+    message: str = ""
+
+
+@dataclass
 class ExecutiveSummary:
     status_label_zh: str = ""
     confidence_label_zh: str = ""
@@ -173,6 +193,10 @@ class ExecutiveSummary:
     next_manual_checks: list[str] = field(default_factory=list)
     coverage_summary: str = ""
     recommendation_for_user: str = ""
+    run_status: str = ""  # success / partial / failed_degraded
+    actual_planner_label: str = ""  # LLM planner / LLM planner 不稳定 / rule fallback / rule planner
+    llm_success_ratio_text: str = ""  # "3/10"
+    report_quality_status: str = ""  # passed / warning / failed
 
 
 @dataclass
@@ -229,6 +253,9 @@ class InvestigationState:
     investigation_questions: list[OpenQuestion] = field(default_factory=list)
     investigation_plan: Optional[InvestigationPlan] = None
     executive_summary: Optional[ExecutiveSummary] = None
+    planner_runtime_status: str = ""  # "" / llm_ok / llm_unstable / llm_unavailable
+    report_quality_status: str = ""  # passed / warning / failed
+    report_quality_issues: list[ReportQualityIssue] = field(default_factory=list)
 
 
 def compute_drilldown_coverage(state: InvestigationState) -> dict[str, Any]:

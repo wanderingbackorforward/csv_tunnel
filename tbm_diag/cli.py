@@ -829,6 +829,175 @@ def _cmd_llm_check(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_llm_planner_check(args: argparse.Namespace) -> int:
+    """llm-planner-check：测试 LLM planner 是否能稳定返回可解析 action。"""
+    import os
+    import json
+
+    cfg = load_config(getattr(args, "config", None))
+
+    api_key = os.environ.get(cfg.llm.api_key_env, "").strip()
+    base_url = os.environ.get(cfg.llm.base_url_env, "").strip() or None
+    model = os.environ.get("LLM_MODEL", "").strip() or cfg.llm.model
+
+    use_reasoning_split = os.environ.get("LLM_REASONING_SPLIT", "").strip().lower() in ("true", "1", "yes")
+
+    print("[llm-planner-check] LLM Planner 可用性测试")
+    print(f"  Provider        : {base_url or 'api.openai.com'}")
+    print(f"  Model           : {model}")
+    print(f"  reasoning_split : {use_reasoning_split}")
+    print(f"  API Key         : {'已设置' if api_key else '未设置'}")
+
+    if not api_key:
+        print("\n✗ 状态: no_key — 未设置 API Key")
+        return 1
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        print("\n✗ 状态: no_sdk — openai SDK 未安装")
+        return 1
+
+    from tbm_diag.investigation.planner import parse_planner_response, LLM_TOOL_WHITELIST, _LLM_SYSTEM_PROMPT, _TBM_GLOSSARY
+
+    scenarios = [
+        {
+            "name": "场景1: 初始状态，应选 inspect_file_overview",
+            "state": {
+                "mode": "single_file", "focus": "auto", "current_file": "test.csv",
+                "round": 1, "max_iterations": 15,
+                "actions_done": [],
+                "last_observation": "尚未检查文件概览",
+                "indicators": {"event_count": 0, "stoppage_segment_count": 0,
+                               "stopped_ratio_pct": 0, "ser_count": 0, "hyd_count": 0},
+                "evidence_status": {"stoppage_case_count": 0, "drilldown_sc_count": 0, "unverified_not_drilled": []},
+                "open_questions": [],
+                "available_tools": list(LLM_TOOL_WHITELIST),
+                "completed_tools": [],
+            },
+            "expected_actions": ["inspect_file_overview"],
+        },
+        {
+            "name": "场景2: 11个停机案例未drilldown，应选停机分析",
+            "state": {
+                "mode": "single_file", "focus": "auto", "current_file": "test.csv",
+                "round": 4, "max_iterations": 15,
+                "actions_done": ["inspect_file_overview", "load_event_summary"],
+                "last_observation": "已有 11 个停机案例，drilldown_count=0，存在未验证停机线索",
+                "indicators": {"event_count": 25, "stoppage_segment_count": 11,
+                               "stopped_ratio_pct": 45, "ser_count": 3, "hyd_count": 2},
+                "evidence_status": {"stoppage_case_count": 11, "drilldown_sc_count": 0,
+                                    "unverified_not_drilled": ["SC_001", "SC_002", "SC_003"]},
+                "open_questions": [{"qid": "Q1", "text": "停机原因是什么", "priority": "high", "status": "unanswered"}],
+                "available_tools": [t for t in LLM_TOOL_WHITELIST if t not in ("inspect_file_overview", "load_event_summary")],
+                "completed_tools": ["inspect_file_overview", "load_event_summary"],
+            },
+            "expected_actions": ["analyze_stoppage_cases", "drilldown_time_window", "drilldown_time_windows_batch"],
+        },
+        {
+            "name": "场景3: 所有分析完成，应选 generate_investigation_report",
+            "state": {
+                "mode": "single_file", "focus": "auto", "current_file": "test.csv",
+                "round": 12, "max_iterations": 15,
+                "actions_done": list(LLM_TOOL_WHITELIST),
+                "last_observation": "P1/P2/P3/P4 已完成，coverage 足够，质量门禁通过",
+                "indicators": {"event_count": 25, "stoppage_segment_count": 11,
+                               "stopped_ratio_pct": 45, "ser_count": 3, "hyd_count": 2},
+                "evidence_status": {"stoppage_case_count": 11, "drilldown_sc_count": 11,
+                                    "unverified_not_drilled": []},
+                "open_questions": [],
+                "available_tools": ["generate_investigation_report"],
+                "completed_tools": [t for t in LLM_TOOL_WHITELIST if t != "generate_investigation_report"],
+            },
+            "expected_actions": ["generate_investigation_report"],
+        },
+    ]
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    success_count = 0
+    parse_error_count = 0
+    schema_invalid_count = 0
+    invalid_action_count = 0
+
+    for i, sc in enumerate(scenarios):
+        print(f"\n{'='*60}")
+        print(f"  {sc['name']}")
+        available = sc["state"].get("available_tools", LLM_TOOL_WHITELIST)
+        system_msg = _LLM_SYSTEM_PROMPT.format(tools=", ".join(available), glossary=_TBM_GLOSSARY)
+        user_msg = json.dumps(sc["state"], ensure_ascii=False)
+
+        create_kwargs: dict = dict(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+            max_tokens=512,
+            temperature=0.2,
+            timeout=30,
+        )
+        if use_reasoning_split:
+            create_kwargs["extra_body"] = {"reasoning_split": True}
+
+        try:
+            try:
+                resp = client.chat.completions.create(**create_kwargs)
+            except Exception as exc:
+                if use_reasoning_split and any(k in str(exc).lower() for k in (
+                    "extra_body", "reasoning_split", "unknown", "invalid", "unexpected", "parameter",
+                )):
+                    create_kwargs.pop("extra_body", None)
+                    resp = client.chat.completions.create(**create_kwargs)
+                else:
+                    raise
+
+            msg = resp.choices[0].message
+            pr = parse_planner_response(msg, whitelist=LLM_TOOL_WHITELIST)
+
+            raw_preview = (pr.raw_content or "")[:200]
+            cleaned_preview = (pr.cleaned_content or "")[:200]
+
+            print(f"  raw_preview     : {raw_preview}")
+            print(f"  cleaned_preview : {cleaned_preview}")
+            print(f"  parse_strategy  : {pr.parse_strategy}")
+            print(f"  status          : {pr.status}")
+
+            if pr.status == "success":
+                action = pr.parsed["selected_action"]
+                print(f"  selected_action : {action}")
+                if action in sc["expected_actions"]:
+                    print(f"  ✓ 符合预期")
+                    success_count += 1
+                else:
+                    print(f"  ✗ 不符合预期（期望 {sc['expected_actions']}）")
+                    invalid_action_count += 1
+            else:
+                print(f"  error_message   : {pr.error_message}")
+                if pr.status in ("schema_invalid",):
+                    schema_invalid_count += 1
+                else:
+                    parse_error_count += 1
+        except Exception as exc:
+            print(f"  ✗ API 异常: {type(exc).__name__}: {str(exc)[:200]}")
+            parse_error_count += 1
+
+    print(f"\n{'='*60}")
+    print(f"[llm-planner-check] 结果汇总")
+    print(f"  Provider        : {base_url or 'api.openai.com'}")
+    print(f"  Model           : {model}")
+    print(f"  success_count   : {success_count}/3")
+    print(f"  parse_error     : {parse_error_count}")
+    print(f"  schema_invalid  : {schema_invalid_count}")
+    print(f"  invalid_action  : {invalid_action_count}")
+
+    if success_count >= 2:
+        print(f"\n✓ LLM planner 可用（success >= 2/3）")
+        return 0
+    else:
+        print(f"\n✗ LLM planner 不可用（success < 2/3），请检查模型输出格式")
+        return 1
+
+
 def _cmd_investigate(args: argparse.Namespace) -> int:
     """investigate 子命令：停机案例追查 ReAct Agent。"""
     _setup_logging(args.verbose)
@@ -1256,6 +1425,14 @@ def main(argv: list[str] | None = None) -> int:
     p_llm.add_argument("--config", default=None, metavar="PATH",
                        help="配置文件路径")
 
+    # ── llm-planner-check 子命令 ──────────────────────────────────────────────
+    p_planner = subparsers.add_parser(
+        "llm-planner-check",
+        help="测试 LLM planner 是否能稳定返回可解析 action（3 个固定场景）",
+    )
+    p_planner.add_argument("--config", default=None, metavar="PATH",
+                           help="配置文件路径")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -1285,6 +1462,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_investigate_modes(args)
     elif args.command == "llm-check":
         return _cmd_llm_check(args)
+    elif args.command == "llm-planner-check":
+        return _cmd_llm_planner_check(args)
     else:
         parser.print_help()
         return 0

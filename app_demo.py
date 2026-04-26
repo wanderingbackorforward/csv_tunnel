@@ -389,9 +389,44 @@ def render_investigation_audit(output_dir: Path) -> None:
         st.error(f"读取 investigation_state.json 失败：{exc}")
         return
 
-    # ── 1. 最终调查结论卡片（executive_summary 优先）──
+    # ── 0. 运行质量卡片（首屏最上方）──
     es = state_doc.get("executive_summary")
     fc = state_doc.get("final_conclusion")
+    _RUN_ZH_GUI = {"success": "成功", "partial": "部分成功", "failed_degraded": "失败/降级"}
+    _Q_ZH_GUI = {"passed": "通过", "warning": "有警告", "failed": "未通过"}
+    run_status = es.get("run_status", "") if isinstance(es, dict) else ""
+    q_status = es.get("report_quality_status", "") if isinstance(es, dict) else ""
+    planner_label = es.get("actual_planner_label", "") if isinstance(es, dict) else ""
+    llm_ratio = es.get("llm_success_ratio_text", "") if isinstance(es, dict) else ""
+
+    if run_status or q_status:
+        st.markdown("#### 运行质量")
+        qc1, qc2, qc3, qc4 = st.columns(4)
+        qc1.metric("调查运行状态", _RUN_ZH_GUI.get(run_status, run_status or "—"))
+        qc2.metric("实际 planner", planner_label or "—")
+        qc3.metric("LLM 成功率", llm_ratio or "—")
+        qc4.metric("报告质量门禁", _Q_ZH_GUI.get(q_status, q_status or "—"))
+
+        if q_status == "failed" or run_status == "failed_degraded":
+            st.error("调查质量未通过门禁。建议：①运行 `llm-planner-check` 检查 LLM 可用性 "
+                     "②切换标准调查 `--planner hybrid` ③检查 MiniMax 输出格式")
+            quality_issues = state_doc.get("report_quality_issues", [])
+            if quality_issues:
+                for qi in quality_issues:
+                    if qi.get("severity") == "critical":
+                        st.warning(f"质量问题：{qi.get('message', '')}")
+        elif q_status == "warning":
+            st.warning("报告质量有警告，结论请参考下方技术审计。")
+
+    # LLM 0 成功醒目提示
+    planner_runtime = state_doc.get("planner_runtime_status", "")
+    if planner_runtime == "llm_unavailable":
+        st.error("本次 LLM planner 0 次成功，所有决策由规则 fallback 完成。"
+                 "本报告不能视为 LLM ReAct 结果。")
+    elif planner_runtime == "llm_unstable":
+        st.warning("LLM planner 不稳定，部分决策由规则 fallback 接管。")
+
+    # ── 1. 最终调查结论卡片（executive_summary 优先）──
     if es and isinstance(es, dict) and es.get("one_sentence_conclusion"):
         st.markdown("#### 调查结论")
         col1, col2, col3 = st.columns(3)

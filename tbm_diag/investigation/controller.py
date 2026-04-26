@@ -932,12 +932,38 @@ def _build_executive_summary(state: InvestigationState) -> None:
         cov_text = "无停机案例"
 
     # recommendation
-    if fc.convergence_status == "converged":
+    if state.report_quality_status == "failed":
+        rec = "调查质量未通过门禁，建议运行 llm-planner-check 或切换标准调查 hybrid"
+    elif fc.convergence_status == "converged":
         rec = "结论已收敛，建议对比施工日志确认疑似结论"
     elif fc.convergence_status == "partially_converged":
         rec = "部分问题未查清，建议增加调查轮数或针对未覆盖案例做专项调查"
     else:
         rec = "调查未收敛，建议使用'深度复核'模式或检查数据质量"
+
+    # 运行质量字段
+    llm_attempted = state.llm_call_count
+    llm_success_ratio_text = f"{state.llm_success_count}/{llm_attempted}" if llm_attempted > 0 else "—"
+
+    if state.planner_runtime_status == "llm_unavailable":
+        actual_planner_label = "rule fallback（LLM 不可用）"
+    elif state.planner_runtime_status == "llm_unstable":
+        actual_planner_label = "LLM planner 不稳定"
+    elif state.planner_runtime_status == "llm_ok":
+        actual_planner_label = "LLM planner"
+    elif state.planner_type == "rule":
+        actual_planner_label = "rule planner"
+    else:
+        actual_planner_label = state.planner_type
+
+    if state.report_quality_status == "failed":
+        run_status = "failed_degraded"
+    elif state.planner_runtime_status == "llm_unavailable":
+        run_status = "failed_degraded"
+    elif state.planner_runtime_status == "llm_unstable" or state.report_quality_status == "warning":
+        run_status = "partial"
+    else:
+        run_status = "success"
 
     state.executive_summary = ExecutiveSummary(
         status_label_zh=_CONV_ZH.get(fc.convergence_status, fc.convergence_status),
@@ -949,6 +975,10 @@ def _build_executive_summary(state: InvestigationState) -> None:
         next_manual_checks=list(fc.next_manual_checks[:4]),
         coverage_summary=cov_text,
         recommendation_for_user=rec,
+        run_status=run_status,
+        actual_planner_label=actual_planner_label,
+        llm_success_ratio_text=llm_success_ratio_text,
+        report_quality_status=state.report_quality_status or "passed",
     )
 
 
@@ -988,6 +1018,10 @@ def run_investigation(
     print(f"[investigate] task={state.task_id} mode={mode} focus={focus} files={len(input_files)}")
     print(f"[investigate] planner={planner_mode}")
 
+    # planner health gate: 追踪前 N 次 LLM 调用是否全失败
+    _planner_health_failed = False
+    _planner_health_check_window = 3
+
     for iteration in range(1, max_iterations + 1):
         state.iteration_count = iteration
 
@@ -1002,8 +1036,21 @@ def run_investigation(
             print(f"[investigate] STOP: {state.stop_reason}")
             break
 
+        # planner health gate: 如果前 3 次 LLM 全失败，后续自动降级为 rule
+        effective_planner = planner_mode
+        if _planner_health_failed:
+            effective_planner = "rule"
+        elif (planner_mode in ("llm", "hybrid")
+              and state.llm_call_count >= _planner_health_check_window
+              and state.llm_success_count == 0):
+            _planner_health_failed = True
+            state.planner_runtime_status = "llm_unavailable"
+            effective_planner = "rule"
+            print(f"[investigate] PLANNER HEALTH GATE: 前 {state.llm_call_count} 次 LLM 调用全部失败，"
+                  f"后续降级为 rule planner")
+
         decision = plan_next_action(state, use_llm=use_llm, audit=planner_audit,
-                                    planner_mode=planner_mode)
+                                    planner_mode=effective_planner)
         action = decision.get("action", "")
         arguments = decision.get("arguments", {})
         rationale = decision.get("rationale", "")
@@ -1152,10 +1199,30 @@ def run_investigation(
     # ── 最终结论（必须在报告生成之前调用）──
     from tbm_diag.investigation.tools import finalize_investigation
     finalize_investigation(state, planner_mode=planner_mode)
+
+    # ── planner runtime status ──
+    llm_attempted = state.llm_call_count
+    if planner_mode in ("llm", "hybrid") and llm_attempted > 0:
+        success_rate = state.llm_success_count / llm_attempted if llm_attempted > 0 else 0
+        if state.llm_success_count == 0:
+            state.planner_runtime_status = "llm_unavailable"
+        elif success_rate < 0.6:
+            state.planner_runtime_status = "llm_unstable"
+        else:
+            state.planner_runtime_status = "llm_ok"
+    else:
+        state.planner_runtime_status = ""
+
+    # ── report quality gate ──
+    from tbm_diag.investigation.quality_gate import validate_report_quality
+    validate_report_quality(state, planner_mode)
+
     _build_executive_summary(state)
     if state.final_conclusion:
         fc = state.final_conclusion
         print(f"[investigate] conclusion: {fc.convergence_status} ({fc.finalizer_type})")
+    print(f"[investigate] planner_runtime_status: {state.planner_runtime_status}")
+    print(f"[investigate] report_quality_status: {state.report_quality_status}")
 
     # 始终重新生成报告以包含最终结论
     from tbm_diag.investigation.report import build_report

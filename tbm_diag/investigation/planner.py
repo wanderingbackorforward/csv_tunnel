@@ -11,11 +11,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-from tbm_diag.investigation.state import InvestigationState, FileOverview, LlmCallRecord
+from tbm_diag.investigation.state import (
+    InvestigationState, FileOverview, LlmCallRecord, PlannerParseResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,206 @@ AVAILABLE_ACTIONS = [
     "analyze_event_fragmentation",
     "drilldown_time_window",
 ]
+
+
+def _strip_think_tags(text: str) -> str:
+    """去除 <think ...>...</think 和未闭合 <think ...> 标签。"""
+    text = re.sub(r"<think[^>]*>.*?</think\s*>", "", text, flags=re.DOTALL)
+    text = re.sub(r"<think[^>]*/>", "", text)
+    text = re.sub(r"<think[^>]*>", "", text)
+    return text.strip()
+
+
+def _strip_code_fence(text: str) -> str:
+    """去除 ```json ... ``` 或 ``` ... ``` 包裹。"""
+    m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    return text
+
+
+def _extract_first_json(text: str) -> Optional[dict[str, Any]]:
+    """用括号平衡扫描从文本中提取第一个完整 JSON object。"""
+    start = text.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                candidate = text[start:i + 1]
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    # 继续往后找下一个 {
+                    next_start = text.find("{", i + 1)
+                    if next_start < 0:
+                        return None
+                    return _extract_first_json(text[next_start:])
+    return None
+
+
+def parse_planner_response(
+    response_message: Any,
+    whitelist: list[str] | None = None,
+) -> PlannerParseResult:
+    """鲁棒解析 LLM planner 响应。
+
+    支持：tool_calls、thinking 标签、code fence、括号平衡 JSON 提取。
+    """
+    if whitelist is None:
+        whitelist = LLM_TOOL_WHITELIST
+
+    raw_content = ""
+    tool_calls = None
+
+    if response_message is not None:
+        raw_content = getattr(response_message, "content", None) or ""
+        if not isinstance(raw_content, str):
+            raw_content = str(raw_content)
+        tool_calls = getattr(response_message, "tool_calls", None)
+
+    # 策略 1: tool_calls
+    if tool_calls:
+        for tc in tool_calls:
+            fn = getattr(tc, "function", None)
+            if fn is None:
+                continue
+            fn_name = getattr(fn, "name", "") or ""
+            fn_args_str = getattr(fn, "arguments", "") or "{}"
+            if fn_name == "planner_decision" or fn_name in whitelist:
+                try:
+                    args = json.loads(fn_args_str) if isinstance(fn_args_str, str) else fn_args_str
+                    action = args.get("selected_action", fn_name)
+                    if action in whitelist:
+                        result = PlannerParseResult(
+                            status="success",
+                            parsed={
+                                "thought_summary": args.get("thought_summary", ""),
+                                "selected_action": action,
+                                "arguments": args.get("arguments", {}),
+                                "selected_reason": args.get("selected_reason", ""),
+                                "rejected_actions": args.get("rejected_actions", []),
+                                "stop": args.get("stop", False),
+                            },
+                            raw_content=raw_content[:1500],
+                            cleaned_content=f"tool_call:{fn_name}",
+                            raw_preview=raw_content[:1500],
+                            parse_strategy="tool_call",
+                        )
+                        return result
+                except json.JSONDecodeError:
+                    pass
+        # tool_calls 存在但没有找到有效的 planner decision
+        return PlannerParseResult(
+            status="tool_call_found",
+            raw_content=raw_content[:1500],
+            raw_preview=raw_content[:1500],
+            error_message="tool_calls 存在但未找到有效的 planner decision",
+            parse_strategy="tool_call",
+        )
+
+    # 策略 2: content 为空
+    if not raw_content.strip():
+        return PlannerParseResult(
+            status="empty_content",
+            raw_content="",
+            error_message="response.content 为空且无 tool_calls",
+            parse_strategy="none",
+        )
+
+    # 策略 3: 清洗 content 并提取 JSON
+    cleaned = _strip_think_tags(raw_content)
+    cleaned = _strip_code_fence(cleaned)
+    cleaned = cleaned.strip()
+
+    # 尝试直接解析
+    parsed = None
+    parse_strategy = ""
+
+    try:
+        parsed = json.loads(cleaned)
+        parse_strategy = "direct_json"
+    except json.JSONDecodeError:
+        pass
+
+    # 直接失败则用括号平衡扫描
+    if parsed is None:
+        parsed = _extract_first_json(cleaned)
+        if parsed is not None:
+            parse_strategy = "balanced_scan"
+
+    if parsed is None:
+        # 最后尝试从原始未清洗文本提取
+        parsed = _extract_first_json(raw_content)
+        if parsed is not None:
+            parse_strategy = "balanced_scan_raw"
+
+    if parsed is None:
+        return PlannerParseResult(
+            status="json_not_found",
+            raw_content=raw_content[:1500],
+            cleaned_content=cleaned[:1500],
+            raw_preview=raw_content[:1500],
+            error_message="清洗后和原始文本中均未找到合法 JSON",
+            parse_strategy="none",
+        )
+
+    # schema 校验
+    if not isinstance(parsed, dict):
+        return PlannerParseResult(
+            status="json_invalid",
+            raw_content=raw_content[:1500],
+            cleaned_content=cleaned[:1500],
+            raw_preview=raw_content[:1500],
+            error_message=f"解析到非 object 类型: {type(parsed).__name__}",
+            parse_strategy=parse_strategy,
+        )
+
+    action = parsed.get("selected_action", "")
+    if not isinstance(action, str) or action not in whitelist:
+        return PlannerParseResult(
+            status="schema_invalid",
+            parsed=parsed,
+            raw_content=raw_content[:1500],
+            cleaned_content=cleaned[:1500],
+            raw_preview=raw_content[:1500],
+            error_message=f"selected_action='{action}' 不在白名单中",
+            parse_strategy=parse_strategy,
+        )
+
+    # 补全缺失字段
+    parsed.setdefault("arguments", {})
+    parsed.setdefault("selected_reason", "")
+    parsed.setdefault("stop", False)
+    parsed.setdefault("thought_summary", "")
+    parsed.setdefault("rejected_actions", [])
+
+    return PlannerParseResult(
+        status="success",
+        parsed=parsed,
+        raw_content=raw_content[:1500],
+        cleaned_content=cleaned[:1500],
+        raw_preview=raw_content[:1500],
+        parse_strategy=parse_strategy,
+    )
 
 
 def _compress_state(state: InvestigationState) -> dict[str, Any]:
@@ -113,7 +316,8 @@ _TBM_GLOSSARY = """TBM 术语表（严格遵守，禁止误翻）：
 - stoppage_segment = 停机片段
 - normal_excavation = 正常推进
 - heavy_load_excavation = 重载推进
-- low_load_operation = 低负载运行"""
+- low_load_operation = 低负载运行
+- drilldown = 时间窗口钻取"""
 
 _LLM_SYSTEM_PROMPT = """你是 TBM 停机案例追查 agent 的决策器。根据当前调查状态，从可用工具中选择下一步 action。
 
@@ -121,20 +325,25 @@ _LLM_SYSTEM_PROMPT = """你是 TBM 停机案例追查 agent 的决策器。根�
 
 可用工具白名单: {tools}
 
-严格返回 JSON（不要包裹在 markdown 代码块中）：
-{{"thought_summary": "简短中文推理，不超过80字", "selected_action": "tool_name", "arguments": {{}}, "selected_reason": "选择理由", "stop": false}}
+【输出格式】严格返回一个 JSON 对象，不要输出任何其他内容：
+- 不要输出 Markdown 代码块（不要写 ```json 或 ```）
+- 不要输出解释文本
+- 不要输出 <think ...> 标签
+- 不要把 JSON 包裹在代码块中
+
+直接输出以下格式的 JSON：
+{{"thought_summary": "不超过80字的中文简述", "selected_action": "tool_name", "arguments": {{}}, "selected_reason": "选择理由", "rejected_actions": [], "stop": false}}
 
 规则：
 - selected_action 必须在可用工具白名单内
 - 如果所有必要分析已完成，设 selected_action="generate_investigation_report", stop=true
 - arguments 中 file_path 使用 current_file
-- 不要输出隐藏思维链，只要 thought_summary
+- 不要把 SER 翻译为"电阻"
 
 硬约束（禁止违反）：
 - 禁止在 stoppage_case_count>0 且 drilldown_count=0 时选择 generate_investigation_report
 - 禁止在存在 event_level_abnormal_unverified 案例且未对其 drilldown 时选择 generate_investigation_report
-- 如果还有明确可执行的 drilldown_time_window 目标，应优先执行 drilldown 再生成报告
-- 即使 LLM 仍选择 generate_report，controller 会强制 override 为 drilldown"""
+- 如果还有明确可执行的 drilldown_time_window 目标，应优先执行 drilldown 再生成报告"""
 
 
 def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[dict[str, Any]], LlmCallRecord]:
@@ -174,8 +383,11 @@ def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[
     client = OpenAI(**client_kwargs)
     t0 = time.time()
 
+    # MiniMax reasoning_split 支持
+    use_reasoning_split = os.environ.get("LLM_REASONING_SPLIT", "").strip().lower() in ("true", "1", "yes")
+
     try:
-        resp = client.chat.completions.create(
+        create_kwargs: dict[str, Any] = dict(
             model=model,
             messages=[
                 {"role": "system", "content": system_msg},
@@ -185,23 +397,37 @@ def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[
             temperature=0.2,
             timeout=30,
         )
+        if use_reasoning_split:
+            create_kwargs["extra_body"] = {"reasoning_split": True}
+
+        try:
+            resp = client.chat.completions.create(**create_kwargs)
+        except Exception as exc:
+            if use_reasoning_split and any(k in str(exc).lower() for k in (
+                "extra_body", "reasoning_split", "unknown", "invalid", "unexpected", "parameter",
+            )):
+                logger.warning("_llm_plan: reasoning_split not supported, retrying without")
+                create_kwargs.pop("extra_body", None)
+                resp = client.chat.completions.create(**create_kwargs)
+            else:
+                raise
+
         record.latency_seconds = round(time.time() - t0, 2)
-        text = (resp.choices[0].message.content or "").strip()
-        record.raw_preview = text[:300]
 
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        if start < 0 or end <= start:
+        msg = resp.choices[0].message
+        pr = parse_planner_response(msg, whitelist=LLM_TOOL_WHITELIST)
+
+        record.raw_preview = pr.raw_preview[:1500]
+        record.cleaned_preview = pr.cleaned_content[:1500]
+        record.parse_strategy = pr.parse_strategy
+
+        if pr.status != "success":
             record.status = "parse_error"
-            record.error_message = "LLM 返回中未找到 JSON"
+            record.error_message = pr.error_message
             return None, record
 
-        parsed = json.loads(text[start:end])
-        action = parsed.get("selected_action", "")
-        if action not in LLM_TOOL_WHITELIST:
-            record.status = "parse_error"
-            record.error_message = f"LLM 选择了不在白名单中的 action: {action}"
-            return None, record
+        parsed = pr.parsed
+        action = parsed["selected_action"]
 
         record.status = "success"
         record.selected_action = action
@@ -209,6 +435,8 @@ def _llm_plan(state: InvestigationState, audit: bool = False) -> tuple[Optional[
         record.thought_summary = parsed.get("thought_summary", "")
 
         arguments = parsed.get("arguments", {})
+        if not isinstance(arguments, dict):
+            arguments = {}
         arguments.pop("current_file", None)
         if "file_path" not in arguments and action != "generate_investigation_report":
             arguments["file_path"] = state.current_file

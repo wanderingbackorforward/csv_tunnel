@@ -949,6 +949,12 @@ def _build_executive_summary(state: InvestigationState) -> None:
         actual_planner_label = "rule fallback（LLM 不可用）"
     elif state.planner_runtime_status == "llm_unstable":
         actual_planner_label = "LLM planner 不稳定"
+    elif state.planner_runtime_status == "llm_ok" and state.planner_type == "hybrid":
+        rule_rounds = sum(1 for a in state.actions_taken
+                         if a.planner_type in ("rule", "hybrid_rule"))
+        llm_rounds = sum(1 for a in state.actions_taken
+                        if a.planner_type in ("llm", "hybrid_llm"))
+        actual_planner_label = f"混合 planner（规则 {rule_rounds} 轮 + LLM {llm_rounds} 轮）"
     elif state.planner_runtime_status == "llm_ok":
         actual_planner_label = "LLM planner"
     elif state.planner_type == "rule":
@@ -1190,7 +1196,9 @@ def run_investigation(
     # ── 计划项最终状态 ──
     if state.investigation_plan:
         for item in state.investigation_plan.plan_items:
-            if item.status in ("pending", "in_progress"):
+            if item.status == "in_progress":
+                item.status = "partially_completed"
+            elif item.status == "pending":
                 item.status = "skipped_due_to_budget"
 
     # ── 问题状态最终确认 ──

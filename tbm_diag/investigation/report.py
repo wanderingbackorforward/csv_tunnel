@@ -34,6 +34,7 @@ _PLAN_STATUS_ZH = {
     "pending": "待执行",
     "in_progress": "进行中",
     "completed": "已完成",
+    "partially_completed": "部分完成",
     "skipped_due_to_budget": "因轮数不足跳过",
 }
 
@@ -366,13 +367,21 @@ def _build_section_2_clarified(lines: list[str], state: InvestigationState, d: d
     # ── 停机问题 ──
     lines.append("### 停机问题\n")
     if d["total_merged"] > 0:
-        lines.append(f"- 停机案例数：{d['total_merged']}")
-        lines.append(f"- 已 drilldown 验证：{cov['covered_count']}")
-        lines.append(f"- 覆盖率：{cov['covered_count']}/{cov['total_count']}")
+        lines.append(f"- 停机案例总数：{d['total_merged']}")
+        lines.append(f"- 已 drilldown 验证：{cov['covered_count']}（覆盖率 {cov['covered_count']}/{cov['total_count']}）")
+        classified_count = len(d["abnormal"]) + len(d["planned"]) + len(d["uncertain"]) + len(d["unverified"])
+        unclassified_count = d["total_merged"] - classified_count
         if d["abnormal"]:
-            lines.append(f"- 已查案例中异常停机（疑似）：{len(d['abnormal'])} 例")
+            lines.append(f"- 异常停机（疑似）：{len(d['abnormal'])} 例")
         if d["planned"]:
-            lines.append(f"- 已查案例中计划停机（疑似）：{len(d['planned'])} 例")
+            lines.append(f"- 计划性/管理性停机（疑似，需施工日志确认）：{len(d['planned'])} 例")
+        if d["uncertain"]:
+            lines.append(f"- 待确认停机：{len(d['uncertain'])} 例")
+        if d["unverified"]:
+            lines.append(f"- 事件级异常线索待验证：{len(d['unverified'])} 例")
+        if unclassified_count > 0:
+            lines.append(f"- 未分类：{unclassified_count} 例（未被 drilldown 覆盖）")
+        lines.append(f"> 以上分类互不重叠，合计 {classified_count} 例，{'等于' if classified_count == d['total_merged'] else '小于'}总案例数 {d['total_merged']}。")
         if cov["uncovered_case_ids"]:
             lines.append(f"- 未覆盖案例：{', '.join(cov['uncovered_case_ids'])}")
     else:

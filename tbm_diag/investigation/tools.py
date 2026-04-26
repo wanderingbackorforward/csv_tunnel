@@ -1501,6 +1501,17 @@ def validate_final_conclusion(state: Any) -> None:
             warnings.append("planned_count=0 不等于排除计划性停机，已修正")
             downgrades.append("ruled_out 修正：计划停机排除→待施工日志确认")
 
+    # ── 6b. 禁止在结论和发现中写"确认计划停机"等确定性措辞 ──
+    import re as _re
+    _confirm_pattern = _re.compile(r"(?:确认为?|\d+\s*(?:个|例)\s*为)\s*计划停机")
+    if fc.primary_conclusion_zh and _confirm_pattern.search(fc.primary_conclusion_zh):
+        fc.primary_conclusion_zh = _confirm_pattern.sub("疑似计划性/管理性停机（需施工日志确认）", fc.primary_conclusion_zh)
+        downgrades.append("primary_conclusion 修正：确认/为计划停机→疑似")
+    for i, f in enumerate(fc.secondary_findings_zh):
+        if isinstance(f, str) and _confirm_pattern.search(f):
+            fc.secondary_findings_zh[i] = _confirm_pattern.sub("疑似计划性/管理性停机（需施工日志确认）", f)
+            downgrades.append(f"secondary_findings_zh[{i}] 修正：确认/为计划停机→疑似")
+
     # ── 7. drilldown 覆盖不足时不能完全排除 SER 主导假设 ──
     if total_cases > 0 and sc_drilldown_count < total_cases:
         for i, item in enumerate(fc.ruled_out_zh):

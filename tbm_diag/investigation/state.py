@@ -253,6 +253,8 @@ class InvestigationState:
     investigation_questions: list[OpenQuestion] = field(default_factory=list)
     investigation_plan: Optional[InvestigationPlan] = None
     executive_summary: Optional[ExecutiveSummary] = None
+    evidence_ledger: Any = None  # EvidenceLedger dataclass
+    compiled_claims: Any = None  # CompiledClaims dataclass
     planner_runtime_status: str = ""  # "" / llm_ok / llm_unstable / llm_unavailable
     report_quality_status: str = ""  # passed / warning / failed
     report_quality_issues: list[ReportQualityIssue] = field(default_factory=list)

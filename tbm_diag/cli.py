@@ -829,6 +829,23 @@ def _cmd_llm_check(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_report_check(args: argparse.Namespace) -> int:
+    """report-check：校验已生成的调查报告。"""
+    from tbm_diag.investigation.report_checker import run_report_check
+    result = run_report_check(args.investigation_dir)
+    print("=" * 70)
+    print("Report Check Result")
+    print("=" * 70)
+    for line in result.details:
+        print(f"  {line}")
+    if result.forbidden_found:
+        print(f"\n  Forbidden claims: {', '.join(result.forbidden_found)}")
+    print(f"\n  Ledger validation: {'PASS' if result.ledger_validation_passed else 'FAIL'}")
+    print(f"  Final: {'PASS' if result.passed else 'FAIL'}")
+    print("=" * 70)
+    return 0 if result.passed else 1
+
+
 def _cmd_llm_planner_check(args: argparse.Namespace) -> int:
     """llm-planner-check：测试 LLM planner 是否能稳定返回可解析 action。"""
     import os
@@ -1506,6 +1523,14 @@ def main(argv: list[str] | None = None) -> int:
     p_planner.add_argument("--complex", action="store_true",
                            help="使用复杂真实 context 测试 planner")
 
+    # ── report-check ──
+    p_check = subparsers.add_parser(
+        "report-check",
+        help="校验已生成的调查报告是否符合证据账本约束",
+    )
+    p_check.add_argument("--investigation-dir", required=True, metavar="DIR",
+                         help="调查输出目录（包含 investigation_report.md 和 investigation_state.json）")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -1537,6 +1562,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_llm_check(args)
     elif args.command == "llm-planner-check":
         return _cmd_llm_planner_check(args)
+    elif args.command == "report-check":
+        return _cmd_report_check(args)
     else:
         parser.print_help()
         return 0

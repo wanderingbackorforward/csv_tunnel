@@ -39,38 +39,6 @@ _PLAN_STATUS_ZH = {
 }
 
 
-def _sanitize_conclusion(text: str) -> str:
-    """清洗结论中的确定性推断：没有施工日志时不能断言计划停机为主因。"""
-    import re
-    if not text:
-        return text
-    # 1. "主要停机原因为计划停机/外部触发因素" → 保守措辞
-    text = re.sub(
-        r"主要停机原因[为是][^。；]*计划[^。]*",
-        "当前 CSV 证据不支持 SER/HYD 直接触发停机，停机性质仍需施工日志确认",
-        text,
-    )
-    # 2. "原因为计划停机" / "为计划停机" / "确认为计划停机"
-    text = re.sub(
-        r"(?:原因[^，。；\n]{0,8}为|\d+\s*(?:个|例)\s*为|确认为?)\s*计划停机",
-        "疑似计划性/管理性停机（需施工日志确认）",
-        text,
-    )
-    # 3. "更像计划性/管理性停机" → 加限定
-    text = re.sub(
-        r"更像计划性/管理性停机",
-        "可能为计划性/管理性停机（需施工日志确认）",
-        text,
-    )
-    # 4. "属于正常操作暂停或计划内维护" → 保守化
-    text = re.sub(
-        r"属于正常操作暂停或计划内维护",
-        "可能涉及正常操作暂停或计划内维护，但需施工日志确认",
-        text,
-    )
-    return text
-
-
 def _build_react_trace_table(state: InvestigationState) -> list[str]:
     """构建 ReAct 调查轨迹表。"""
     has_overrides = any(a.evidence_gate_override for a in state.actions_taken)
@@ -351,12 +319,12 @@ def _build_section_1_executive(lines: list[str], state: InvestigationState) -> N
         lines.append(f"- 覆盖情况：{es.coverage_summary}")
         lines.append("")
         if es.one_sentence_conclusion:
-            lines.append(f"**结论：** {_sanitize_conclusion(es.one_sentence_conclusion)}")
+            lines.append(f"**结论：** {es.one_sentence_conclusion}")
             lines.append("")
         if es.key_findings:
             lines.append("**关键发现：**")
             for f in es.key_findings:
-                lines.append(f"- {_sanitize_conclusion(f)}")
+                lines.append(f"- {f}")
             lines.append("")
         if es.unresolved_items:
             lines.append("**仍不确定：**")
@@ -379,7 +347,7 @@ def _build_section_1_executive(lines: list[str], state: InvestigationState) -> N
         lines.append(f"- 置信度：{_CL.get(fc.confidence_label, fc.confidence_label)}")
         lines.append("")
         if fc.primary_conclusion_zh:
-            lines.append(f"**结论：** {_sanitize_conclusion(fc.primary_conclusion_zh)}")
+            lines.append(f"**结论：** {fc.primary_conclusion_zh}")
             lines.append("")
         if fc.unresolved_questions_zh:
             lines.append("**仍不确定：**")
@@ -394,43 +362,35 @@ def _build_section_1_executive(lines: list[str], state: InvestigationState) -> N
 
 def _build_section_2_clarified(lines: list[str], state: InvestigationState, d: dict) -> None:
     """第 2 节：本次查清了什么（按业务维度）。"""
+    ledger = state.evidence_ledger
     cov = d["cov"]
     lines.append("## 2. 本次查清了什么\n")
     # ── 停机问题 ──
     lines.append("### 停机问题\n")
     if d["total_merged"] > 0:
-        dd_done = cov["covered_count"]
-        dd_total = cov["total_count"]
-        dd_miss = dd_total - dd_done
         lines.append(f"- 停机案例总数：{d['total_merged']}")
-        lines.append(f"- 已完成 drilldown：{dd_done}")
-        if dd_miss > 0:
-            lines.append(f"- 未完成 drilldown：{dd_miss}")
+        lines.append(f"- 已 drilldown：{ledger.drilled_stoppage_cases if ledger else cov['covered_count']}")
+        lines.append(f"- 未 drilldown：{ledger.undrilled_stoppage_cases if ledger else len(cov['uncovered_case_ids'])}")
         lines.append("")
-        # 已 drilldown 案例分类
-        if dd_done > 0:
+        # 已 drilldown 案例分类（从 ledger）
+        if ledger and ledger.drilled_stoppage_cases > 0:
             lines.append("**已 drilldown 案例中：**")
-            planned_count = len(d["planned"])
-            abnormal_count = len(d["abnormal"])
-            uncertain_count = len(d["uncertain"])
-            unverified_count = len(d["unverified"])
-            clean_count = dd_done - planned_count - abnormal_count - uncertain_count - unverified_count
-            lines.append(f"- 停机前后未见明显 SER/HYD 行级异常：{clean_count}")
-            if abnormal_count > 0:
-                lines.append(f"- 疑似异常停机：{abnormal_count}")
-            if planned_count > 0:
-                lines.append(f"- 可能存在计划性/管理性停机，但 CSV 证据不能确认：{planned_count}")
-            if uncertain_count > 0:
-                lines.append(f"- 待确认停机：{uncertain_count}")
-            if unverified_count > 0:
-                lines.append(f"- 事件级异常线索待验证：{unverified_count}")
-            lines.append(f"- 停机性质：待施工日志确认")
-            lines.append(f"> 以上 {dd_done} 个已 drilldown 案例分类互不重叠。")
-        # 未 drilldown 案例
-        if dd_miss > 0:
+            lines.append(f"- 停机前后未见明显行级异常：{ledger.drilled_cases_no_pre_ser_hyd}")
+            if ledger.drilled_cases_with_pre_ser_or_hyd > 0:
+                lines.append(f"- 停机前存在异常前兆：{ledger.drilled_cases_with_pre_ser_or_hyd}")
+            if ledger.drilled_cases_inconclusive > 0:
+                lines.append(f"- 仍需人工确认：{ledger.drilled_cases_inconclusive}")
             lines.append("")
-            lines.append(f"**未 drilldown 案例（{dd_miss} 个）：**")
-            lines.append(f"- {', '.join(cov['uncovered_case_ids'])}")
+            lines.append("**停机性质：**")
+            lines.append(f"- 已由外部日志确认计划停机：{ledger.confirmed_planned_by_external_log}")
+            lines.append(f"- 已由外部日志确认异常停机：{ledger.confirmed_abnormal_by_external_log}")
+            if not ledger.external_log_available:
+                lines.append("- 未接入外部日志，全部停机性质仍需确认")
+        # 未 drilldown 案例
+        if ledger and ledger.undrilled_stoppage_cases > 0:
+            lines.append("")
+            lines.append(f"**未 drilldown 案例（{ledger.undrilled_stoppage_cases} 个）：**")
+            lines.append(f"- {', '.join(ledger.undrilled_case_ids)}")
     else:
         lines.append("未检测到停机案例。")
     lines.append("")

@@ -912,18 +912,23 @@ def _build_executive_summary(state: InvestigationState) -> None:
         problem_parts.append("液压异常")
     main_problem = "、".join(problem_parts) if problem_parts else "无明显异常"
 
-    # key_findings: 从 fc 和 observations 中提取
-    key_findings: list[str] = []
-    if fc.primary_conclusion_zh:
-        key_findings.append(fc.primary_conclusion_zh)
-    for sf in fc.secondary_findings_zh[:3]:
-        key_findings.append(sf)
-
-    # unresolved
-    unresolved: list[str] = list(fc.unresolved_questions_zh[:4])
-    uncovered_ids = cov["uncovered_case_ids"]
-    if uncovered_ids:
-        unresolved.append(f"未钻取验证的停机案例：{', '.join(uncovered_ids[:3])}")
+    # key_findings / unresolved / next_checks: 从 compiled_claims 获取
+    claims = state.compiled_claims
+    if claims:
+        one_sentence = claims.one_sentence_conclusion
+        key_findings = list(claims.key_findings[:5])
+        unresolved = list(claims.unresolved_items[:4])
+        next_checks = list(claims.next_manual_checks[:4])
+    else:
+        one_sentence = fc.primary_conclusion_zh
+        key_findings = []
+        if fc.primary_conclusion_zh:
+            key_findings.append(fc.primary_conclusion_zh)
+        unresolved = list(fc.unresolved_questions_zh[:4])
+        next_checks = list(fc.next_manual_checks[:4])
+        uncovered_ids = cov["uncovered_case_ids"]
+        if uncovered_ids:
+            unresolved.append(f"未钻取验证的停机案例：{', '.join(uncovered_ids[:3])}")
 
     # coverage
     if total_cases > 0:
@@ -974,11 +979,11 @@ def _build_executive_summary(state: InvestigationState) -> None:
     state.executive_summary = ExecutiveSummary(
         status_label_zh=_CONV_ZH.get(fc.convergence_status, fc.convergence_status),
         confidence_label_zh=_CL_ZH.get(fc.confidence_label, fc.confidence_label),
-        one_sentence_conclusion=fc.primary_conclusion_zh,
+        one_sentence_conclusion=one_sentence,
         main_problem_type=main_problem,
         key_findings=key_findings[:5],
         unresolved_items=unresolved[:4],
-        next_manual_checks=list(fc.next_manual_checks[:4]),
+        next_manual_checks=next_checks,
         coverage_summary=cov_text,
         recommendation_for_user=rec,
         run_status=run_status,
@@ -1224,6 +1229,18 @@ def run_investigation(
     # ── report quality gate ──
     from tbm_diag.investigation.quality_gate import validate_report_quality
     validate_report_quality(state, planner_mode)
+
+    # ── evidence ledger + claim compiler ──
+    from tbm_diag.investigation.evidence_ledger import (
+        build_evidence_ledger, validate_evidence_ledger,
+    )
+    from tbm_diag.investigation.claim_compiler import compile_claims_from_ledger
+
+    state.evidence_ledger = build_evidence_ledger(state)
+    ledger_errors = validate_evidence_ledger(state.evidence_ledger)
+    if ledger_errors:
+        print(f"[investigate] LEDGER VALIDATION FAILED: {'; '.join(ledger_errors)}")
+    state.compiled_claims = compile_claims_from_ledger(state.evidence_ledger)
 
     _build_executive_summary(state)
     if state.final_conclusion:

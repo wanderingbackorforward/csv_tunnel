@@ -22,13 +22,11 @@ def validate_report_quality(state: InvestigationState, planner_mode: str = "rule
             message=f"LLM planner {state.llm_call_count} 次调用全部失败，所有决策由规则 fallback 完成",
         ))
 
-    # 2. coverage 一致性 — 检查 executive_summary 中的 coverage 和实际 state 一致
+    # 2. coverage 一致性
     es = state.executive_summary
     if es and cov["total_count"] > 0:
-        # 覆盖率文本应该与实际 computed coverage 一致
         expected_cov_text = f"drilldown 覆盖 {cov['covered_count']}/{cov['total_count']}"
         if es.coverage_summary and es.coverage_summary != expected_cov_text:
-            # 检查数字是否一致
             if str(cov["covered_count"]) not in es.coverage_summary or str(cov["total_count"]) not in es.coverage_summary:
                 issues.append(ReportQualityIssue(
                     severity="warning",
@@ -41,63 +39,54 @@ def validate_report_quality(state: InvestigationState, planner_mode: str = "rule
     total_cases = cov["total_count"]
     if total_cases > 0:
         classified = state.case_classifications
-        abnormal_count = sum(1 for cls in classified.values() if cls.case_type == "abnormal_like_stoppage")
-        planned_count = sum(1 for cls in classified.values() if cls.case_type == "planned_like_stoppage")
-        unverified_count = sum(1 for cls in classified.values() if cls.case_type == "event_level_abnormal_unverified")
-        uncertain_count = sum(1 for cls in classified.values() if cls.case_type == "uncertain_stoppage")
-        short_pause_count = sum(1 for cls in classified.values() if cls.case_type == "short_operational_pause")
-        classified_total = abnormal_count + planned_count + unverified_count + uncertain_count + short_pause_count
-        # 每个案例只能有一个分类，分类总数不应超过 total_cases
+        classified_total = sum(1 for _ in classified.values())
         if classified_total > total_cases:
             issues.append(ReportQualityIssue(
                 severity="critical",
                 code="classification_overflow",
-                message=f"分类总数 {classified_total} (abnormal={abnormal_count}+planned={planned_count}"
-                        f"+unverified={unverified_count}+uncertain={uncertain_count}"
-                        f"+short_pause={short_pause_count}) "
-                        f"超过停机案例总数 {total_cases}，存在重叠口径未说明",
+                message=f"分类总数 {classified_total} 超过停机案例总数 {total_cases}",
             ))
 
     # 4. HYD 0.0h 检查
     for obs in state.observations:
         if obs.action == "analyze_hydraulic_pattern":
             data = obs.data or {}
-            hyd_duration = data.get("hyd_total_duration_h", 0)
-            if hyd_duration == 0.0:
+            if data.get("hyd_total_duration_h", 0) == 0.0:
                 issues.append(ReportQualityIssue(
                     severity="warning",
                     code="hyd_zero_duration",
-                    message="HYD 事件时长统计为 0.0h，疑似显示精度或聚合口径问题，不允许作为强业务结论依据",
+                    message="HYD 事件时长统计为 0.0h，疑似显示精度或聚合口径问题",
                 ))
 
-    # 5. batch drilldown 声明一致性
-    has_batch_claim = any(
-        obs.action == "drilldown_time_windows_batch"
-        for obs in state.observations
-    )
-    if has_batch_claim:
-        batch_success = any(
-            obs.action == "drilldown_time_windows_batch"
-            and obs.data.get("status") != "error"
-            for obs in state.observations
-        )
-        if not batch_success:
-            issues.append(ReportQualityIssue(
-                severity="critical",
-                code="batch_drilldown_claim_without_result",
-                message="报告声称使用了 drilldown_time_windows_batch，但无成功执行记录",
-            ))
-
-    # 6. P1 completed 但无 SC drilldown
+    # 5. P1 completed 但 coverage < 100%
     plan = state.investigation_plan
     if plan:
         p1 = next((item for item in plan.plan_items if item.plan_id == "P1"), None)
-        if p1 and p1.status == "completed" and cov["covered_count"] == 0 and cov["total_count"] > 0:
+        if p1 and p1.status == "completed" and cov["total_count"] > 0 and cov["covered_count"] < cov["total_count"]:
+            issues.append(ReportQualityIssue(
+                severity="warning",
+                code="p1_completed_but_coverage_partial",
+                message=f"P1 标记已完成但 drilldown 覆盖 {cov['covered_count']}/{cov['total_count']} < 100%",
+            ))
+
+    # 6. Evidence ledger validation (if available)
+    if state.evidence_ledger:
+        from tbm_diag.investigation.evidence_ledger import validate_evidence_ledger
+        ledger_errors = validate_evidence_ledger(state.evidence_ledger)
+        for err in ledger_errors:
             issues.append(ReportQualityIssue(
                 severity="critical",
-                code="p1_completed_without_drilldown",
-                message="P1 标记为已完成，但没有任何 SC drilldown 覆盖",
+                code="ledger_validation_failed",
+                message=f"证据账本校验失败: {err}",
             ))
+
+    # 7. Claim compiler used
+    if not state.compiled_claims:
+        issues.append(ReportQualityIssue(
+            severity="warning",
+            code="claim_compiler_not_used",
+            message="未使用 Claim Compiler 生成结论",
+        ))
 
     # 判定质量状态
     has_critical = any(i.severity == "critical" for i in issues)

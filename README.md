@@ -79,9 +79,18 @@ python -m tbm_diag.cli review \
 ### 停机案例追查
 
 ```bash
-# 单文件追查
+# 单文件追查（规则 planner，默认）
 python -m tbm_diag.cli investigate \
   --input sample2.xls \
+  --output-dir investigation_out
+
+# 推荐演示方式：LLM ReAct，50 轮
+python -m tbm_diag.cli investigate \
+  --input sample2.xls \
+  --mode auto \
+  --planner llm \
+  --max-iterations 50 \
+  --planner-audit \
   --output-dir investigation_out
 
 # 从 scan_index 取 Top 3 高风险文件追查
@@ -89,7 +98,7 @@ python -m tbm_diag.cli investigate \
   --scan-index scan_real_out/scan_index.csv \
   --top-n 3 \
   --output-dir investigation_out \
-  --max-iterations 30
+  --max-iterations 50
 ```
 
 ### API 连通性检查
@@ -206,19 +215,19 @@ investigate 支持三种 planner：
 
 | 模式 | 说明 | 适用场景 |
 |------|------|----------|
-| `--planner rule` | 纯规则 planner，不调用 LLM API | 默认模式，零成本，确定性工具选择 |
-| `--planner llm` | 每轮调用 LLM 选择下一步工具 | 演示真正 LLM ReAct |
+| `--planner rule` | 纯规则 planner，不调用 LLM API | CLI 默认，零成本，确定性工具选择 |
+| `--planner llm` | 每轮调用 LLM 选择下一步工具 | **GUI 默认推荐**，演示真正 LLM ReAct |
 | `--planner hybrid` | 前 2 轮规则，后续关键分支调 LLM | 节省成本的折中方案 |
 
 报告中会明确标注每轮的 planner 类型、是否调用 LLM、LLM 状态和 fallback 情况。
 rule planner 只能称为"规则驱动 ReAct-style 调查"，不能称为"LLM ReAct"。
 
 ```bash
-# 规则 planner（默认）
-python -m tbm_diag.cli investigate --input data.xls --planner rule
+# 推荐演示方式：LLM planner，50 轮（GUI 默认）
+python -m tbm_diag.cli investigate --input data.xls --planner llm --max-iterations 50 --planner-audit
 
-# LLM planner（需要 API Key）
-python -m tbm_diag.cli investigate --input data.xls --planner llm --planner-audit
+# 规则 planner（CLI 默认，无需 API Key）
+python -m tbm_diag.cli investigate --input data.xls --planner rule
 
 # 混合 planner
 python -m tbm_diag.cli investigate --input data.xls --planner hybrid --planner-audit
@@ -226,23 +235,23 @@ python -m tbm_diag.cli investigate --input data.xls --planner hybrid --planner-a
 
 #### 调查深度
 
-`--max-iterations` 控制调查深度（默认 20）：
+`--max-iterations` 控制调查深度（默认 50）：
 
-| 深度 | 轮数 | 适用场景 |
-|------|------|---------|
-| 快速初筛 | 12 | 稳定、便宜、适合快速看一眼 |
-| 标准调查（推荐） | 20 | 日常分析，兼顾稳定和智能 |
-| 深度复核 | 40 | 调用更多 LLM，适合深入调查 |
+| 深度 | 轮数 | Planner | 适用场景 |
+|------|------|---------|---------|
+| 快速规则初筛 | 12 | rule | 不调用 LLM，适合快速预览或 API 不可用时 |
+| 标准混合调查 | 20 | hybrid | 兼顾稳定和成本，部分关键轮次调用大模型 |
+| 深度 LLM 调查（推荐） | 50 | llm | 大模型参与每轮决策，展示完整 ReAct 能力 |
 
 #### GUI 主流程
 
 GUI（`streamlit run app_demo.py`）的 ReAct 调查页面提供三档主入口：
 
-- 快速初筛：mode=auto, planner=rule, 12 轮
-- 标准调查（推荐）：mode=auto, planner=hybrid, 20 轮
-- 深度复核：mode=auto, planner=llm, 40 轮
+- **深度 LLM 调查（推荐，默认）**：mode=auto, planner=llm, 50 轮
+- 标准混合调查：mode=auto, planner=hybrid, 20 轮
+- 快速规则初筛：mode=auto, planner=rule, 12 轮
 
-stoppage/resistance/hydraulic/fragmentation 等专项模式、rule/llm/hybrid planner 选择、自定义轮数等仍可用，但放在"高级设置"折叠区中，默认不展示。
+GUI 默认选中"深度 LLM 调查"。如果未配置 OPENAI_API_KEY，GUI 会显示明确错误并阻止运行，不会静默 fallback 伪装成 LLM ReAct。
 
 #### 报告结构
 

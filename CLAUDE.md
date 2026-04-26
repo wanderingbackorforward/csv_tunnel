@@ -226,7 +226,9 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 ## Investigation 产品化规则
 
 - 不要把所有内部 mode（stoppage/resistance/hydraulic/fragmentation）暴露到 GUI 主界面。
-- GUI 默认主流程必须少而清晰：快速初筛 / 标准调查（推荐）/ 深度复核。
+- GUI 默认主流程必须少而清晰：深度 LLM 调查（推荐）/ 标准混合调查 / 快速规则初筛。
+- GUI 默认调查档位必须是"深度 LLM 调查"：planner=llm, max_iterations=50, planner_audit=true。
+- rule / hybrid 是备选策略，不是默认演示主路径。
 - 技术审计（ReAct 轨迹、LLM 明细、fallback、arg_resolver）不能放在报告第一屏。
 - 报告先给结论，再给证据，最后给轨迹。
 - LLM planner 的 raw 摘要只能放审计附录，不能当业务结论。
@@ -234,6 +236,11 @@ git ls-files | grep -E "(\.xls$|\.xlsx$|\.env$|scan_real_out|review_out|investig
 - 半路中断后继续任务时，必须先 git status / git diff，不能直接重写。
 - executive_summary 是面向业务用户的结论摘要，禁止包含 fallback/arg_resolver/action_sequence 等技术术语。
 - coverage 统计必须使用 compute_drilldown_coverage() 统一函数，报告和 GUI 不能出现口径不一致。
+- 如果用户选择 LLM planner，必须展示：LLM 调用次数、成功次数、fallback 次数、模型名。
+- 不允许把 fallback 结果伪装成完整 LLM ReAct。
+- 如果用户选择 LLM planner 但未配置 OPENAI_API_KEY，GUI 必须显示明确错误并阻止运行，不得静默 fallback。
+- 如果修改默认 planner 或轮数，必须同步 README 和 GUI 文案。
+- CLI 默认 planner 保持 rule（避免批处理用户意外消耗 API）；GUI 默认 planner=llm。
 
 ## Change Output Format
 

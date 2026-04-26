@@ -851,7 +851,10 @@ def render_review_tab() -> None:
 
 def render_investigation_tab() -> None:
     st.subheader("ReAct 调查")
-    st.markdown("选择调查档位后点击运行，系统会自动选择调查路径并生成结论报告。")
+    st.markdown(
+        "**默认使用深度 LLM ReAct 调查**：大模型负责选择下一步工具，"
+        "controller 负责参数解析和安全执行，validator 负责约束最终结论。"
+    )
 
     latest_scan_df = st.session_state.get("latest_scan_df")
     select_options: list[str] = []
@@ -868,14 +871,14 @@ def render_investigation_tab() -> None:
 
     # ── 三档主入口 ──
     _PRESETS = {
-        "快速初筛": {"mode": "auto", "planner": "rule", "max_iterations": 12,
-                     "desc": "稳定、便宜、适合快速看一眼"},
-        "标准调查（推荐）": {"mode": "auto", "planner": "hybrid", "max_iterations": 20,
-                           "desc": "推荐默认，兼顾稳定和智能"},
-        "深度复核": {"mode": "auto", "planner": "llm", "max_iterations": 40,
-                     "desc": "调用更多 LLM，速度较慢，适合深入调查"},
+        "深度 LLM 调查（推荐）": {"mode": "auto", "planner": "llm", "max_iterations": 50,
+                                  "desc": "默认推荐，使用大模型参与每轮调查决策，适合展示完整 ReAct 能力。需要配置 OPENAI_API_KEY。"},
+        "标准混合调查": {"mode": "auto", "planner": "hybrid", "max_iterations": 20,
+                        "desc": "兼顾稳定和成本，部分关键轮次调用大模型。"},
+        "快速规则初筛": {"mode": "auto", "planner": "rule", "max_iterations": 12,
+                        "desc": "不调用大模型，适合快速预览或 API 不可用时使用。"},
     }
-    preset_label = st.radio("调查档位", list(_PRESETS.keys()), index=1, horizontal=True,
+    preset_label = st.radio("调查档位", list(_PRESETS.keys()), index=0, horizontal=True,
                             help="选择调查深度，高级设置可覆盖")
     preset = _PRESETS[preset_label]
     st.caption(preset["desc"])
@@ -889,9 +892,9 @@ def render_investigation_tab() -> None:
     with st.expander("高级设置（开发者/调试用）"):
         adv_mode = st.selectbox("调查聚焦模式", ["auto", "stoppage", "resistance", "hydraulic", "fragmentation"],
                                 help="auto=自动选择 | 其他=专项调查")
-        adv_planner = st.selectbox("Planner 模式", ["rule", "llm", "hybrid"],
-                                   help="rule=纯规则 | llm=每轮调LLM | hybrid=混合")
-        adv_iter = st.number_input("自定义轮数", min_value=1, max_value=50,
+        adv_planner = st.selectbox("Planner 模式", ["llm", "hybrid", "rule"],
+                                   help="llm=每轮调LLM | hybrid=混合 | rule=纯规则")
+        adv_iter = st.number_input("自定义轮数", min_value=1, max_value=100,
                                    value=preset["max_iterations"], step=1)
         adv_audit = st.checkbox("启用 planner 审计日志", value=True)
         if adv_mode != "auto" or adv_planner != preset["planner"] or adv_iter != preset["max_iterations"] or not adv_audit:
@@ -901,10 +904,17 @@ def render_investigation_tab() -> None:
             planner_audit = adv_audit
             st.info(f"高级设置已覆盖：mode={focus_mode}, planner={planner_mode}, iterations={max_iterations}")
 
-    if planner_mode in ("llm", "hybrid") and not has_openai_compatible_config():
-        st.warning("未检测到 API Key，LLM planner 无法运行，将 fallback 到 rule。请检查 .env。")
+    # ── API Key 检查 ──
+    api_key_missing = planner_mode == "llm" and not has_openai_compatible_config()
+    if api_key_missing:
+        st.error(
+            "当前选择的是 LLM planner，但未检测到 OPENAI_API_KEY。"
+            "系统将无法执行真正 LLM ReAct；请配置 .env，或切换到标准混合调查 / 快速规则初筛。"
+        )
+    elif planner_mode == "hybrid" and not has_openai_compatible_config():
+        st.warning("未检测到 API Key，hybrid planner 的 LLM 轮次将 fallback 到 rule。请检查 .env。")
 
-    if st.button("运行 ReAct 调查", type="primary", use_container_width=True):
+    if st.button("运行 ReAct 调查", type="primary", use_container_width=True, disabled=api_key_missing):
         input_path = normalize_path(selected_file or input_path_text)
         output_dir = normalize_path(output_dir_text)
         if not input_path or not input_path.exists():

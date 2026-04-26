@@ -1214,11 +1214,11 @@ def main(argv: list[str] | None = None) -> int:
                        help="调查聚焦模式（默认 auto）")
     p_inv.add_argument("--planner", default="rule",
                        choices=["rule", "llm", "hybrid"],
-                       help="planner 模式：rule=纯规则 llm=每轮调LLM hybrid=混合（默认 rule）")
+                       help="planner 模式：rule=纯规则 llm=每轮调LLM hybrid=混合（默认 rule；演示 LLM ReAct 请用 --planner llm）")
     p_inv.add_argument("--use-llm-planner", action="store_true",
                        help="（已废弃，请用 --planner llm）使用 LLM planner")
-    p_inv.add_argument("--max-iterations", type=int, default=20, metavar="N",
-                       help="最大迭代轮数（默认 20）")
+    p_inv.add_argument("--max-iterations", type=int, default=50, metavar="N",
+                       help="最大迭代轮数（默认 50）")
     p_inv.add_argument("--config", default=None, metavar="PATH",
                        help="配置文件路径")
     p_inv.add_argument("--verbose", "-v", action="store_true",

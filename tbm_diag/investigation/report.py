@@ -42,28 +42,32 @@ _PLAN_STATUS_ZH = {
 
 
 def _sanitize_rationale(action_rec, observations: list) -> str:
-    """清理 LLM 原始 reason：修正 target 不一致 + 清理越界措辞。"""
+    """清理 LLM 原始 reason：修正 target 不一致 + 清理越界措辞 + 清理噪声。"""
     import re as _re
     raw = action_rec.rationale or ""
     action = action_rec.action
     args = action_rec.arguments or {}
-
-    # Evidence Gate override 的 reason 已经是修正过的
-    if action_rec.evidence_gate_override:
-        text = raw
-    else:
-        text = raw
+    text = raw
 
     # ── 通用措辞清理（所有 action 都适用）──
     # "电阻/SER" → "掘进阻力异常 SER"
     text = _re.sub(r"电阻\s*/\s*SER", "掘进阻力异常 SER", text)
     text = _re.sub(r"电阻/SER", "掘进阻力异常 SER", text)
-    # "揭示停机主因" → "分析 SER 线索"
+    # "揭示停机主因" → "分析异常线索"
     text = _re.sub(r"揭示停机主因", "分析异常线索", text)
     # "主因" → "线索"（除非是 "未证明为主因" / "不作为主因"）
     if "未证明为主因" not in text and "不作为主因" not in text and "未确认为主因" not in text:
         text = _re.sub(r"停机主因", "停机线索", text)
         text = _re.sub(r"主因应", "线索应", text)
+    # HYD 越界措辞
+    text = _re.sub(r"可能为启停伴随", "需核查统计口径", text)
+    text = _re.sub(r"与\s*SER\s*(?:时间有重叠|同步)", "需核查统计口径", text)
+    text = _re.sub(r"靠近停机边界", "需核查统计口径", text)
+    text = _re.sub(r"多为孤立短时波动", "需核查统计口径", text)
+    # 噪声清理：耗时相关
+    text = _re.sub(r"耗时过长", "", text)
+    text = _re.sub(r"耗时[^，。；]*?过长", "", text)
+    text = _re.sub(r"批量钻取\d+个案例[^，。；]*?耗时[^，。；]*", "批量检查剩余停机案例", text)
 
     # ── Target mismatch 检查（仅 drilldown action）──
     if action in ("drilldown_time_window", "drilldown_time_windows_batch") and not action_rec.evidence_gate_override:
@@ -85,18 +89,19 @@ def _sanitize_rationale(action_rec, observations: list) -> str:
 
 
 def _sanitize_findings_text(text: str) -> str:
-    """清理调查问题 findings 中的越界措辞，特别是 HYD 0.0h 因果判断。"""
+    """清理文本中的 HYD 0.0h 越界措辞，统一为标准口径。"""
     import re as _re
-    # HYD 0.0h 因果语言替换
     hyd_causal = [
         (r"可能为启停伴随", "需先核查统计口径"),
-        (r"HYD与SER同步", "HYD 与 SER 时间有重叠，需核查统计口径"),
-        (r"与\s*SER\s*同步", "与 SER 时间有重叠，需核查统计口径"),
-        (r"靠近停机边界[，,]\s*多为孤立短时波动", "多为孤立短时波动，需先核查统计口径"),
-        (r"靠近停机边界", "时间靠近停机，需核查统计口径"),
+        (r"与\s*SER\s*(?:时间有重叠|同步)", "需先核查统计口径"),
+        (r"靠近停机边界[，,]?\s*", ""),
+        (r"多为孤立短时波动", "需先核查统计口径"),
     ]
     for pat, repl in hyd_causal:
         text = _re.sub(pat, repl, text)
+    # 去掉可能残留的重复口径说明
+    text = _re.sub(r"(需先核查统计口径[，,]?){2,}", "需先核查统计口径", text)
+    text = _re.sub(r"^[，,、\s]+", "", text)
     return text
 
 
@@ -437,26 +442,42 @@ def _build_section_3_top_cases(lines: list[str], state: InvestigationState, d: d
     lines.append("| 优先级 | 案例 | 时间段 | 时长 | CSV 观察结论 | 建议核查原因 |")
     lines.append("|--------|------|--------|------|-------------|-------------|")
     for i, (c, cls) in enumerate(d["all_cases"][:10], 1):
-        ct = _CASE_TYPE_LABELS.get(cls.case_type, cls.case_type) if cls else "未分类"
-        # CSV 观察结论
-        csv_obs = ct
-        # 找 drilldown hint
+        # CSV 可观察事实（仅来自 CSV 数据，不含性质判断）
+        csv_facts: list[str] = []
         hint = ""
         for obs in state.observations:
             if obs.action in ("drilldown_time_window", "drilldown_time_windows_batch"):
                 targets = obs.data.get("target_ids") or [obs.data.get("target_id", "")]
                 if c.case_id in targets:
-                    hint = (obs.data.get("interpretation_hint") or "").replace("|", "/")[:30]
+                    hint = (obs.data.get("interpretation_hint") or "").replace("|", "/")
                     break
         if hint:
-            csv_obs = hint
-        # 建议核查原因
-        check_reason = "停机前后未见明显异常，需施工日志确认性质"
+            # 从 hint 中提取 CSV 可见事实，过滤掉性质判断词
+            cleaned = hint
+            for pat in ["性质待施工日志确认", "待施工日志确认", "性质待确认", "疑似计划", "疑似异常"]:
+                cleaned = cleaned.replace(pat, "")
+            cleaned = cleaned.strip("，、,")
+            if cleaned:
+                csv_facts.append(cleaned)
+        # 补充基础 CSV 事实
+        if cls:
+            if cls.case_type == "abnormal_like_stoppage":
+                csv_facts.append("停机前存在异常前兆")
+            elif cls.case_type == "normal_like_stoppage":
+                if not csv_facts:
+                    csv_facts.append("停机前后未见明显异常")
+            elif cls.case_type == "boundary_stoppage":
+                csv_facts.append("起始缺前窗口")
+        if not csv_facts:
+            csv_facts.append("停机前后未见明显异常")
+        csv_obs = "；".join(csv_facts)
+        # 建议核查原因（含性质判断）
+        check_reason = "性质待施工日志确认"
         if cls:
             if cls.case_type == "abnormal_like_stoppage":
                 check_reason = "停机前存在异常前兆，需确认是否为异常停机"
-            elif cls.case_type == "uncertain_stoppage":
-                check_reason = "停机性质待确认"
+            elif cls.case_type == "boundary_stoppage":
+                check_reason = "窗口不完整，性质待施工日志确认"
         lines.append(
             f"| {i} | {c.case_id} | {c.start_time} ~ {c.end_time} "
             f"| {c.duration_seconds/60:.0f}min | {csv_obs} | {check_reason} |"
@@ -522,19 +543,17 @@ def _build_section_4_clarified(lines: list[str], state: InvestigationState, d: d
             data = obs.data or {}
             hyd_count = data.get("hyd_count", 0)
             hyd_dur = data.get("hyd_total_duration_h", 0)
-            lines.append(f"- HYD 事件数：{hyd_count} 次")
-            lines.append(f"- HYD 总时长：{hyd_dur}h")
             if hyd_dur == 0.0 and hyd_count > 0:
-                lines.append("- 当前判断：指标口径需核查，不作为主因或伴随因果判断")
+                lines.append(f"- HYD 有 {hyd_count} 次记录，但总时长显示为 0.0h，需先核查统计口径；暂不作为主因或伴随因果判断。")
             else:
+                lines.append(f"- HYD 事件数：{hyd_count} 次")
+                lines.append(f"- HYD 总时长：{hyd_dur}h")
                 near_b = data.get("near_stoppage_boundary", False)
                 isolated = data.get("isolated_short_fluctuation", False)
                 if isolated:
                     lines.append("- 当前判断：属于孤立短时波动，不太可能是停机主因")
                 elif near_b:
                     lines.append("- 当前判断：靠近停机边界，是否为诱因需结合施工日志确认")
-                else:
-                    lines.append("- 当前判断：未发现与停机的直接关联")
     else:
         lines.append("未执行液压分析。")
     lines.append("")
@@ -646,11 +665,13 @@ def _build_section_6_next_steps(lines: list[str], state: InvestigationState, d: 
     lines.append("## 6. 下一步怎么查\n")
     steps: list[str] = []
 
-    # 1. 施工日志
-    abnormal_or_uncertain = list(d["abnormal"]) + list(d["uncertain"])
-    if abnormal_or_uncertain:
-        ids = [cid for cid, _ in abnormal_or_uncertain[:5]]
-        steps.append(f"核查施工日志，确认以下停机段是否为计划停机：{'、'.join(ids)}")
+    # 1. 停机性质确认
+    if d["all_cases"]:
+        ids = [c.case_id for c, _ in d["all_cases"][:5]]
+        steps.append(
+            f"确认停机性质（{'、'.join(ids)}等）："
+            "计划安排、检修/换刀、等待、交接班、外部调度或异常停机"
+        )
 
     # 2. SER 高发
     for obs in d["resistance_obs"]:

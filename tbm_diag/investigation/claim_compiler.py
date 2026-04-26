@@ -44,16 +44,16 @@ def _build_allowed_claims(ledger: EvidenceLedger, claims: CompiledClaims) -> Non
     if ledger.drilled_stoppage_cases > 0:
         claims.allowed_claims.append(
             f"共 {ledger.total_stoppage_cases} 个停机案例，"
-            f"已 drilldown {ledger.drilled_stoppage_cases} 个，"
+            f"已逐案检查 {ledger.drilled_stoppage_cases} 个，"
             f"未覆盖 {ledger.undrilled_stoppage_cases} 个"
         )
     if ledger.drilled_cases_no_pre_ser_hyd > 0:
         claims.allowed_claims.append(
-            f"已 drilldown 案例中 {ledger.drilled_cases_no_pre_ser_hyd} 个停机前未见明显 SER/HYD 行级异常"
+            f"已逐案检查案例中 {ledger.drilled_cases_no_pre_ser_hyd} 个停机前未见明显 SER/HYD 行级异常"
         )
     if ledger.drilled_cases_recovered_after > 0:
         claims.allowed_claims.append(
-            f"已 drilldown 案例中 {ledger.drilled_cases_recovered_after} 个停机后恢复正常"
+            f"已逐案检查案例中 {ledger.drilled_cases_recovered_after} 个停机后恢复正常"
         )
     if ledger.ser_event_count > 0 and ledger.ser_causality_status != "proven":
         claims.allowed_claims.append("SER 是需要进一步核查的线索")
@@ -105,7 +105,7 @@ def _build_conclusion(ledger: EvidenceLedger, claims: CompiledClaims) -> None:
     parts = ["当前 CSV 证据不支持 SER/HYD 直接触发停机"]
     if ledger.drilled_cases_no_pre_ser_hyd > 0:
         parts.append(
-            f"已 drilldown 的 {ledger.drilled_stoppage_cases} 个停机案例中 "
+            f"已逐案检查的 {ledger.drilled_stoppage_cases} 个停机案例中 "
             f"{ledger.drilled_cases_no_pre_ser_hyd} 个停机前未见明显行级异常、"
             f"停机后恢复正常"
         )
@@ -117,7 +117,7 @@ def _build_conclusion(ledger: EvidenceLedger, claims: CompiledClaims) -> None:
 def _build_key_findings(ledger: EvidenceLedger, claims: CompiledClaims) -> None:
     findings = [
         f"共发现 {ledger.total_stoppage_cases} 个停机案例，"
-        f"已 drilldown {ledger.drilled_stoppage_cases} 个，"
+        f"已逐案检查 {ledger.drilled_stoppage_cases} 个，"
         f"未覆盖 {ledger.undrilled_stoppage_cases} 个。",
     ]
     if ledger.drilled_cases_no_pre_ser_hyd > 0:
@@ -142,7 +142,7 @@ def _build_key_findings(ledger: EvidenceLedger, claims: CompiledClaims) -> None:
 def _build_unresolved(ledger: EvidenceLedger, claims: CompiledClaims) -> None:
     items = []
     if ledger.undrilled_stoppage_cases > 0:
-        items.append(f"未 drilldown 案例：{', '.join(ledger.undrilled_case_ids)}")
+        items.append(f"未逐案检查案例：{', '.join(ledger.undrilled_case_ids)}")
     if not ledger.external_log_available and ledger.total_stoppage_cases > 0:
         items.append("停机是否计划性/管理性：需施工日志确认")
     if ledger.ser_event_count > 0 and ledger.ser_causality_status != "proven":

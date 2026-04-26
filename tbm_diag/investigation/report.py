@@ -347,10 +347,22 @@ def _build_section_2_day_summary(lines: list[str], state: InvestigationState, d:
             lines.append(f"- 最长一段停了 {top[0].duration_seconds/60:.0f} 分钟（{top[0].start_time} ~ {top[0].end_time}）")
     else:
         lines.append("- 未检测到停机。")
-    # 事件概览
-    total_events = d["total_original"]
-    if total_events > 0:
-        lines.append(f"- 全天异常事件共 {total_events} 条")
+    # 事件概览（从 file overview 取实际事件数）
+    file_name = state.current_file or ""
+    overview = state.file_overviews.get(file_name) if file_name else None
+    if overview and overview.event_count > 0:
+        sem = overview.semantic_event_distribution or {}
+        parts = [f"当天共识别异常事件 {overview.event_count} 个"]
+        detail_parts = []
+        if sem.get("stoppage_segment", 0) > 0:
+            detail_parts.append(f"停机相关 {sem['stoppage_segment']} 段")
+        if sem.get("suspected_excavation_resistance", 0) > 0:
+            detail_parts.append(f"SER {sem['suspected_excavation_resistance']} 个")
+        if sem.get("hydraulic_instability", 0) > 0:
+            detail_parts.append(f"HYD {sem['hydraulic_instability']} 个")
+        if detail_parts:
+            parts.append("（" + "、".join(detail_parts) + "）")
+        lines.append("- " + "".join(parts))
     lines.append("")
 
 

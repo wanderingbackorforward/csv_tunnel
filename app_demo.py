@@ -437,7 +437,7 @@ def render_investigation_audit(output_dir: Path) -> None:
             dc1, dc2, dc3 = st.columns(3)
             dc1.metric("调查深度", {"quick": "快速初筛", "standard": "标准调查",
                                     "deep": "深度复核", "exhaustive": "穷尽调查"}.get(depth, depth))
-            dc2.metric("逐案钻取", f"{actual_sc}/{total_sc}")
+            dc2.metric("逐案检查", f"{actual_sc}/{total_sc}")
             comp_label = "已达标" if comp_status == "complete_for_depth" else comp_status
             dc3.metric("充分性", comp_label)
 

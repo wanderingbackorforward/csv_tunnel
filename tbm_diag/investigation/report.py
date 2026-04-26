@@ -1,11 +1,13 @@
 """report.py — 生成 investigation_report.md
 
-报告结构（产品化）：
-1. 调查结论总览 — 非技术人员可读
-2. 本次查清了什么 — 按业务维度
-3. 本次没有查清什么 — 明确缺口
-4. 调查计划执行情况 — P1~P4 中文表格
-5. 技术审计附录 — ReAct 轨迹、LLM 明细、drilldown 详情等
+报告结构（工程人可读）：
+1. 一句话结论 — 业务语言
+2. 这一天发生了什么 — 停机概览
+3. 最值得人工核查的停机段 — Top 案例前置
+4. 我们已经查清了什么 — 停机/SER/HYD
+5. 还不能下结论的地方 — 明确缺口
+6. 下一步怎么查 — 行动清单
+7. 技术附录 — ReAct 轨迹、LLM 明细等
 """
 
 from __future__ import annotations
@@ -16,10 +18,10 @@ from tbm_diag.investigation.state import InvestigationState, compute_drilldown_c
 
 
 _CASE_TYPE_LABELS = {
-    "abnormal_like_stoppage": "异常停机（疑似，已验证）",
+    "abnormal_like_stoppage": "异常停机线索（需日志确认）",
     "event_level_abnormal_unverified": "事件级异常线索，待验证",
-    "planned_like_stoppage": "计划停机（疑似）",
-    "uncertain_stoppage": "待确认停机",
+    "planned_like_stoppage": "性质待施工日志确认",
+    "uncertain_stoppage": "性质待施工日志确认",
     "short_operational_pause": "短暂运行暂停",
 }
 
@@ -272,42 +274,13 @@ def _collect_report_data(state: InvestigationState) -> dict[str, Any]:
     }
 
 
-def _build_section_1_executive(lines: list[str], state: InvestigationState) -> None:
-    """第 1 节：调查结论总览 — 业务优先，技术指标后移。"""
+def _build_section_1_conclusion(lines: list[str], state: InvestigationState, d: dict) -> None:
+    """第 1 节：一句话结论 — 工程人看得懂的自然语言。"""
+    claims = state.compiled_claims
     es = state.executive_summary
     fc = state.final_conclusion
-    if not es and not fc:
-        return
-    lines.append("## 1. 结论摘要\n")
+    lines.append("## 1. 一句话结论\n")
 
-    # ── 调查对象（第一屏第一块）──
-    from tbm_diag.investigation.investigation_depth import (
-        get_depth_label, compute_stoppage_coverage_target,
-    )
-    cov = compute_drilldown_coverage(state)
-    total_sc = cov["total_count"]
-    actual_sc = cov["covered_count"]
-    depth = state.investigation_depth or "standard"
-    cov_target = compute_stoppage_coverage_target(total_sc, depth)
-
-    lines.append("### 调查对象\n")
-    file_name = state.current_file or ""
-    lines.append(f"- 文件：{file_name}")
-    overview = state.file_overviews.get(file_name) if file_name else None
-    if overview:
-        lines.append(f"- 时间范围：{overview.time_start} ~ {overview.time_end}")
-    lines.append(f"- 调查深度：{get_depth_label(depth)}")
-    if total_sc > 0:
-        total_duration = 0.0
-        for cases in state.stoppage_cases.values():
-            for c in cases:
-                total_duration += c.duration_seconds
-        lines.append(f"- 停机案例：{total_sc} 个，总时长 {total_duration/3600:.1f}h")
-        lines.append(f"- 逐案钻取（drilldown）：{actual_sc}/{total_sc}")
-    lines.append("")
-
-    # ── 一句话结论（第一屏第二块）──
-    claims = state.compiled_claims
     one_sentence = ""
     if claims and claims.one_sentence_conclusion:
         one_sentence = claims.one_sentence_conclusion
@@ -317,195 +290,193 @@ def _build_section_1_executive(lines: list[str], state: InvestigationState) -> N
         one_sentence = fc.primary_conclusion_zh
 
     if one_sentence:
-        lines.append(f"**结论：** {one_sentence}")
-        lines.append("")
+        lines.append(one_sentence)
+    else:
+        total_sc = d["cov"]["total_count"]
+        if total_sc > 0:
+            total_h = sum(c.duration_seconds for c, _ in d["all_cases"]) / 3600
+            drilled = d["cov"]["covered_count"]
+            no_anomaly = 0
+            ledger = state.evidence_ledger
+            if ledger:
+                no_anomaly = ledger.drilled_cases_no_pre_ser_hyd
+            lines.append(
+                f"这一天共识别出 {total_sc} 段停机（合计 {total_h:.1f}h），"
+                f"已逐案检查 {drilled} 段，其中 {no_anomaly} 段停机前后未见明显异常。"
+            )
+        else:
+            lines.append("这一天未检测到停机事件。")
+    lines.append("")
 
-    # ── 关键发现（第一屏第三块）──
+    # 关键发现
     key_findings = []
     if claims and claims.key_findings:
         key_findings = claims.key_findings
     elif es and es.key_findings:
         key_findings = es.key_findings
-
     if key_findings:
         lines.append("**关键发现：**")
         for f in key_findings:
             lines.append(f"- {f}")
         lines.append("")
 
-    # ── 仍不确定（第一屏第四块）──
-    unresolved = []
-    if claims and claims.unresolved_items:
-        unresolved = claims.unresolved_items
-    elif es and es.unresolved_items:
-        unresolved = es.unresolved_items
-
-    if unresolved:
-        lines.append("**仍不确定：**")
-        for u in unresolved:
-            lines.append(f"- {u}")
-        lines.append("")
-
-    # ── 下一步人工核查（第一屏第五块）──
-    next_checks = []
-    if claims and claims.next_manual_checks:
-        next_checks = claims.next_manual_checks
-    elif es and es.next_manual_checks:
-        next_checks = es.next_manual_checks
-
-    if next_checks:
-        lines.append("**下一步人工核查：**")
-        for c in next_checks:
-            lines.append(f"- {c}")
-        lines.append("")
-
-    # ── 建议（基于 completeness_status）──
-    recommendation = ""
-    if es and es.recommendation_for_user:
-        recommendation = es.recommendation_for_user
-    if recommendation:
-        lines.append(f"**建议：** {recommendation}")
-        lines.append("")
-
-    # ── 质量门禁失败时的业务提示 ──
+    # 质量提示（仅在有严重问题时显示）
     if state.report_quality_status == "failed":
-        lines.append("> **质量门禁未通过。** 建议运行 `python -m tbm_diag.cli llm-planner-check` "
-                     "检查 LLM planner 可用性，或切换标准调查 `--planner hybrid`。")
-        for issue in state.report_quality_issues:
-            if issue.severity == "critical":
-                lines.append(f"> - {issue.message}")
+        lines.append("> **调查质量提示：** 本次自动调查遇到问题，部分结论可能不完整。建议结合施工日志综合判断。")
         lines.append("")
-
-    # ── LLM 不可用/不稳定的业务提示 ──
     if state.planner_runtime_status == "llm_unavailable":
-        lines.append("> **警告：本次 LLM planner 0 次成功，所有决策均由规则 fallback 完成。"
-                     "本报告不能视为 LLM ReAct 结果。**")
-        lines.append("")
-    elif state.planner_runtime_status == "llm_unstable":
-        lines.append("> **注意：LLM planner 不稳定，部分决策由规则 fallback 接管。**")
+        lines.append("> **提示：** 本次未能使用 AI 分析，所有判断由固定规则生成，结论覆盖面有限。")
         lines.append("")
 
-    # ── 调查充分性 ──
-    comp_status = state.investigation_completeness_status or ""
-    lines.append("### 调查充分性\n")
-    lines.append(f"- 调查深度：{get_depth_label(depth)}")
-    lines.append(f"- 停机案例总数：{total_sc}")
-    lines.append(f"- 当前深度目标：{cov_target.target_count}/{total_sc}")
-    lines.append(f"- 实际逐案钻取覆盖：{actual_sc}/{total_sc}")
-    if comp_status == "complete_for_depth":
-        lines.append("- 调查充分性：**已达到当前深度目标**")
-    elif comp_status == "not_applicable_no_stoppage":
-        lines.append("- 调查充分性：无停机案例，不适用")
-    elif comp_status == "incomplete_due_to_budget":
-        lines.append("- 调查充分性：**因预算不足未完成**")
-        lines.append("> 本次报告为部分调查结果，不代表全部停机案例均已完成逐案钻取。")
-    elif comp_status == "incomplete_due_to_cap":
-        lines.append("- 调查充分性：**已达到上限，但未覆盖全部**")
+def _build_section_2_day_summary(lines: list[str], state: InvestigationState, d: dict) -> None:
+    """第 2 节：这一天发生了什么 — 停机概览。"""
+    lines.append("## 2. 这一天发生了什么\n")
+    file_name = state.current_file or ""
+    overview = state.file_overviews.get(file_name) if file_name else None
+    if overview:
+        lines.append(f"- 时间范围：{overview.time_start} ~ {overview.time_end}")
+    total_sc = d["cov"]["total_count"]
+    if total_sc > 0:
+        total_h = sum(c.duration_seconds for c, _ in d["all_cases"]) / 3600
+        drilled = d["cov"]["covered_count"]
+        lines.append(f"- 共识别出 **{total_sc} 段停机**，合计 **{total_h:.1f}h**")
+        lines.append(f"- 已逐案检查 {drilled}/{total_sc} 段")
+        # 最长停机
+        if d["all_cases"]:
+            top = d["all_cases"][0]
+            lines.append(f"- 最长一段停了 {top[0].duration_seconds/60:.0f} 分钟（{top[0].start_time} ~ {top[0].end_time}）")
     else:
-        lines.append(f"- 调查充分性：{comp_status or '未知'}")
+        lines.append("- 未检测到停机。")
+    # 事件概览
+    total_events = d["total_original"]
+    if total_events > 0:
+        lines.append(f"- 全天异常事件共 {total_events} 条")
     lines.append("")
 
-    # ── 技术状态摘要（开发者参考，后移）──
-    _RUN_ZH = {"success": "成功", "partial": "部分成功", "failed_degraded": "失败/降级"}
-    _Q_ZH = {"passed": "通过", "warning": "有警告", "failed": "未通过"}
-    run_label = _RUN_ZH.get(es.run_status, es.run_status) if es else "未知"
-    q_label = _Q_ZH.get(es.report_quality_status, es.report_quality_status) if es else "未知"
-    lines.append("### 技术状态摘要（开发者参考）\n")
-    lines.append(f"- 调查运行状态：**{run_label}**")
-    if es:
-        lines.append(f"- 实际 planner：{es.actual_planner_label}")
-        lines.append(f"- LLM 成功率：{es.llm_success_ratio_text}")
-    lines.append(f"- 报告质量门禁：**{q_label}**")
+
+def _build_section_3_top_cases(lines: list[str], state: InvestigationState, d: dict) -> None:
+    """第 3 节：最值得人工核查的停机段 — 按优先级排列。"""
+    if not d["all_cases"]:
+        return
+    lines.append("## 3. 最值得人工核查的停机段\n")
+    lines.append("以下停机段按时长从长到短排列，建议优先核查排在前面的案例。\n")
+    lines.append("| 优先级 | 案例 | 时间段 | 时长 | CSV 观察结论 | 建议核查原因 |")
+    lines.append("|--------|------|--------|------|-------------|-------------|")
+    for i, (c, cls) in enumerate(d["all_cases"][:10], 1):
+        ct = _CASE_TYPE_LABELS.get(cls.case_type, cls.case_type) if cls else "未分类"
+        # CSV 观察结论
+        csv_obs = ct
+        # 找 drilldown hint
+        hint = ""
+        for obs in state.observations:
+            if obs.action in ("drilldown_time_window", "drilldown_time_windows_batch"):
+                targets = obs.data.get("target_ids") or [obs.data.get("target_id", "")]
+                if c.case_id in targets:
+                    hint = (obs.data.get("interpretation_hint") or "").replace("|", "/")[:30]
+                    break
+        if hint:
+            csv_obs = hint
+        # 建议核查原因
+        check_reason = "停机前后未见明显异常，需施工日志确认性质"
+        if cls:
+            if cls.case_type == "abnormal_like_stoppage":
+                check_reason = "停机前存在异常前兆，需确认是否为异常停机"
+            elif cls.case_type == "uncertain_stoppage":
+                check_reason = "停机性质待确认"
+        lines.append(
+            f"| {i} | {c.case_id} | {c.start_time} ~ {c.end_time} "
+            f"| {c.duration_seconds/60:.0f}min | {csv_obs} | {check_reason} |"
+        )
     lines.append("")
 
-def _build_section_2_clarified(lines: list[str], state: InvestigationState, d: dict) -> None:
-    """第 2 节：本次查清了什么（按业务维度）。"""
+
+def _build_section_4_clarified(lines: list[str], state: InvestigationState, d: dict) -> None:
+    """第 4 节：我们已经查清了什么 — 按业务维度。"""
     ledger = state.evidence_ledger
     cov = d["cov"]
-    lines.append("## 2. 本次查清了什么\n")
-    # ── 停机问题 ──
-    lines.append("### 停机问题\n")
+    lines.append("## 4. 我们已经查清了什么\n")
+
+    # ── 4.1 停机 ──
+    lines.append("### 4.1 停机\n")
     if d["total_merged"] > 0:
         lines.append(f"- 停机案例总数：{d['total_merged']}")
-        lines.append(f"- 已逐案钻取：{ledger.drilled_stoppage_cases if ledger else cov['covered_count']}")
-        lines.append(f"- 未逐案钻取：{ledger.undrilled_stoppage_cases if ledger else len(cov['uncovered_case_ids'])}")
-        lines.append("")
-        # 已逐案钻取案例分类（从 ledger）
+        drilled_count = ledger.drilled_stoppage_cases if ledger else cov["covered_count"]
+        lines.append(f"- 已逐案检查：{drilled_count}")
         if ledger and ledger.drilled_stoppage_cases > 0:
-            lines.append("**已逐案钻取案例中：**")
-            lines.append(f"- 停机前后未见明显行级异常：{ledger.drilled_cases_no_pre_ser_hyd}")
+            lines.append(f"- 检查结果：**{ledger.drilled_cases_no_pre_ser_hyd} 段**停机前后未见明显异常")
             if ledger.drilled_cases_with_pre_ser_or_hyd > 0:
-                lines.append(f"- 停机前存在异常前兆：{ledger.drilled_cases_with_pre_ser_or_hyd}")
+                lines.append(f"- {ledger.drilled_cases_with_pre_ser_or_hyd} 段停机前存在异常前兆")
             if ledger.drilled_cases_inconclusive > 0:
-                lines.append(f"- 仍需人工确认：{ledger.drilled_cases_inconclusive}")
-            lines.append("")
-            lines.append("**停机性质：**")
-            lines.append(f"- 已由外部日志确认计划停机：{ledger.confirmed_planned_by_external_log}")
-            lines.append(f"- 已由外部日志确认异常停机：{ledger.confirmed_abnormal_by_external_log}")
+                lines.append(f"- {ledger.drilled_cases_inconclusive} 段需人工进一步确认")
             if not ledger.external_log_available:
-                lines.append("- 未接入外部日志，全部停机性质仍需确认")
-        # 未 drilldown 案例
-        if ledger and ledger.undrilled_stoppage_cases > 0:
-            lines.append("")
-            lines.append(f"**未逐案钻取案例（{ledger.undrilled_stoppage_cases} 个）：**")
-            lines.append(f"- {', '.join(ledger.undrilled_case_ids)}")
+                lines.append("- 未接入施工日志，停机性质（计划/异常）暂无法判定")
+        undrilled = ledger.undrilled_stoppage_cases if ledger else len(cov["uncovered_case_ids"])
+        if undrilled > 0:
+            undrilled_ids = ledger.undrilled_case_ids if ledger else cov["uncovered_case_ids"]
+            lines.append(f"- 未逐案检查：{undrilled} 段（{', '.join(undrilled_ids)}）")
     else:
         lines.append("未检测到停机案例。")
     lines.append("")
-    # ── 掘进阻力异常 SER ──
-    lines.append("### 掘进阻力异常 SER\n")
+
+    # ── 4.2 掘进阻力异常（SER）──
+    lines.append("### 4.2 掘进阻力异常（SER）\n")
+    lines.append("> SER = 疑似掘进阻力异常，即推进过程中遇到的地层阻力突然升高。\n")
     if d["resistance_obs"]:
         for obs in d["resistance_obs"]:
             data = obs.data or {}
-            lines.append(f"- SER 事件数：{data.get('ser_count', 0)}")
+            lines.append(f"- SER 事件数：{data.get('ser_count', 0)} 次")
             lines.append(f"- SER 总时长：{data.get('ser_total_duration_h', 0)}h")
             in_adv = data.get("in_advancing_ratio", 0)
-            lines.append(f"- 是否主要发生在推进中：{'是' if in_adv > 0.5 else '否'}（占比 {in_adv:.0%}）")
+            lines.append(f"- 其中推进中发生：{in_adv:.0%}")
             near = data.get("near_stoppage", False)
-            lines.append(f"- 是否靠近停机：{'是' if near else '否'}")
             if data.get("all_stopped_overlap"):
-                lines.append("- 当前结论：未支持（SER 事件多与停机重叠）")
+                lines.append("- 当前判断：SER 事件多出现在停机期间，暂不能证明是推进中真实阻力异常")
             elif in_adv > 0.5 and near:
-                lines.append("- 当前结论：部分支持（推进中存在 SER 且靠近停机）")
+                lines.append("- 当前判断：推进中确实存在 SER，且与停机时段相邻，可能是停机诱因")
             elif in_adv > 0.5:
-                lines.append("- 当前结论：线索（推进中存在 SER，与停机关联不明确）")
+                lines.append("- 当前判断：推进中存在 SER，但与停机的关联不明确")
             else:
-                lines.append("- 当前结论：未支持")
+                lines.append("- 当前判断：SER 主要不在推进中发生，暂不能证明为停机原因")
     else:
         lines.append("未执行掘进阻力分析。")
     lines.append("")
-    # ── 液压异常 HYD ──
-    lines.append("### 液压异常 HYD\n")
+
+    # ── 4.3 液压异常（HYD）──
+    lines.append("### 4.3 液压异常（HYD）\n")
     if d["hydraulic_obs"]:
         for obs in d["hydraulic_obs"]:
             data = obs.data or {}
+            hyd_count = data.get("hyd_count", 0)
             hyd_dur = data.get("hyd_total_duration_h", 0)
-            lines.append(f"- HYD 事件数：{data.get('hyd_count', 0)}")
+            lines.append(f"- HYD 事件数：{hyd_count} 次")
             lines.append(f"- HYD 总时长：{hyd_dur}h")
-            if hyd_dur == 0.0 and data.get("hyd_count", 0) > 0:
-                lines.append("- HYD 事件时长统计为 0.0h，疑似显示精度或聚合口径问题，需先核查指标口径")
+            if hyd_dur == 0.0 and hyd_count > 0:
+                lines.append("> 提示：HYD 有记录但时长统计为 0.0h，可能是统计精度或聚合口径问题，建议核查原始数据。")
             else:
                 near_b = data.get("near_stoppage_boundary", False)
-                lines.append(f"- 是否靠近停机边界：{'是' if near_b else '否'}")
                 isolated = data.get("isolated_short_fluctuation", False)
                 if isolated:
-                    lines.append("- 是否构成主因：否（孤立短时波动）")
+                    lines.append("- 当前判断：属于孤立短时波动，不太可能是停机主因")
                 elif near_b:
-                    lines.append("- 是否构成主因：待确认（靠近停机边界）")
+                    lines.append("- 当前判断：靠近停机边界，是否为诱因需结合施工日志确认")
                 else:
-                    lines.append("- 是否构成主因：未支持")
+                    lines.append("- 当前判断：未发现与停机的直接关联")
     else:
         lines.append("未执行液压分析。")
     lines.append("")
-    # ── 碎片化 ──
-    lines.append("### 碎片化\n")
+
+    # ── 4.4 碎片化 ──
+    lines.append("### 4.4 碎片化\n")
     if d["fragmentation_obs"]:
         for obs in d["fragmentation_obs"]:
             data = obs.data or {}
             short_r = data.get("short_event_ratio", 0)
-            lines.append(f"- 短事件占比：{short_r:.0%}")
             frag = data.get("fragmentation_risk", False)
-            lines.append(f"- 是否影响结论：{'是，碎片化风险较高' if frag else '否'}")
+            lines.append(f"- 短事件占比：{short_r:.0%}")
+            if frag:
+                lines.append("- 碎片化风险较高，部分异常事件可能是同一段异常被拆分，结论可能受影响")
+            else:
+                lines.append("- 碎片化风险低，事件统计可信")
     else:
         lines.append("未执行碎片化分析。")
     lines.append("")
@@ -546,31 +517,26 @@ def _is_stale_finalizer_claim(text: str, ledger: Any) -> bool:
     return False
 
 
-def _build_section_3_unclarified(
+def _build_section_5_unresolved(
     lines: list[str], state: InvestigationState, d: dict,
     corrections: list[str], consistency_warnings: list[str],
 ) -> None:
-    """第 3 节：本次没有查清什么。优先使用 compiled_claims，fc 仅作 fallback 并校验。"""
-    lines.append("## 3. 本次没有查清什么\n")
+    """第 5 节：还不能下结论的地方。"""
+    lines.append("## 5. 还不能下结论的地方\n")
     items: list[str] = []
     ledger = state.evidence_ledger
     claims = state.compiled_claims
 
-    # 主来源：compiled_claims.unresolved_items（从 evidence_ledger 生成）
     if claims and claims.unresolved_items:
         items.extend(claims.unresolved_items)
     else:
-        # Fallback：从 coverage 直接生成（仅在 compiled_claims 缺失时）
         cov = d["cov"]
         if cov["uncovered_case_ids"]:
-            items.append(f"未逐案钻取的停机案例：{', '.join(cov['uncovered_case_ids'])}")
+            items.append(f"以下停机段未逐案检查，性质不明：{', '.join(cov['uncovered_case_ids'])}")
 
-    # 补充：未验证的事件级异常线索
     if d["unverified"]:
-        items.append(f"事件级异常线索待验证：{', '.join(cid for cid, _ in d['unverified'])}")
+        items.append(f"以下案例有异常线索但未深入验证：{', '.join(cid for cid, _ in d['unverified'])}")
 
-    # LLM finalizer 的 unresolved_questions_zh：仅当 compiled_claims 缺失时作为 fallback，
-    # 且每条必须通过 ledger 校验
     fc = state.final_conclusion
     if fc and fc.unresolved_questions_zh and not (claims and claims.unresolved_items):
         for q in fc.unresolved_questions_zh:
@@ -579,19 +545,17 @@ def _build_section_3_unclarified(
             if q not in items:
                 items.append(q)
 
-    # consistency_warnings 和 corrections
     if consistency_warnings:
         for w in consistency_warnings:
             items.append(w)
     if corrections:
-        items.append(f"事件级标签与行级规则口径差异：已修正 {len(corrections)} 项（详见技术审计附录）")
+        items.append(f"部分事件分类已根据行级证据修正（共 {len(corrections)} 项，详见技术附录）")
 
-    # 需要施工日志确认的案例时间（从 uncertain/abnormal 分类）
     for cid, _ in list(d["abnormal"]) + list(d["uncertain"]):
         for cases in state.stoppage_cases.values():
             for c in cases:
                 if c.case_id == cid:
-                    items.append(f"需要施工日志确认：{c.start_time} ~ {c.end_time}（案例 {cid}）")
+                    items.append(f"施工日志确认：{c.start_time} ~ {c.end_time}（{cid}）")
 
     if items:
         for item in items:
@@ -599,44 +563,67 @@ def _build_section_3_unclarified(
     else:
         lines.append("当前调查未发现明显缺口。")
     lines.append("")
-    lines.append("> 不确定不是失败，而是当前证据不足，系统没有强行下结论。")
+    lines.append("> 以上不确定项是因为当前 CSV 数据不足以给出确定结论，需要结合施工日志或其他外部证据进一步判断。")
     lines.append("")
 
 
-def _build_section_4_plan(lines: list[str], state: InvestigationState) -> None:
-    """第 4 节：调查计划执行情况。"""
-    plan = state.investigation_plan
-    if not plan or not plan.plan_items:
-        return
-    lines.append("## 4. 调查计划执行情况\n")
-    lines.append("| 计划 | 要回答的问题 | 状态 | 已用工具 | 关键发现 |")
-    lines.append("|------|-------------|------|----------|----------|")
-    cov = compute_drilldown_coverage(state)
-    for item in plan.plan_items:
-        label = _PLAN_ID_ZH.get(item.plan_id, item.plan_id)
-        q = item.question[:30].replace("|", "/")
-        status = _PLAN_STATUS_ZH.get(item.status, item.status)
-        # P1 drilldown 覆盖不足时不能显示"已完成"
-        if item.plan_id == "P1" and item.status == "completed":
-            dd_ratio = cov["coverage_ratio"]
-            if dd_ratio < 1.0:
-                status = f"部分完成（已 drilldown {cov['covered_count']}/{cov['total_count']}，"
-                status += f"未覆盖 {len(cov['uncovered_case_ids'])} 个）"
-        tools = ", ".join(item.required_tools)
-        finding = ""
-        for tn in item.required_tools:
-            for obs in state.observations:
-                if obs.action == tn:
-                    finding = (obs.result_summary or "")[:40]
+def _build_section_6_next_steps(lines: list[str], state: InvestigationState, d: dict) -> None:
+    """第 6 节：下一步怎么查 — 行动清单。"""
+    lines.append("## 6. 下一步怎么查\n")
+    steps: list[str] = []
+
+    # 1. 施工日志
+    abnormal_or_uncertain = list(d["abnormal"]) + list(d["uncertain"])
+    if abnormal_or_uncertain:
+        ids = [cid for cid, _ in abnormal_or_uncertain[:5]]
+        steps.append(f"核查施工日志，确认以下停机段是否为计划停机：{'、'.join(ids)}")
+
+    # 2. SER 高发
+    for obs in d["resistance_obs"]:
+        data = obs.data or {}
+        if data.get("ser_count", 0) > 0:
+            steps.append("核查 SER 高发时段对应的地层和操作记录，判断是否为地层变化导致")
+            break
+
+    # 3. 未钻取案例
+    cov = d["cov"]
+    if cov["uncovered_case_ids"]:
+        steps.append(f"对未检查的停机段（{', '.join(cov['uncovered_case_ids'])}）运行深入调查")
+
+    # 4. completeness
+    comp_status = state.investigation_completeness_status or ""
+    if comp_status == "incomplete_due_to_budget":
+        steps.append("增加调查轮数，完成所有停机段的逐案检查")
+
+    # 5. HYD 未执行
+    if not d["hydraulic_obs"] and d["total_merged"] > 0:
+        steps.append("补充液压分析（本次未执行）")
+
+    # 6. 通用建议（去重：如果已有步骤涵盖了相同主题则跳过）
+    claims = state.compiled_claims
+    extra = []
+    if claims and claims.next_manual_checks:
+        extra = claims.next_manual_checks
+    elif state.executive_summary and state.executive_summary.recommendation_for_user:
+        extra = [state.executive_summary.recommendation_for_user]
+    for c in extra:
+        overlap = False
+        for s in steps:
+            for kw in ("施工日志", "SER", "液压", "HYD", "增加调查"):
+                if kw in s and kw in c:
+                    overlap = True
                     break
-            if finding:
+            if overlap:
                 break
-        finding = finding.replace("|", "/")
-        lines.append(f"| {label} | {q} | {status} | {tools} | {finding} |")
+        if not overlap and c not in steps:
+            steps.append(c)
+
+    if steps:
+        for i, s in enumerate(steps, 1):
+            lines.append(f"{i}. {s}")
+    else:
+        lines.append("当前调查已覆盖所有停机段，如需进一步确认请结合施工日志综合判断。")
     lines.append("")
-    if plan.budget_warning:
-        lines.append(f"> {plan.budget_warning}")
-        lines.append("")
 
 
 def _build_drilldown_detail(lines: list[str], obs, state: InvestigationState) -> None:
@@ -696,12 +683,13 @@ def _build_drilldown_detail(lines: list[str], obs, state: InvestigationState) ->
     lines.append("")
 
 
-def _build_section_5_audit(
+def _build_section_7_audit(
     lines: list[str], state: InvestigationState, d: dict,
     corrections: list[str], consistency_warnings: list[str],
 ) -> None:
-    """第 5 节：技术审计附录。"""
-    lines.append("## 5. 技术审计附录\n")
+    """第 7 节：技术审计附录。"""
+    lines.append("## 7. 技术附录\n")
+    lines.append("> 以下为技术审计信息，供系统开发者或审计人员参考。\n")
     # 5.1 ReAct 调查轨迹
     lines.extend(_build_react_trace_table(state))
     # 5.2 Planner 与大模型调用审计
@@ -820,13 +808,14 @@ def _build_section_5_audit(
 
 
 def build_report(state: InvestigationState) -> dict[str, Any]:
-    """根据 InvestigationState 生成产品化 Markdown 报告。
+    """根据 InvestigationState 生成工程人可读的 Markdown 报告。
 
-    结构：1.结论总览 → 2.查清了什么 → 3.没查清什么 → 4.计划执行 → 5.技术审计
+    结构：1.一句话结论 → 2.这一天发生了什么 → 3.最值得人工核查的停机段
+    → 4.已经查清了什么 → 5.还不能下结论的地方 → 6.下一步怎么查 → 7.技术附录
     """
     corrections, consistency_warnings = _run_consistency_check(state)
     d = _collect_report_data(state)
-    lines: list[str] = ["# TBM 调查报告\n"]
+    lines: list[str] = ["# TBM 停机调查报告\n"]
 
     # 无事件早退
     has_any = (d["total_original"] > 0 or d["resistance_obs"]
@@ -842,11 +831,13 @@ def build_report(state: InvestigationState) -> dict[str, Any]:
                 "total_original_events": 0, "total_merged_cases": 0,
                 "abnormal_count": 0, "planned_count": 0, "uncertain_count": 0}
 
-    _build_section_1_executive(lines, state)
-    _build_section_2_clarified(lines, state, d)
-    _build_section_3_unclarified(lines, state, d, corrections, consistency_warnings)
-    _build_section_4_plan(lines, state)
-    _build_section_5_audit(lines, state, d, corrections, consistency_warnings)
+    _build_section_1_conclusion(lines, state, d)
+    _build_section_2_day_summary(lines, state, d)
+    _build_section_3_top_cases(lines, state, d)
+    _build_section_4_clarified(lines, state, d)
+    _build_section_5_unresolved(lines, state, d, corrections, consistency_warnings)
+    _build_section_6_next_steps(lines, state, d)
+    _build_section_7_audit(lines, state, d, corrections, consistency_warnings)
 
     return {"status": "ok", "report_text": "\n".join(lines),
             "total_original_events": d["total_original"],

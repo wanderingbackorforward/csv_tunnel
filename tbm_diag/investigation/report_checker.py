@@ -26,6 +26,8 @@ _FORBIDDEN_PATTERNS = [
     (r"已排除\s*HYD", "已排除 HYD"),
     (r"SER\s*无关", "SER 无关"),
     (r"HYD\s*无关", "HYD 无关"),
+    (r"计划停机（疑似）", "计划停机（疑似）— 应为'性质待施工日志确认'"),
+    (r"待确认停机", "待确认停机 — 应为'性质待施工日志确认'"),
 ]
 
 
@@ -66,8 +68,8 @@ def validate_rendered_report(
 
     result.details.append("Ledger 校验通过")
 
-    # Only check business sections (1-4), skip section 5 (audit appendix)
-    business_text = report_text.split("## 5.")[0] if "## 5." in report_text else report_text
+    # Only check business sections (1-6), skip section 7 (audit appendix)
+    business_text = report_text.split("## 7.")[0] if "## 7." in report_text else report_text
 
     # 2. Forbidden patterns
     for pattern, label in _FORBIDDEN_PATTERNS:
@@ -86,8 +88,8 @@ def validate_rendered_report(
             )
             result.details.append(result.coverage_mismatch)
 
-    # 4. P1 status
-    p1_done_match = re.search(r"\|\s*P1[^|]*\|[^|]*\|\s*已完成\s*\|", business_text)
+    # 4. P1 status (check full report since plan table is in section 7)
+    p1_done_match = re.search(r"\|\s*P1[^|]*\|[^|]*\|\s*已完成\s*\|", report_text)
     if p1_done_match and ledger.drilled_stoppage_cases < ledger.total_stoppage_cases:
         result.p1_status_issue = (
             f"P1 显示已完成但 coverage {ledger.drilled_stoppage_cases}/"
@@ -162,7 +164,10 @@ def validate_rendered_report(
     conclusion_line = None
     tech_line = None
     for i, line in enumerate(first_screen_lines):
-        if conclusion_line is None and ("**结论：**" in line or "**结论:**" in line):
+        if conclusion_line is None and (
+            "**结论：**" in line or "**结论:**" in line
+            or "## 1. 一句话结论" in line or "## 1. 结论" in line
+        ):
             conclusion_line = i
         if tech_line is None:
             for pat, label in tech_terms:

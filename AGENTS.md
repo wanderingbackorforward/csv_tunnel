@@ -45,6 +45,10 @@ python -m tbm_diag.cli agent --input data.csv
 python -m tbm_diag.cli constraints
 python -m tbm_diag.cli constraints --show-policy
 python -m tbm_diag.cli constraints --profile project_profiles/local/site.json
+
+# Run the closed-loop ReAct environment harness
+python -m tbm_diag.cli react-env --input data.csv
+python -m tbm_diag.cli react-env --input data.csv --save-json out/react_trace.json
 ```
 
 ## Architecture
@@ -69,6 +73,13 @@ domain/
   ├─ loader.py       # Built-in/local profile loading
   ├─ audit.py        # Profile validation and evidence-level support checks
   └─ profiles/       # Sanitized built-in profiles only
+
+react_env/
+  ├─ state.py        # EnvironmentState and trace records
+  ├─ actions.py      # Finite action space
+  ├─ policy.py       # Action selection policy; rule first, LLM later
+  ├─ verifier.py     # Claim-level and stop-condition verifier
+  └─ runner.py       # Reason-act-observe loop controller
 ```
 
 ## Constraint Rules
@@ -80,6 +91,7 @@ domain/
 5. Missing CSV fields must be tolerated gracefully. Skip unavailable checks and explain the evidence gap.
 6. Real project profiles belong under `project_profiles/local/` or another ignored local path.
 7. Built-in profiles must be sanitized examples, not raw施工组织设计, raw site logs, or real exported data.
+8. ReAct is a target capability, but it must run inside the finite environment. Do not add free-form LLM loops that bypass `react_env.verifier`.
 
 ## Stable Core Pipeline
 

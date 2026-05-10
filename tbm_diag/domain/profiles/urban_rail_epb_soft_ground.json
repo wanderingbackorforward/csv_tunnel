@@ -103,6 +103,16 @@
       "forbidden_without_external": ["确认轴线超限", "确认管片选型错误"]
     },
     {
+      "risk_id": "hydraulic_system",
+      "label": "液压系统/推进压力稳定",
+      "description": "主泵压力、控制油压力和各组推进压力波动可提示液压系统稳定性线索。",
+      "csv_observations": ["主泵压力波动", "控制油压力波动", "推进压力组差异", "压力突变"],
+      "required_fields": ["main_pump_pressure_bar", "main_push_ctrl_pressure_bar"],
+      "useful_external_records": ["设备报警记录", "维修保养记录", "液压系统巡检记录"],
+      "allowed_csv_claim": "CSV 可提示液压压力波动或推进压力不均衡，需结合设备报警/维修记录判断。",
+      "forbidden_without_external": ["确认液压系统故障", "确认泵站故障", "确认维修处置"]
+    },
+    {
       "risk_id": "tail_seal_leakage",
       "label": "盾尾密封/漏浆漏水",
       "description": "盾尾漏浆漏水通常需要现场观察、油脂压注和注浆记录确认。",

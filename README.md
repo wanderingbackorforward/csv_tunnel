@@ -14,6 +14,7 @@
 | `detect` | 异常点检测、事件分段、证据提取、模板解释、三种格式导出 |
 | `watch` | 轮询目录，自动处理新 CSV，每文件产出三种结果 |
 | `constraints` | 加载并审计项目约束 profile：参数边界、风险族、证据等级、报告禁语 |
+| `react-env` | 运行约束闭环环境：有限 action、结构化 observation、verifier 终止 |
 
 - **配置文件**：通过 `.yaml` / `.json` 调整清洗参数、检测阈值、分段规则、输出行为，无需改代码
 - **约束层**：通过项目 profile 明确 CSV 能说什么、不能说什么，以及哪些结论必须等待现场记录
@@ -89,6 +90,29 @@ python -m tbm_diag.cli constraints --show-policy
 # 加载本地真实项目 profile（建议放在 project_profiles/local/，不要提交）
 python -m tbm_diag.cli constraints --profile project_profiles/local/site.json
 ```
+
+### 运行闭环 ReAct 环境
+
+```bash
+# 默认使用 rule policy 跑完整环境闭环
+python -m tbm_diag.cli react-env --input sample.csv
+
+# 保存完整 action trace 和最终状态
+python -m tbm_diag.cli react-env --input sample.csv --save-json out/react_trace.json
+```
+
+`react-env` 当前不是 LLM ReAct。它先固定动作空间和验证器：
+
+```text
+inspect_schema
+  -> run_detection
+  -> map_risk_families
+  -> check_claim_level
+  -> identify_evidence_gaps
+  -> finalize
+```
+
+后续 LLM policy 只能在同一动作空间里选择下一步；最终结论仍由约束层 verifier 限制，不能绕过证据等级和报告禁语。
 
 ### 目录监听模式
 
@@ -223,6 +247,7 @@ csv_tunnel/
 │   ├── explainer.py       # 模板解释生成（无 LLM）
 │   ├── exporter.py        # JSON / Markdown / CSV 导出
 │   ├── domain/            # 项目约束 profile、风险族、证据等级、claim policy
+│   ├── react_env/         # 闭环环境：有限动作、状态、verifier、trace
 │   ├── watcher.py         # 目录轮询监听器
 │   ├── config.py          # 配置文件加载与合并
 │   └── cli.py             # 命令行入口（inspect / detect / watch）

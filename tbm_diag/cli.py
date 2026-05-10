@@ -873,6 +873,91 @@ def _cmd_constraints(args: argparse.Namespace) -> int:
     return 0 if audit.ok else 1
 
 
+def _cmd_react_env(args: argparse.Namespace) -> int:
+    """react-env 子命令：运行约束闭环环境。"""
+    _setup_logging(args.verbose)
+    cfg = load_config(getattr(args, "config", None))
+
+    from tbm_diag.react_env.runner import run_react_environment, save_react_env_result
+
+    result = run_react_environment(
+        args.input,
+        cfg,
+        profile_path=args.profile,
+        max_steps=args.max_steps,
+        policy_type=args.policy,
+    )
+    state = result.state
+
+    print("\n┌─ ReAct 环境闭环 " + "─" * 48)
+    print(f"  policy      : {state.policy_type}")
+    print(f"  profile     : {state.profile_id}")
+    print(f"  input       : {state.input_file}")
+    print(f"  finalized   : {state.finalized}")
+    print(f"  max level   : {state.max_claim_level or 'none'}")
+    if state.stop_reason:
+        print(f"  stop reason : {state.stop_reason}")
+    if result.error:
+        print(f"  error       : {result.error}")
+
+    print("\n┌─ Action Trace " + "─" * 53)
+    rows = [
+        [
+            rec.round_num,
+            rec.action,
+            rec.observation_status,
+            rec.observation_summary,
+            rec.max_claim_level_after or "none",
+        ]
+        for rec in state.trace
+    ]
+    print(_table(rows, headers=["轮次", "action", "status", "observation", "claim"], max_col_width=44))
+
+    if state.risk_candidates:
+        print("\n┌─ 风险族候选 " + "─" * 54)
+        risk_rows = [
+            [
+                item["risk_id"],
+                item["label"],
+                item["score"],
+                "是" if item.get("required_fields_present") else "否",
+                "、".join(item.get("missing_required_fields", [])) or "-",
+            ]
+            for item in state.risk_candidates[:8]
+        ]
+        print(_table(risk_rows, headers=["risk_id", "名称", "score", "字段齐备", "缺失字段"], max_col_width=34))
+
+    if state.verifier_blockers:
+        print("\n┌─ Verifier 阻断 " + "─" * 51)
+        for blocker in state.verifier_blockers:
+            print(f"  - {blocker}")
+
+    if state.evidence_gaps:
+        print("\n┌─ 下一步最小核查资料 " + "─" * 45)
+        gap_rows = [
+            [
+                gap.get("record_name", ""),
+                "、".join(gap.get("related_risk_ids", [])) or "-",
+            ]
+            for gap in state.evidence_gaps[:10]
+        ]
+        print(_table(gap_rows, headers=["资料", "关联风险族"], max_col_width=48))
+
+    if state.final_summary:
+        print("\n┌─ Final " + "─" * 60)
+        print(f"  {state.final_summary}")
+
+    if args.save_json:
+        try:
+            save_react_env_result(result, args.save_json)
+            print(f"\n✓ trace 已保存: {args.save_json}")
+        except Exception as exc:
+            print(f"✗ 保存 trace 失败: {exc}", file=sys.stderr)
+            return 1
+
+    return 0 if not result.error else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m tbm_diag.cli",
@@ -885,6 +970,7 @@ def main(argv: list[str] | None = None) -> int:
   python -m tbm_diag.cli detect  --input data.csv
   python -m tbm_diag.cli detect  --input data.csv --verbose
   python -m tbm_diag.cli constraints
+  python -m tbm_diag.cli react-env --input data.csv
         """,
     )
 
@@ -1050,6 +1136,35 @@ def main(argv: list[str] | None = None) -> int:
     p_constraints.add_argument("--verbose", "-v", action="store_true",
                                help="显示 DEBUG 日志")
 
+    # ── react-env 子命令 ──────────────────────────────────────────────────────
+    p_react_env = subparsers.add_parser(
+        "react-env",
+        help="运行约束闭环 ReAct 环境（默认 rule policy）",
+        description=(
+            "运行有限 action 空间的闭环环境：inspect_schema → run_detection → "
+            "map_risk_families → check_claim_level → identify_evidence_gaps → finalize。\n"
+            "默认 policy=rule；未来 LLM policy 只能选择同一动作空间，最终仍由 verifier 限制结论等级。\n\n"
+            "示例：\n"
+            "  python -m tbm_diag.cli react-env --input data.csv\n"
+            "  python -m tbm_diag.cli react-env --input data.csv --save-json out/react_trace.json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_react_env.add_argument("--input", "-i", required=True, metavar="FILE",
+                             help="输入 CSV 文件路径")
+    p_react_env.add_argument("--profile", default=None, metavar="PATH",
+                             help="本地 .json 约束 profile；不填则加载内置脱敏示例")
+    p_react_env.add_argument("--policy", choices=["rule"], default="rule",
+                             help="动作选择策略（当前仅 rule；后续可接 LLM policy）")
+    p_react_env.add_argument("--max-steps", type=int, default=8, metavar="N",
+                             help="最大环境步数（默认 8）")
+    p_react_env.add_argument("--save-json", default=None, metavar="PATH",
+                             help="保存完整环境状态和 action trace")
+    p_react_env.add_argument("--config", default=None, metavar="PATH",
+                             help="配置文件路径（.yaml / .yml / .json）")
+    p_react_env.add_argument("--verbose", "-v", action="store_true",
+                             help="显示 DEBUG 日志")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -1075,6 +1190,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_review(args)
     elif args.command == "constraints":
         return _cmd_constraints(args)
+    elif args.command == "react-env":
+        return _cmd_react_env(args)
     else:
         parser.print_help()
         return 0

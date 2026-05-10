@@ -1,0 +1,207 @@
+{
+  "profile_id": "urban_rail_epb_soft_ground",
+  "display_name": "城市轨道交通土压平衡盾构软土/复合地层约束示例",
+  "machine_type": "土压平衡盾构",
+  "scope_note": "脱敏示例 profile，用于把 CSV 诊断限制在项目资料、可观测字段和证据等级内；真实工区 profile 应放在 project_profiles/local/。",
+  "geology_note": "粉土、粉质黏土、粉砂、强/中风化泥质砂岩等软土或复合地层；仅作为约束模板，不代表具体项目结论。",
+  "parameter_bands": [
+    {
+      "name": "正常推进速度",
+      "field": "advance_speed_mm_per_min",
+      "unit": "mm/min",
+      "normal_min": 20,
+      "normal_max": 50,
+      "warning_max": 80,
+      "note": "项目资料常以 2-5cm/min 描述正常推进速度，换算为 20-50mm/min。",
+      "source_ref": "施工组织设计: 盾构掘进参数初步设定与控制"
+    },
+    {
+      "name": "刀盘额定扭矩",
+      "field": "cutter_torque_kNm",
+      "unit": "kN.m",
+      "warning_max": 6228,
+      "note": "达到额定扭矩附近只能作为高负载线索，不能单独判定刀具磨损或地层原因。",
+      "source_ref": "施工组织设计: 刀盘转速及扭矩"
+    },
+    {
+      "name": "刀盘脱困扭矩",
+      "field": "cutter_torque_kNm",
+      "unit": "kN.m",
+      "warning_max": 7500,
+      "note": "脱困能力上限是设备边界，不应作为正常运行阈值。",
+      "source_ref": "施工组织设计: 刀盘设计最大脱困扭矩"
+    },
+    {
+      "name": "理论出土量",
+      "field": "muck_volume_m3_per_ring",
+      "unit": "m3/ring",
+      "normal_min": 82.81,
+      "normal_max": 84.5,
+      "warning_max": 101.4,
+      "note": "需要环号与出土量记录；多数高频 CSV 未必具备该字段。",
+      "source_ref": "施工组织设计: 出碴量控制"
+    },
+    {
+      "name": "同步注浆量",
+      "field": "sync_grout_volume_m3_per_ring",
+      "unit": "m3/ring",
+      "normal_min": 10.34,
+      "normal_max": 13.79,
+      "note": "需要按环记录的注浆量；仅凭推进参数不能确认注浆不足。",
+      "source_ref": "施工组织设计: 注浆量"
+    }
+  ],
+  "risk_families": [
+    {
+      "risk_id": "face_stability",
+      "label": "开挖面稳定/土仓压力",
+      "description": "土仓压力与地层水土压力、地表隆陷和出土量共同决定开挖面稳定线索。",
+      "csv_observations": ["土仓压力波动", "推进速度变化", "总推力变化", "出土量偏差", "地表沉降监测"],
+      "required_fields": ["advance_speed_mm_per_min", "total_thrust_kN"],
+      "useful_external_records": ["地表沉降监测日报", "报警记录", "掘进环报", "出土量记录"],
+      "allowed_csv_claim": "CSV 可提示开挖面稳定相关参数异常或缺证。",
+      "forbidden_without_external": ["确认工作面坍塌", "确认地面塌陷原因"]
+    },
+    {
+      "risk_id": "excavation_resistance_tooling",
+      "label": "掘进阻力/刀盘刀具",
+      "description": "扭矩升高、推进速度降低、贯入度下降可作为阻力或刀具磨损线索。",
+      "csv_observations": ["刀盘扭矩升高", "推进速度下降", "贯入度下降", "总推力升高"],
+      "required_fields": ["cutter_torque_kNm", "advance_speed_mm_per_min", "penetration_rate_mm_per_rev"],
+      "useful_external_records": ["换刀记录", "刀具检查记录", "渣土记录", "地质里程对照表"],
+      "allowed_csv_claim": "CSV 可提示掘进阻力或刀盘负载异常，需结合换刀/地质记录判断。",
+      "forbidden_without_external": ["确认刀具磨损严重", "确认孤石", "确认地层突变"]
+    },
+    {
+      "risk_id": "muck_discharge_spewing",
+      "label": "出土/喷涌/螺旋机",
+      "description": "砂性或含水地层中，出土、土压和螺旋机状态需要联合判断。",
+      "csv_observations": ["土仓压力异常", "螺旋机转速异常", "出土量异常", "推进速度变化"],
+      "required_fields": ["advance_speed_mm_per_min"],
+      "useful_external_records": ["出土量记录", "螺旋机报警", "渣土改良记录", "现场喷涌记录"],
+      "allowed_csv_claim": "CSV 只能提示出土系统相关参数异常或字段缺失。",
+      "forbidden_without_external": ["确认喷涌", "确认堵管"]
+    },
+    {
+      "risk_id": "grouting_settlement",
+      "label": "同步注浆/沉降控制",
+      "description": "注浆量、注浆压力、推进速度和地表沉降监测共同约束沉降风险判断。",
+      "csv_observations": ["注浆量不足", "注浆压力异常", "推进速度变化", "地表沉降报警"],
+      "required_fields": ["advance_speed_mm_per_min"],
+      "useful_external_records": ["同步注浆记录", "二次注浆记录", "地表沉降日报", "建筑物/管线监测日报"],
+      "allowed_csv_claim": "CSV 可提示注浆/推进节奏相关疑点，不能替代沉降监测。",
+      "forbidden_without_external": ["确认注浆不足导致沉降", "确认建筑物变形原因"]
+    },
+    {
+      "risk_id": "attitude_deviation",
+      "label": "盾构姿态/纠偏",
+      "description": "姿态偏差需要结合导向系统、油缸分区推力和人工测量记录。",
+      "csv_observations": ["倾角波动", "滚转角异常", "推进油缸压力差", "行程差"],
+      "required_fields": ["front_shield_inclination_pct"],
+      "useful_external_records": ["DDG导向记录", "人工测量记录", "管片选型记录"],
+      "allowed_csv_claim": "CSV 可提示姿态控制风险线索。",
+      "forbidden_without_external": ["确认轴线超限", "确认管片选型错误"]
+    },
+    {
+      "risk_id": "tail_seal_leakage",
+      "label": "盾尾密封/漏浆漏水",
+      "description": "盾尾漏浆漏水通常需要现场观察、油脂压注和注浆记录确认。",
+      "csv_observations": ["注浆压力异常", "注浆量异常", "推进速度变化", "姿态变化"],
+      "required_fields": ["advance_speed_mm_per_min"],
+      "useful_external_records": ["盾尾油脂记录", "漏浆漏水现场记录", "同步注浆记录"],
+      "allowed_csv_claim": "CSV 可提示盾尾相关工况疑点，但不能确认漏浆漏水。",
+      "forbidden_without_external": ["确认盾尾漏浆", "确认盾尾漏水"]
+    },
+    {
+      "risk_id": "operational_pause",
+      "label": "操作性停顿/计划停机",
+      "description": "停机是状态边界，不是根因；计划性或操作性停顿必须由日志确认。",
+      "csv_observations": ["推进速度接近零", "关键参数低活动", "事件窗口前后恢复"],
+      "required_fields": ["advance_speed_mm_per_min"],
+      "useful_external_records": ["施工日志", "班报", "维修保养记录", "换班记录"],
+      "allowed_csv_claim": "CSV 可识别停顿片段和前后参数变化。",
+      "forbidden_without_external": ["确认计划停机", "确认维修停机", "将停机作为异常根因"]
+    },
+    {
+      "risk_id": "data_quality",
+      "label": "数据质量/字段口径",
+      "description": "缺字段、单位存疑、采样间隔异常会限制全部结论等级。",
+      "csv_observations": ["缺列", "单位可疑", "重复时间戳", "采样间隔不稳定", "长时间缺失"],
+      "required_fields": ["timestamp"],
+      "useful_external_records": ["导出说明", "字段字典", "设备厂家字段表"],
+      "allowed_csv_claim": "CSV 可直接报告数据质量问题及其对诊断边界的影响。",
+      "forbidden_without_external": ["忽略字段口径差异给出确定结论"]
+    }
+  ],
+  "claim_policy": {
+    "allowed_qualifiers": ["CSV显示", "疑似", "提示", "建议核查", "需要施工日志确认", "当前证据不足以确认"],
+    "forbidden_phrases": ["确定由于", "已经证明", "根因就是", "确认计划停机", "确认刀具磨损", "已排除其他原因"],
+    "claim_levels": [
+      {
+        "level_id": "L1_csv_signal",
+        "label": "CSV 参数线索",
+        "required_evidence": ["csv_time_series"],
+        "allowed_wording": "CSV 显示某类参数异常、趋势或事件窗口。",
+        "forbidden_wording": ["确认原因", "确认处置"]
+      },
+      {
+        "level_id": "L2_project_risk_candidate",
+        "label": "项目风险族候选",
+        "required_evidence": ["csv_time_series", "project_profile"],
+        "allowed_wording": "该线索可映射到某项目风险族，需补充外部记录。",
+        "forbidden_wording": ["等同于风险已发生", "等同于事故"]
+      },
+      {
+        "level_id": "L3_cross_record_supported",
+        "label": "跨记录支持",
+        "required_evidence": ["csv_time_series", "project_profile", "monitoring_report_or_alarm"],
+        "allowed_wording": "CSV 与监测/报警记录在时间或指标上相互支持。",
+        "forbidden_wording": ["替代现场确认"]
+      },
+      {
+        "level_id": "L4_confirmed_by_site_log",
+        "label": "现场记录确认",
+        "required_evidence": ["csv_time_series", "project_profile", "site_operation_log"],
+        "allowed_wording": "可引用现场日志确认的事件性质或处置事实。",
+        "forbidden_wording": ["超出日志内容外推"]
+      }
+    ]
+  },
+  "data_needs": [
+    {
+      "priority": "P0",
+      "name": "监测日报/周报样例",
+      "acceptable_formats": ["Excel", "PDF", "照片"],
+      "reason": "理解现场数据结构、字段和报警口径。",
+      "ask_in_first_meeting": true
+    },
+    {
+      "priority": "P0",
+      "name": "地表沉降监测数据样例",
+      "acceptable_formats": ["Excel", "CSV"],
+      "reason": "与盾构参数交叉验证沉降/隆起风险。",
+      "ask_in_first_meeting": true
+    },
+    {
+      "priority": "P1",
+      "name": "盾构掘进参数样例",
+      "acceptable_formats": ["Excel", "CSV", "截图"],
+      "reason": "检查环号、时间、推力、扭矩、土压、注浆量和推进速度完整度。",
+      "ask_in_first_meeting": true
+    },
+    {
+      "priority": "P1",
+      "name": "报警记录汇总",
+      "acceptable_formats": ["Excel", "表格", "文字说明"],
+      "reason": "确认是否存在黄/橙/红预警及处理记录。",
+      "ask_in_first_meeting": true
+    },
+    {
+      "priority": "P2",
+      "name": "换刀/维修/停机日志",
+      "acceptable_formats": ["Excel", "日志导出", "照片"],
+      "reason": "把 CSV 线索提升到现场记录支持或确认等级。",
+      "ask_in_first_meeting": false
+    }
+  ]
+}

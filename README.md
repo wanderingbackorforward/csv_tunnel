@@ -13,8 +13,10 @@
 | `inspect` | 字段映射确认、清洗报告、DataFrame 摘要 |
 | `detect` | 异常点检测、事件分段、证据提取、模板解释、三种格式导出 |
 | `watch` | 轮询目录，自动处理新 CSV，每文件产出三种结果 |
+| `constraints` | 加载并审计项目约束 profile：参数边界、风险族、证据等级、报告禁语 |
 
 - **配置文件**：通过 `.yaml` / `.json` 调整清洗参数、检测阈值、分段规则、输出行为，无需改代码
+- **约束层**：通过项目 profile 明确 CSV 能说什么、不能说什么，以及哪些结论必须等待现场记录
 - **容错设计**：CSV 缺列自动跳过对应规则，不中断流程
 - **零外部服务**：纯本地 CLI，不依赖数据库、Web 框架或 LLM
 
@@ -75,6 +77,19 @@ python -m tbm_diag.cli detect --input sample.csv \
 python -m tbm_diag.cli detect --input sample.csv --config sample_config.yaml
 ```
 
+### 审计项目约束
+
+```bash
+# 查看内置脱敏约束示例
+python -m tbm_diag.cli constraints
+
+# 查看结论等级、允许限定词、禁止表述
+python -m tbm_diag.cli constraints --show-policy
+
+# 加载本地真实项目 profile（建议放在 project_profiles/local/，不要提交）
+python -m tbm_diag.cli constraints --profile project_profiles/local/site.json
+```
+
 ### 目录监听模式
 
 ```bash
@@ -118,6 +133,36 @@ cli:
 **优先级规则：CLI 显式参数 > 配置文件 > 代码默认值**
 
 支持 `.yaml` / `.yml` / `.json` 三种格式，缺失字段自动回退默认值。
+
+---
+
+## 项目约束层
+
+约束层用于把开放的盾构/TBM 诊断问题收缩为可审计的问题空间。它不是根因判定器，而是规定：
+
+- 当前项目有哪些可讨论的风险族；
+- CSV 字段能支持哪些线索；
+- 哪些结论必须依赖施工日志、报警记录、监测日报、换刀/维修记录；
+- 报告中哪些表述必须降级或禁止。
+
+内置 profile 位于 `tbm_diag/domain/profiles/urban_rail_epb_soft_ground.json`，是脱敏示例。真实工程 profile 可能包含项目、工区、里程、参数边界等现场上下文，建议放在：
+
+```text
+project_profiles/local/
+```
+
+该目录已加入 `.gitignore`，避免误提交现场资料。
+
+当前内置 profile 定义了四级结论边界：
+
+| 等级 | 含义 | 最低证据 |
+|------|------|----------|
+| `L1_csv_signal` | CSV 参数线索 | CSV 时序数据 |
+| `L2_project_risk_candidate` | 项目风险族候选 | CSV + project profile |
+| `L3_cross_record_supported` | 跨记录支持 | CSV + project profile + 监测/报警记录 |
+| `L4_confirmed_by_site_log` | 现场记录确认 | CSV + project profile + 施工/操作日志 |
+
+因此，系统可以说“CSV 显示某窗口存在掘进阻力线索”，但不能仅凭 CSV 说“确认刀具磨损”“确认计划停机”或“根因就是某项施工问题”。
 
 ---
 
@@ -177,6 +222,7 @@ csv_tunnel/
 │   ├── evidence.py        # 事件窗口内关键信号提取
 │   ├── explainer.py       # 模板解释生成（无 LLM）
 │   ├── exporter.py        # JSON / Markdown / CSV 导出
+│   ├── domain/            # 项目约束 profile、风险族、证据等级、claim policy
 │   ├── watcher.py         # 目录轮询监听器
 │   ├── config.py          # 配置文件加载与合并
 │   └── cli.py             # 命令行入口（inspect / detect / watch）

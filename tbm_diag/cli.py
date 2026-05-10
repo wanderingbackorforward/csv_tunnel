@@ -791,6 +791,88 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_constraints(args: argparse.Namespace) -> int:
+    """constraints 子命令：加载并审计项目约束 profile。"""
+    _setup_logging(args.verbose)
+
+    from tbm_diag.domain import load_project_profile, validate_profile
+
+    try:
+        profile = load_project_profile(args.profile)
+    except Exception as exc:
+        print(f"✗ 约束 profile 加载失败: {exc}", file=sys.stderr)
+        return 1
+
+    audit = validate_profile(profile)
+
+    print("\n┌─ 项目约束 Profile " + "─" * 46)
+    print(f"  ID        : {profile.profile_id}")
+    print(f"  名称      : {profile.display_name}")
+    print(f"  盾构类型  : {profile.machine_type}")
+    if profile.scope_note:
+        print(f"  边界      : {profile.scope_note}")
+    if profile.geology_note:
+        print(f"  地层备注  : {profile.geology_note}")
+
+    print("\n┌─ 约束审计 " + "─" * 56)
+    print(f"  参数边界: {audit.parameter_band_count}")
+    print(f"  风险族  : {audit.risk_family_count}")
+    print(f"  结论等级: {audit.claim_level_count}")
+    print(f"  数据需求: {audit.data_need_count}")
+    if audit.ok:
+        print("  状态    : OK")
+    else:
+        print("  状态    : FAILED")
+        for err in audit.errors:
+            print(f"    - {err}")
+
+    if profile.parameter_bands:
+        print("\n┌─ 参数边界（节选） " + "─" * 48)
+        rows = []
+        for band in profile.parameter_bands:
+            normal = ""
+            if band.normal_min is not None or band.normal_max is not None:
+                normal = f"{band.normal_min if band.normal_min is not None else '-'}~{band.normal_max if band.normal_max is not None else '-'}"
+            warning = ""
+            if band.warning_min is not None or band.warning_max is not None:
+                warning = f"{band.warning_min if band.warning_min is not None else '-'}~{band.warning_max if band.warning_max is not None else '-'}"
+            rows.append([band.name, band.field, band.unit, normal, warning, band.note])
+        print(_table(rows, headers=["名称", "字段", "单位", "正常", "警戒", "说明"], max_col_width=34))
+
+    print("\n┌─ 风险族边界 " + "─" * 54)
+    rows = [
+        [
+            risk.risk_id,
+            risk.label,
+            "、".join(risk.required_fields) or "无",
+            risk.allowed_csv_claim,
+        ]
+        for risk in profile.risk_families
+    ]
+    print(_table(rows, headers=["risk_id", "名称", "最低字段", "CSV 可说的话"], max_col_width=38))
+
+    if args.show_policy:
+        print("\n┌─ 结论等级与禁语 " + "─" * 50)
+        level_rows = [
+            [
+                level.level_id,
+                level.label,
+                " + ".join(level.required_evidence),
+                level.allowed_wording,
+            ]
+            for level in profile.claim_policy.claim_levels
+        ]
+        print(_table(level_rows, headers=["等级", "名称", "证据要求", "允许表述"], max_col_width=42))
+        print("\n  允许限定词：")
+        for phrase in profile.claim_policy.allowed_qualifiers:
+            print(f"    - {phrase}")
+        print("\n  禁止表述：")
+        for phrase in profile.claim_policy.forbidden_phrases:
+            print(f"    - {phrase}")
+
+    return 0 if audit.ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m tbm_diag.cli",
@@ -802,6 +884,7 @@ def main(argv: list[str] | None = None) -> int:
   python -m tbm_diag.cli inspect --input data.csv --resample 5s --fill linear --output cleaned.csv
   python -m tbm_diag.cli detect  --input data.csv
   python -m tbm_diag.cli detect  --input data.csv --verbose
+  python -m tbm_diag.cli constraints
         """,
     )
 
@@ -947,6 +1030,26 @@ def main(argv: list[str] | None = None) -> int:
     p_review.add_argument("--verbose", "-v", action="store_true",
                           help="显示 DEBUG 日志")
 
+    # ── constraints 子命令 ─────────────────────────────────────────────────────
+    p_constraints = subparsers.add_parser(
+        "constraints",
+        help="加载并审计项目约束 profile",
+        description=(
+            "展示项目约束层：参数边界、风险族、证据等级和报告禁语。\n"
+            "默认加载内置脱敏 profile；真实项目 profile 建议放在 project_profiles/local/，不提交。\n\n"
+            "示例：\n"
+            "  python -m tbm_diag.cli constraints\n"
+            "  python -m tbm_diag.cli constraints --profile project_profiles/local/site.json --show-policy"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_constraints.add_argument("--profile", default=None, metavar="PATH",
+                               help="本地 .json 约束 profile；不填则加载内置脱敏示例")
+    p_constraints.add_argument("--show-policy", action="store_true",
+                               help="显示结论等级、允许限定词和禁止表述")
+    p_constraints.add_argument("--verbose", "-v", action="store_true",
+                               help="显示 DEBUG 日志")
+
     # ── 兼容旧用法：无子命令时若有 --input 则默认走 inspect ──────────────────
     args, _ = parser.parse_known_args(argv)
 
@@ -970,6 +1073,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_scan(args)
     elif args.command == "review":
         return _cmd_review(args)
+    elif args.command == "constraints":
+        return _cmd_constraints(args)
     else:
         parser.print_help()
         return 0

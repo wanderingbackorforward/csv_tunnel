@@ -16,6 +16,8 @@ Thumbs.db
 .idea/
 
 # Data / outputs
+*.xls
+*.xlsx
 *.log
 *.tmp
 output/
@@ -28,6 +30,10 @@ watch_out/
 sample.csv
 result.csv
 
+# Local project profiles may contain site-specific engineering context.
+project_profiles/local/
+project_profiles/private/
+
 # Test leftovers
 _test_sample.csv
 
@@ -36,9 +42,18 @@ _test_sample.csv
 
 # Streamlit GUI temp runs
 tmp_drag_runs/
+tmp_demo_uploads/
+tmp_demo_outputs/
 
 # CLI run outputs
 review_out/
 review_out_agent/
+review_demo_out/
 scan_out/
+scan_demo_out/
 scan_real_out/
+investigation_out/
+investigation_test_out/
+investigation_*_out/
+investigation_release_*/
+rc_reg_*/
